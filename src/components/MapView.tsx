@@ -38,7 +38,7 @@ export function MapView({
     const css = getComputedStyle(document.documentElement);
     const resolve = (c: string) => {
       const m = c.match(/var\((--[\w-]+)\)/);
-      return m ? css.getPropertyValue(m[1]).trim() || c : c;
+      return m ? css.getPropertyValue(m[1]!).trim() || c : c;
     };
     markers.forEach((m) => {
       const color = resolve(m.color);
