@@ -162,37 +162,53 @@ def get_cesium_html(
           }} catch (e) {{}}
         }}
 
-        // Dynamic 3D Camera flight with dramatic oblique perspective
+        const isGlobal = "{port_name}".includes("Global");
+        const camAltitude = isGlobal ? 18000000.0 : 22000.0;
+        const camPitch = isGlobal ? -85.0 : -42.0;
+        const latOffset = isGlobal ? 0.0 : -0.06;
+
+        // Dynamic 3D Camera flight
         viewer.camera.flyTo({{
-          destination: Cesium.Cartesian3.fromDegrees({center_lon}, {center_lat} - 0.08, 14000.0),
+          destination: Cesium.Cartesian3.fromDegrees({center_lon}, {center_lat} + latOffset, camAltitude),
           orientation: {{
             heading: Cesium.Math.toRadians(0.0),
-            pitch: Cesium.Math.toRadians(-40.0), // Oblique 3D pitch so vessels stand out
+            pitch: Cesium.Math.toRadians(camPitch),
             roll: 0.0
           }},
           duration: 1.5
         }});
 
-        // Port Center Anchor Marker
-        viewer.entities.add({{
-          name: "{port_name} Port Anchor",
-          position: Cesium.Cartesian3.fromDegrees({center_lon}, {center_lat}),
-          point: {{
-            pixelSize: 12,
-            color: Cesium.Color.GOLD,
-            outlineColor: Cesium.Color.BLACK,
-            outlineWidth: 2,
-          }},
-          label: {{
-            text: "{port_name}",
-            font: "14px bold sans-serif",
-            fillColor: Cesium.Color.WHITE,
-            outlineColor: Cesium.Color.BLACK,
-            outlineWidth: 3,
-            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            pixelOffset: new Cesium.Cartesian2(0, -12)
-          }}
+        // Add Port Anchor Markers
+        const portLocations = isGlobal
+          ? [
+              {{ name: "Rotterdam", lat: 51.95, lon: 4.15 }},
+              {{ name: "Singapore", lat: 1.28, lon: 103.85 }},
+              {{ name: "Shanghai", lat: 31.25, lon: 121.50 }},
+              {{ name: "Los Angeles", lat: 33.74, lon: -118.26 }}
+            ]
+          : [{{ name: "{port_name}", lat: {center_lat}, lon: {center_lon} }}];
+
+        portLocations.forEach(p => {{
+          viewer.entities.add({{
+            name: p.name + " Port",
+            position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat),
+            point: {{
+              pixelSize: 12,
+              color: Cesium.Color.GOLD,
+              outlineColor: Cesium.Color.BLACK,
+              outlineWidth: 2,
+            }},
+            label: {{
+              text: p.name,
+              font: "14px bold sans-serif",
+              fillColor: Cesium.Color.WHITE,
+              outlineColor: Cesium.Color.BLACK,
+              outlineWidth: 3,
+              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+              verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+              pixelOffset: new Cesium.Cartesian2(0, -12)
+            }}
+          }});
         }});
 
         // Pulsing Congestion Ring if Congestion Index > 1.2
