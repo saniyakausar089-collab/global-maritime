@@ -89,5 +89,12 @@ def get_port_for_coords(lat: float, lon: float) -> str | None:
     return None
 
 def get_aisstream_bounding_boxes() -> list:
-    """Format bounding boxes for the AISStream WebSocket subscription filter."""
-    return [p["bbox"] for p in PORTS.values()]
+    """Format bounding boxes for the AISStream WebSocket subscription filter.
+    
+    AISStream requires North-West [max_lat, min_lon] to South-East [min_lat, max_lon].
+    """
+    boxes = []
+    for p in PORTS.values():
+        (min_lat, min_lon), (max_lat, max_lon) = p["bbox"]
+        boxes.append([[max_lat, min_lon], [min_lat, max_lon]])
+    return boxes

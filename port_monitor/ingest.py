@@ -82,7 +82,7 @@ async def stream_ais():
             api_key = get_latest_api_key()
 
     subscription_message = {
-        "Apikey": api_key,
+        "APIKey": api_key,
         "BoundingBoxes": get_aisstream_bounding_boxes(),
         "FilterMessageTypes": ["PositionReport"],
     }
