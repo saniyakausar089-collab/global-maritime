@@ -9,3 +9,6 @@ __pycache__/
 *.db
 *.sqlite3
 evaluation_results.csv
+config.local.js
+web/config.local.js
+

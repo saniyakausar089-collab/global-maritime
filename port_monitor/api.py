@@ -14,7 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from config import PORTS, DB_PATH
 from cesium_view import get_cesium_html
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from metrics import (
     init_db,
     get_all_ports_summary,
@@ -118,6 +119,23 @@ def get_port_globe_html(port_id: str):
         congestion_index=ci,
     )
     return HTMLResponse(content=html_content)
+
+
+WEB_DIR = Path(__file__).resolve().parent / "web"
+TRACKS_JSON = WEB_DIR / "data" / "tracks.json"
+
+
+@app.get("/data/tracks.json")
+def get_tracks_json():
+    """Serve exported vessel tracks for Cesium 3D viewer."""
+    if not TRACKS_JSON.is_file():
+        import export_tracks
+        export_tracks.main()
+    return FileResponse(TRACKS_JSON, media_type="application/json")
+
+
+if WEB_DIR.is_dir():
+    app.mount("/web", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
 
 
 if __name__ == "__main__":
