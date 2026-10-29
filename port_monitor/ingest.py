@@ -129,6 +129,8 @@ async def stream_ais():
 
                         sog = float(pos_msg.get("Sog", 0.0))
                         cog = float(pos_msg.get("Cog", 0.0))
+                        raw_heading = pos_msg.get("TrueHeading")
+                        true_heading = float(raw_heading) if raw_heading is not None and raw_heading != 511 else cog
                         ship_name = (meta.get("ShipName") or "").strip()
                         raw_ts = meta.get("time_utc")
                         ts = parse_timestamp(raw_ts)
@@ -140,6 +142,7 @@ async def stream_ais():
                             lon=float(lon),
                             sog=sog,
                             cog=cog,
+                            true_heading=true_heading,
                             port_id=port_id,
                             timestamp=ts,
                             is_demo=0,
@@ -148,13 +151,14 @@ async def stream_ais():
 
                         state = "Stationary" if sog < STATIONARY_SPEED_KNOTS else "Moving"
                         logger.info(
-                            "[%s] MMSI %s (%s): %.4f, %.4f | SOG: %.1f kn (%s)",
+                            "[%s] MMSI %s (%s): %.4f, %.4f | SOG: %.1f kn | HDG: %.0f° (%s)",
                             port_id.title(),
                             mmsi,
                             ship_name or "Unknown",
                             lat,
                             lon,
                             sog,
+                            true_heading,
                             state,
                         )
 

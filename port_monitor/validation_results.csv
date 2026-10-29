@@ -1,0 +1,2 @@
+metric_compared,sample_points,pearson_r,pearson_p_value,spearman_rho,rmse_normalized,best_lag_days,lead_lag_relationship,contains_placeholder_data
+ais_total_vessels vs vessel_calls,12,-0.2335,0.46523,-0.4406,1.5706,0,Synchronous (0-day lag),True

@@ -1,52 +1,56 @@
 # Global Maritime Port Monitor 🚢⚓
 
-A Python-based maritime intelligence system that monitors global port congestion in real time using Automatic Identification System (AIS) transponder data, geofenced port boundaries, 3D CesiumJS globe visualization, and synthetic aperture radar (SAR) satellite cross-validation.
+A real-time Python maritime intelligence platform that monitors port congestion using live Automatic Identification System (AIS) transponder data, polygonal sub-zone geofencing (berth vs. anchorage), animated 3D CesiumJS and 2D Pydeck visualization, automated multi-hour congestion alerts, and cross-validation against official port statistics and Sentinel-1 SAR satellite imagery.
 
 ---
 
 ## Architecture Overview
 
 ```
-                          ┌────────────────────────┐
-                          │  AISStream.io (WSS)   │
-                          └───────────┬────────────┘
-                                      │
-                                      ▼
-                            ┌───────────────────┐
-                            │     ingest.py     │
-                            └─────────┬─────────┘
-                                      │
-                                      ▼
-                            ┌───────────────────┐
-                            │      ais.db       │ ◄─── seed_demo.py (synthetic)
-                            │   (SQLite Store)  │
-                            └─────────┬─────────┘
-                                      │
-                    ┌─────────────────┴─────────────────┐
-                    ▼                                   ▼
-          ┌───────────────────┐               ┌───────────────────┐
-          │    metrics.py     │               │    evaluate.py    │
-          │(Congestion Index) │               │(Sentinel-1 SAR vs)│
-          └─────────┬─────────┘               │ (AIS Validation)  │
-                    │                         └───────────────────┘
-          ┌─────────┴─────────┐
-          ▼                   ▼
-┌───────────────────┐ ┌───────────────┐
-│      app.py       │ │    api.py     │
-│(Streamlit + Cesium│ │(FastAPI REST) │
-│    3D Globe)      │ └───────────────┘
-└───────────────────┘
+                                 ┌────────────────────────┐
+                                 │  AISStream.io (WSS)   │
+                                 └───────────┬────────────┘
+                                             │
+                                             ▼
+                                   ┌───────────────────┐
+                                   │     ingest.py     │
+                                   └─────────┬─────────┘
+                                             │ (Zone Classification via GeoPandas)
+                                             ▼
+                                   ┌───────────────────┐
+      seed_demo.py (synthetic) ──► │      ais.db       │ ◄── alerts.py (Sustained CI > 1.2)
+                                   │   (SQLite Store)  │
+                                   └─────────┬─────────┘
+                                             │
+                     ┌───────────────────────┼───────────────────────┐
+                     ▼                       ▼                       ▼
+           ┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
+           │    metrics.py     │   │validate_official.py│  │    evaluate.py    │
+           │(Congestion Index  │   │(AIS vs Official   │   │(Sentinel-1 SAR vs │
+           │ & Vessel Tracks)  │   │  Stats Correlation│   │  AIS Backscatter) │
+           └─────────┬─────────┘   └───────────────────┘   └───────────────────┘
+                     │
+           ┌─────────┴─────────┐
+           ▼                   ▼
+ ┌───────────────────┐ ┌───────────────┐
+ │      app.py       │ │    api.py     │
+ │(Streamlit, Pydeck,│ │(FastAPI REST) │
+ │ 3D Cesium Globe)  │ └───────────────┘
+ └───────────────────┘
 ```
 
 ### Core Components
-- **`config.py`**: Centralized configuration that loads `.env`, defines port geofences (Rotterdam, Singapore, Shanghai, Los Angeles), thresholds, and database paths.
-- **`ingest.py`**: Asynchronous WebSocket client that connects to `wss://stream.aisstream.io/v0/stream`, subscribes to port bounding boxes, extracts PositionReport messages, and persists vessels into `ais.db`.
-- **`metrics.py`**: SQLite database layer and analytical engine. Filters ships by Speed Over Ground (SOG < 0.5 knots = stationary), aggregates hourly counts, and calculates the **Congestion Index**.
-- **`cesium_view.py`**: Interactive 3D CesiumJS globe embedded into Streamlit via Cesium Ion, color-coding stationary (red) and moving (blue) ships.
-- **`app.py`**: Streamlit operational dashboard with global port rankings, 48-hour congestion sparklines, 3D globe rendering, searchable vessel tables, and CSV exports.
-- **`api.py`**: FastAPI REST server providing endpoints (`/ports`, `/ports/{id}/vessels`, `/ports/{id}/history`).
-- **`seed_demo.py`**: Standalone generator that populates realistic synthetic vessel positions and 48-hour history across all 4 ports for instant testing.
-- **`evaluate.py`**: Google Earth Engine integration analyzing Sentinel-1 SAR (`COPERNICUS/S1_GRD`) backscatter to estimate vessel presence and compute Pearson/Spearman correlation against AIS records.
+- **`config.py`**: Centralized configuration loader for `.env` credentials, port polygon mappings, database paths, and thresholds.
+- **`build_geofences.py`**: Builds `data/ports.geojson` with high-precision polygon boundaries and sub-zones for **berths** and **anchorages** across all ports using OpenStreetMap and curated nautical fallbacks.
+- **`ingest.py`**: Asynchronous WebSocket client ingesting live AIS `PositionReport` packets from `wss://stream.aisstream.io/v0/stream`, recording SOG, COG, true heading, and spatial zone classification into `ais.db`.
+- **`metrics.py`**: Database abstraction, spatial point-in-polygon containment via GeoPandas/Shapely, historical vessel trajectory interpolation, and Congestion Index calculations.
+- **`cesium_view.py`**: Interactive 3D CesiumJS globe with inline SVG vessel icons rotated by heading (orange for stationary <0.5 kn, cyan for moving), linear interpolation glide (`SampledPositionProperty`), fading motion trails, time speed controls (1x, 10x, 60x), and pulsing congestion rings.
+- **`app.py`**: Streamlit operational dashboard featuring active alert banners, 2D Pydeck replay map, 3D Cesium globe, multi-port normalized comparative charts, date range filtering, CSV exports, and a methodology tab.
+- **`alerts.py`**: Detects sustained severe congestion (Congestion Index > 1.2 for 3 consecutive hours), logs alerts to SQLite, and sends optional email notifications via standard Python `smtplib`.
+- **`validate_official.py`**: Statistical validation comparing aggregated AIS traffic against official port authority statistics (`data/official_stats.csv`), calculating Pearson $r$, Spearman $\rho$, normalized RMSE, and lagged cross-correlation.
+- **`evaluate.py`**: Google Earth Engine integration analyzing Copernicus Sentinel-1 SAR (`COPERNICUS/S1_GRD`) backscatter to validate ship counts.
+- **`seed_demo.py`**: Populates realistic synthetic vessels and historical tracks across all ports for testing before live data arrives.
+- **`tests/`**: Pytest test suite covering polygon geofence containment, congestion index formulas, and alert triggering logic.
 
 ---
 
@@ -62,7 +66,7 @@ py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-> **Note**: If PowerShell shows an `Execution_Policies` script restriction, allow activating local venvs:
+> **Note**: If PowerShell displays an `Execution_Policies` restriction when activating the venv:
 > ```powershell
 > Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 > ```
@@ -78,74 +82,96 @@ Copy the example environment template:
 ```powershell
 cp .env.example .env
 ```
-Open `.env` in your editor and provide your keys:
-- `AISSTREAM_API_KEY`: Free API key from [aisstream.io](https://aisstream.io).
-- `CESIUM_ION_TOKEN`: Free token from [ion.cesium.com](https://ion.cesium.com) for high-resolution 3D terrain on the Cesium globe.
-- `EE_PROJECT`: Your Google Cloud Project ID with Earth Engine API enabled (only needed for `evaluate.py`).
+Open `.env` in your editor and configure:
+- `AISSTREAM_API_KEY`: Free 40-character API key from [aisstream.io](https://aisstream.io).
+- `CESIUM_ION_TOKEN`: Token from [ion.cesium.com](https://ion.cesium.com) for high-resolution 3D terrain on the Cesium globe.
+- `EE_PROJECT`: (Optional) Google Cloud Project ID with Earth Engine API enabled (for `evaluate.py`).
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `ALERT_EMAIL`: (Optional) SMTP credentials for automated congestion email notifications. Leave empty to skip email dispatch.
 
 ---
 
 ## How to Run Each Script
 
-### Option A: Test Dashboard Immediately (Demo Mode)
-You do not need to wait for live AIS data to explore the dashboard. Run:
+### 1. Test Dashboard Immediately (Demo Mode)
+To explore the complete dashboard with simulated vessels, headings, and 48-hour history:
 ```powershell
 py seed_demo.py
 ```
-This generates realistic simulated traffic across Rotterdam, Singapore, Shanghai, and Los Angeles with 48 hours of history.
 
-### Option B: Launch Streamlit Dashboard
+### 2. Launch Streamlit Dashboard
 ```powershell
 py -m streamlit run app.py
 ```
-The dashboard will open automatically in your browser at `http://localhost:8501`.
-- View global metrics and ranking across all 4 ports.
-- Switch to individual ports to explore the **3D Cesium Globe**, **48-hour trend chart**, and **searchable vessel table**.
-- Export vessel lists and historical data to CSV.
+Open `http://localhost:8501` in your browser. You can:
+- View active sustained congestion alert banners.
+- Replay the last 24 hours of vessel movements with heading rotation in the **2D Pydeck Map**.
+- Explore vessel glide and fading motion trails in the **3D Cesium Globe**.
+- Select 2 to 4 ports under **🌐 All Monitored Ports** to compare normalized congestion trajectories.
+- Filter historical data with the sidebar **Date Range Filter**.
+- Download CSV reports for global rankings, comparisons, vessel lists, and alert logs.
+- Review formulas and operational boundaries under the **📖 Methodology & Limitations** tab.
 
-### Option C: Live AIS Data Ingestion
-Once you have your key from `aisstream.io` saved in `.env`:
+### 3. Run Live AIS Ingestion
+To capture real-time vessel transponders from AISStream:
 ```powershell
 py ingest.py
 ```
-This runs continuously in the background, ingesting transponder pings into `ais.db`.
 
-### Option D: Launch FastAPI Backend
-If you want to serve REST endpoints:
+### 4. Build Port Geofences
+To query OpenStreetMap Overpass API and update polygon zones in `data/ports.geojson`:
 ```powershell
-py api.py
+py build_geofences.py
 ```
-Interactive Swagger documentation is available at `http://127.0.0.1:8000/docs`.
 
-### Option E: Satellite Cross-Validation (Earth Engine)
-Authenticate your machine with Google Earth Engine (one-time setup):
+### 5. Check and Trigger Congestion Alerts
+To manually scan ports for sustained congestion (> 1.2 for 3 consecutive hours) and dispatch alerts:
+```powershell
+py alerts.py
+```
+
+### 6. Validate Against Official Port Statistics
+```powershell
+py validate_official.py
+```
+Outputs statistical correlations, exports `validation_results.csv`, and generates `figures/validation.png`.
+
+> [!IMPORTANT]
+> `data/official_stats.csv` is populated with initial **PLACEHOLDER** records. Replace these rows with your actual Port Authority vessel call figures for production research.
+
+### 7. Satellite Cross-Validation (Google Earth Engine)
+One-time machine authentication:
 ```powershell
 earthengine authenticate
 ```
-Then run the satellite cross-validation:
+Then run:
 ```powershell
 py evaluate.py
 ```
-If Earth Engine is not yet authenticated, `evaluate.py` will skip gracefully without breaking. When authenticated, it queries Sentinel-1 radar scenes over the last 30 days, calculates Pearson/Spearman correlations, and saves results to `evaluation_results.csv`.
+
+### 8. Run Unit Tests
+```powershell
+py -m pytest tests -v
+```
 
 ---
 
 ## Methodology
 
-$$\text{Congestion Index} = \frac{\text{Stationary Vessels (Current Hour)}}{\text{Median Stationary Vessels (Historical Hours)}}$$
+$$\text{Congestion Index (CI)} = \frac{\text{Current Waiting Vessels at Anchorage}}{\text{Historical Median Hourly Waiting Vessels}}$$
 
-- **Stationary Definition**: A vessel with Speed Over Ground (SOG) $< 0.5\text{ knots}$ (anchored, moored, or berthed).
+- **Sub-Zone Partitioning**: Classifies vessels into **berth** (loading/discharging) vs. **anchorage** (waiting queue) via polygonal geofences.
+- **Stationary Threshold**: Speed Over Ground (SOG) $< 0.5\text{ knots}$ filters out transiting ships.
 - **Status Classification**:
   - `Normal`: Index $< 0.8$
   - `Busy`: $0.8 \le \text{Index} \le 1.2$
   - `Congested`: $\text{Index} > 1.2$
-  - `Not enough data`: Fewer than 2 distinct hourly history records available.
+  - `Sustained Alert`: $\text{Index} > 1.2$ for **3 consecutive hours**.
 
 ---
 
 ## Known Limitations
 
-1. **Rough Bounding Boxes**: Port geofences are rectangular approximations. Depending on geographic contours, they may include adjacent high-speed transit channels or exclude remote deep-water outer anchorages.
-2. **AIS Coverage Gaps**: Terrestrial AIS receivers rely on line-of-sight radio; outer anchorages may experience packet loss. While satellite AIS alleviates this, reception intervals can vary.
-3. **Sentinel-1 Revisit Time**: Sentinel-1 SAR constellation orbits provide revisits roughly every 6 to 12 days over a given port. Consequently, satellite observation provides periodic radar snapshots rather than a continuous 24/7 stream.
-4. **Congestion Index History Requirement**: The congestion index compares current counts against a statistical median. A newly configured port requires several days of continuous observations to establish a statistically meaningful baseline.
+1. **Official Statistics Replacement**: Initial records in `data/official_stats.csv` are synthetic placeholders until actual Port Authority figures are entered.
+2. **Terrestrial AIS Line-of-Sight**: Coastal AIS receivers have a 20–40 nautical mile horizon; outer anchorages may experience occasional packet drops.
+3. **Satellite Revisit Period**: Sentinel-1 SAR constellation orbits provide revisits every 6 to 12 days, suited for periodic cross-validation rather than real-time tracking.
+4. **Baseline Stabilization**: A newly initialized port requires several days of hourly observations to compute a statistically robust historical median.

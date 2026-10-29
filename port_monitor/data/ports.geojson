@@ -1,0 +1,684 @@
+{
+  "type": "FeatureCollection",
+  "name": "Global_Maritime_Port_Geofences",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "rotterdam",
+        "port_name": "Rotterdam",
+        "zone_type": "port_boundary",
+        "description": "Outer monitored boundary for Rotterdam"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              3.7,
+              51.86
+            ],
+            [
+              4.52,
+              51.86
+            ],
+            [
+              4.52,
+              52.1
+            ],
+            [
+              3.7,
+              52.1
+            ],
+            [
+              3.7,
+              51.86
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "rotterdam",
+        "port_name": "Rotterdam",
+        "zone_type": "berth",
+        "description": "Berth and terminal zone for Rotterdam"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              4.0,
+              51.93
+            ],
+            [
+              4.15,
+              51.95
+            ],
+            [
+              4.35,
+              51.91
+            ],
+            [
+              4.48,
+              51.9
+            ],
+            [
+              4.48,
+              51.87
+            ],
+            [
+              4.3,
+              51.87
+            ],
+            [
+              4.05,
+              51.91
+            ],
+            [
+              4.0,
+              51.93
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "rotterdam",
+        "port_name": "Rotterdam",
+        "zone_type": "anchorage",
+        "description": "Anchorage waiting zone for Rotterdam"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              3.7,
+              51.92
+            ],
+            [
+              4.0,
+              51.92
+            ],
+            [
+              4.0,
+              52.08
+            ],
+            [
+              3.7,
+              52.08
+            ],
+            [
+              3.7,
+              51.92
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "singapore",
+        "port_name": "Singapore",
+        "zone_type": "port_boundary",
+        "description": "Outer monitored boundary for Singapore"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              103.6,
+              1.14
+            ],
+            [
+              104.1,
+              1.14
+            ],
+            [
+              104.1,
+              1.4
+            ],
+            [
+              103.6,
+              1.4
+            ],
+            [
+              103.6,
+              1.14
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "singapore",
+        "port_name": "Singapore",
+        "zone_type": "berth",
+        "description": "Berth and terminal zone for Singapore"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              103.65,
+              1.23
+            ],
+            [
+              103.78,
+              1.25
+            ],
+            [
+              103.86,
+              1.26
+            ],
+            [
+              103.88,
+              1.24
+            ],
+            [
+              103.82,
+              1.21
+            ],
+            [
+              103.65,
+              1.2
+            ],
+            [
+              103.65,
+              1.23
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "singapore",
+        "port_name": "Singapore",
+        "zone_type": "anchorage",
+        "description": "Anchorage waiting zone for Singapore"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              103.85,
+              1.16
+            ],
+            [
+              104.05,
+              1.2
+            ],
+            [
+              104.05,
+              1.28
+            ],
+            [
+              103.88,
+              1.23
+            ],
+            [
+              103.85,
+              1.16
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "shanghai",
+        "port_name": "Shanghai",
+        "zone_type": "port_boundary",
+        "description": "Outer monitored boundary for Shanghai"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.3,
+              30.7
+            ],
+            [
+              122.45,
+              30.7
+            ],
+            [
+              122.45,
+              31.75
+            ],
+            [
+              121.3,
+              31.75
+            ],
+            [
+              121.3,
+              30.7
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "shanghai",
+        "port_name": "Shanghai",
+        "zone_type": "berth",
+        "description": "Berth and terminal zone for Shanghai"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.5,
+              31.3
+            ],
+            [
+              121.7,
+              31.4
+            ],
+            [
+              121.8,
+              31.35
+            ],
+            [
+              121.6,
+              31.25
+            ],
+            [
+              121.5,
+              31.3
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "shanghai",
+        "port_name": "Shanghai",
+        "zone_type": "anchorage",
+        "description": "Anchorage waiting zone for Shanghai"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.85,
+              31.1
+            ],
+            [
+              122.35,
+              31.1
+            ],
+            [
+              122.35,
+              31.6
+            ],
+            [
+              121.85,
+              31.6
+            ],
+            [
+              121.85,
+              31.1
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "los-angeles",
+        "port_name": "Los Angeles",
+        "zone_type": "port_boundary",
+        "description": "Outer monitored boundary for Los Angeles"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -118.35,
+              33.65
+            ],
+            [
+              -118.1,
+              33.65
+            ],
+            [
+              -118.1,
+              33.8
+            ],
+            [
+              -118.35,
+              33.8
+            ],
+            [
+              -118.35,
+              33.65
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "los-angeles",
+        "port_name": "Los Angeles",
+        "zone_type": "berth",
+        "description": "Berth and terminal zone for Los Angeles"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -118.28,
+              33.73
+            ],
+            [
+              -118.23,
+              33.75
+            ],
+            [
+              -118.2,
+              33.75
+            ],
+            [
+              -118.18,
+              33.73
+            ],
+            [
+              -118.22,
+              33.71
+            ],
+            [
+              -118.28,
+              33.73
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "los-angeles",
+        "port_name": "Los Angeles",
+        "zone_type": "anchorage",
+        "description": "Anchorage waiting zone for Los Angeles"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -118.26,
+              33.68
+            ],
+            [
+              -118.15,
+              33.68
+            ],
+            [
+              -118.15,
+              33.72
+            ],
+            [
+              -118.26,
+              33.72
+            ],
+            [
+              -118.26,
+              33.68
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "hamburg",
+        "port_name": "Hamburg",
+        "zone_type": "port_boundary",
+        "description": "Outer monitored boundary for Hamburg"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              9.6,
+              53.48
+            ],
+            [
+              10.1,
+              53.48
+            ],
+            [
+              10.1,
+              53.6
+            ],
+            [
+              9.6,
+              53.6
+            ],
+            [
+              9.6,
+              53.48
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "hamburg",
+        "port_name": "Hamburg",
+        "zone_type": "berth",
+        "description": "Berth and terminal zone for Hamburg"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              9.88,
+              53.52
+            ],
+            [
+              10.02,
+              53.54
+            ],
+            [
+              10.02,
+              53.51
+            ],
+            [
+              9.88,
+              53.5
+            ],
+            [
+              9.88,
+              53.52
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "hamburg",
+        "port_name": "Hamburg",
+        "zone_type": "anchorage",
+        "description": "Anchorage waiting zone for Hamburg"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              9.65,
+              53.54
+            ],
+            [
+              9.85,
+              53.56
+            ],
+            [
+              9.85,
+              53.53
+            ],
+            [
+              9.65,
+              53.51
+            ],
+            [
+              9.65,
+              53.54
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "santos",
+        "port_name": "Santos",
+        "zone_type": "port_boundary",
+        "description": "Outer monitored boundary for Santos"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -46.45,
+              -24.12
+            ],
+            [
+              -46.22,
+              -24.12
+            ],
+            [
+              -46.22,
+              -23.9
+            ],
+            [
+              -46.45,
+              -23.9
+            ],
+            [
+              -46.45,
+              -24.12
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "santos",
+        "port_name": "Santos",
+        "zone_type": "berth",
+        "description": "Berth and terminal zone for Santos"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -46.33,
+              -23.95
+            ],
+            [
+              -46.28,
+              -23.94
+            ],
+            [
+              -46.28,
+              -23.98
+            ],
+            [
+              -46.33,
+              -23.97
+            ],
+            [
+              -46.33,
+              -23.95
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "port_id": "santos",
+        "port_name": "Santos",
+        "zone_type": "anchorage",
+        "description": "Anchorage waiting zone for Santos"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -46.4,
+              -24.08
+            ],
+            [
+              -46.26,
+              -24.08
+            ],
+            [
+              -46.26,
+              -24.01
+            ],
+            [
+              -46.4,
+              -24.01
+            ],
+            [
+              -46.4,
+              -24.08
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

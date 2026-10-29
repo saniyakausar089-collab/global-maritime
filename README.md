@@ -1,24 +1,23 @@
-# Pixel Perfect Replica
+# Global Maritime Port Monitor 🚢⚓
 
-Implement exactly the screenshot and nothing else
+Real-time global maritime port congestion monitor with AIS transponder ingestion, geofencing, 3D CesiumJS visualization, and satellite SAR cross-validation.
 
-This project was built with [Lovable](https://lovable.dev).
+## Overview
 
-## Build with Lovable
+Global Maritime Port Monitor continuously tracks commercial maritime traffic across major global ports (Rotterdam, Singapore, Shanghai, Los Angeles, Hamburg, Santos). It calculates port congestion indices based on stationary vessel counts, detects anchoring bottlenecks, and validates estimates using Earth Observation data.
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/b5b8aaf2-bdda-465c-b2d1-ad1377eae3a9).
+## Project Structure
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+- **`port_monitor/`**: Core Python project containing backend services, ingestion, metrics, 3D visualization, and automated evaluation.
+  - `app.py`: Streamlit dashboard with interactive 3D Cesium globe and 2D replay maps.
+  - `ingest.py`: Live AISStream WebSocket client streaming position reports into SQLite `ais.db`.
+  - `metrics.py`: Geofencing, stationary detection, and Congestion Index calculations.
+  - `cesium_view.py`: 3D CesiumJS globe with animated vessel tracks and heading rotation.
+  - `api.py`: FastAPI REST API for vessel statistics and historical trends.
+  - `seed_demo.py`: High-density synthetic data generator.
+  - `evaluate.py`: Google Earth Engine Sentinel-1 SAR ship detection validation.
+- **`src/`**: React / Vite analytics dashboard connecting to the FastAPI backend.
 
-## Development
+## Getting Started
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
-```
+See [`port_monitor/README.md`](port_monitor/README.md) for full setup instructions on Windows PowerShell.

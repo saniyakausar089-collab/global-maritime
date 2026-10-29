@@ -1,7 +1,7 @@
 """Configuration module for Global Maritime Port Monitor.
 
 Loads environment variables from .env files, defines monitored ports with
-geographic bounding boxes, database location, and maritime thresholds.
+polygonal geofences and bounding boxes, database location, and maritime thresholds.
 """
 
 import os
@@ -27,8 +27,18 @@ AISSTREAM_API_KEY = os.getenv("AISSTREAM_API_KEY", "").strip()
 CESIUM_ION_TOKEN = os.getenv("CESIUM_ION_TOKEN", "").strip()
 EE_PROJECT = os.getenv("EE_PROJECT", "").strip()
 
-# SQLite Database Path (Unified so scripts in any directory use the same file)
+# Alert / SMTP Configuration
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
+ALERT_EMAIL = os.getenv("ALERT_EMAIL", "").strip()
+
+# Paths
+DATA_DIR = BASE_DIR / "data"
 DB_PATH = BASE_DIR / "ais.db"
+GEOFENCE_GEOJSON_PATH = DATA_DIR / "ports.geojson"
+OFFICIAL_STATS_PATH = DATA_DIR / "official_stats.csv"
 
 # Threshold for marking a ship stationary (typically anchored or moored) in knots
 STATIONARY_SPEED_KNOTS = 0.5

@@ -1,0 +1,51 @@
+port,date,vessel_calls,avg_wait_hours,source
+rotterdam,2026-10-15,68,14.5,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-16,72,15.2,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-17,65,13.8,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-18,70,16.0,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-19,74,16.8,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-20,78,17.5,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-21,71,15.0,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-22,69,14.2,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-23,75,16.5,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-24,80,18.0,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-25,76,17.2,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-26,73,15.8,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-27,77,16.9,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-28,79,17.6,PLACEHOLDER - Port of Rotterdam Authority
+rotterdam,2026-10-29,75,16.4,PLACEHOLDER - Port of Rotterdam Authority
+singapore,2026-10-15,115,22.0,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-16,120,24.5,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-17,118,23.0,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-18,125,25.8,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-19,130,27.0,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-20,128,26.2,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-21,122,24.0,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-22,126,25.0,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-23,132,28.5,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-24,135,29.0,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-25,130,27.5,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-26,127,26.0,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-27,133,28.0,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-28,136,29.5,PLACEHOLDER - Maritime and Port Authority of Singapore
+singapore,2026-10-29,131,27.8,PLACEHOLDER - Maritime and Port Authority of Singapore
+shanghai,2026-10-20,140,32.0,PLACEHOLDER - Shanghai International Port Group
+shanghai,2026-10-21,145,34.5,PLACEHOLDER - Shanghai International Port Group
+shanghai,2026-10-22,142,33.0,PLACEHOLDER - Shanghai International Port Group
+shanghai,2026-10-23,148,36.0,PLACEHOLDER - Shanghai International Port Group
+shanghai,2026-10-24,152,38.2,PLACEHOLDER - Shanghai International Port Group
+shanghai,2026-10-25,149,37.0,PLACEHOLDER - Shanghai International Port Group
+shanghai,2026-10-26,144,35.0,PLACEHOLDER - Shanghai International Port Group
+shanghai,2026-10-27,150,37.5,PLACEHOLDER - Shanghai International Port Group
+shanghai,2026-10-28,155,39.0,PLACEHOLDER - Shanghai International Port Group
+shanghai,2026-10-29,151,38.0,PLACEHOLDER - Shanghai International Port Group
+los-angeles,2026-10-20,42,18.0,PLACEHOLDER - Port of Los Angeles
+los-angeles,2026-10-21,45,19.5,PLACEHOLDER - Port of Los Angeles
+los-angeles,2026-10-22,43,18.5,PLACEHOLDER - Port of Los Angeles
+los-angeles,2026-10-23,48,21.0,PLACEHOLDER - Port of Los Angeles
+los-angeles,2026-10-24,50,22.5,PLACEHOLDER - Port of Los Angeles
+los-angeles,2026-10-25,47,20.8,PLACEHOLDER - Port of Los Angeles
+los-angeles,2026-10-26,44,19.0,PLACEHOLDER - Port of Los Angeles
+los-angeles,2026-10-27,49,21.5,PLACEHOLDER - Port of Los Angeles
+los-angeles,2026-10-28,52,23.0,PLACEHOLDER - Port of Los Angeles
+los-angeles,2026-10-29,48,21.0,PLACEHOLDER - Port of Los Angeles

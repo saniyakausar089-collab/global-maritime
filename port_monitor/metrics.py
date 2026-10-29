@@ -1,20 +1,30 @@
-"""Database schema and metrics computation for Global Maritime Port Monitor.
+"""Database schema, spatial polygon geofencing, and metrics computation.
 
-Provides SQLite initialization, vessel record insertion, latest vessel queries,
-hourly stationary vessel aggregation, and the Congestion Index calculation.
+Uses GeoPandas to classify vessels into 'berth' vs 'anchorage' zones from data/ports.geojson,
+computes Congestion Index reflecting waiting vessels, manages schema migrations,
+and extracts historical trajectory tracks for animation.
 """
 
+import json
+import logging
 import sqlite3
+import statistics
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import statistics
-import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import DB_PATH, PORTS, STATIONARY_SPEED_KNOTS
+import geopandas as gpd
+import pandas as pd
+from shapely.geometry import Point
+
+from config import DB_PATH, GEOFENCE_GEOJSON_PATH, PORTS, STATIONARY_SPEED_KNOTS
+
+logger = logging.getLogger("metrics")
+
+_GEOFENCE_GDF: Optional[gpd.GeoDataFrame] = None
 
 
 def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
@@ -26,8 +36,70 @@ def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
     return conn
 
 
+def load_geofences() -> Optional[gpd.GeoDataFrame]:
+    """Load and cache the GeoDataFrame of port boundary and sub-zones."""
+    global _GEOFENCE_GDF
+    if _GEOFENCE_GDF is None and GEOFENCE_GEOJSON_PATH.is_file():
+        try:
+            _GEOFENCE_GDF = gpd.read_file(GEOFENCE_GEOJSON_PATH)
+        except Exception as e:
+            logger.warning("Could not read geofences from %s: %s", GEOFENCE_GEOJSON_PATH, e)
+    return _GEOFENCE_GDF
+
+
+def classify_zone(lat: float, lon: float, port_id: str) -> str:
+    """Classify coordinates into 'berth', 'anchorage', or 'port_boundary' using GeoPandas polygons."""
+    gdf = load_geofences()
+    if gdf is None or gdf.empty:
+        return "port_boundary"
+
+    pt = Point(lon, lat)  # GeoJSON / Shapely order is (x=lon, y=lat)
+    port_features = gdf[gdf["port_id"] == port_id]
+
+    # Check berth zones first (berths take precedence)
+    berths = port_features[port_features["zone_type"] == "berth"]
+    for _, row in berths.iterrows():
+        if row.geometry.contains(pt):
+            return "berth"
+
+    # Check anchorage zones
+    anchorages = port_features[port_features["zone_type"] == "anchorage"]
+    for _, row in anchorages.iterrows():
+        if row.geometry.contains(pt):
+            return "anchorage"
+
+    return "port_boundary"
+
+
+def migrate_db(conn: sqlite3.Connection) -> None:
+    """Safely migrate the ais_records table to add cog, true_heading, zone_type."""
+    cursor = conn.execute("PRAGMA table_info(ais_records)")
+    columns = [row["name"] for row in cursor.fetchall()]
+
+    if "cog" not in columns:
+        conn.execute("ALTER TABLE ais_records ADD COLUMN cog REAL DEFAULT 0.0")
+    if "true_heading" not in columns:
+        conn.execute("ALTER TABLE ais_records ADD COLUMN true_heading REAL DEFAULT 0.0")
+    if "zone_type" not in columns:
+        conn.execute("ALTER TABLE ais_records ADD COLUMN zone_type TEXT DEFAULT 'port_boundary'")
+
+    # Create alerts table for Task 6
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            port_id TEXT NOT NULL,
+            port_name TEXT NOT NULL,
+            congestion_index REAL NOT NULL,
+            message TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            acknowledged INTEGER DEFAULT 0
+        )
+    """)
+    conn.commit()
+
+
 def init_db(db_path: Optional[Path] = None) -> None:
-    """Initialize the ais_records table and supporting indices."""
+    """Initialize SQLite tables, indices, and run schema migrations."""
     with get_connection(db_path) as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS ais_records (
@@ -37,15 +109,17 @@ def init_db(db_path: Optional[Path] = None) -> None:
                 lat REAL NOT NULL,
                 lon REAL NOT NULL,
                 sog REAL NOT NULL,
-                cog REAL,
+                cog REAL DEFAULT 0.0,
+                true_heading REAL DEFAULT 0.0,
                 port_id TEXT NOT NULL,
+                zone_type TEXT DEFAULT 'port_boundary',
                 timestamp TEXT NOT NULL,
                 is_demo INTEGER DEFAULT 0
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_port_time ON ais_records (port_id, timestamp)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_port_mmsi ON ais_records (port_id, mmsi)")
-        conn.commit()
+        migrate_db(conn)
 
 
 def insert_ais_record(
@@ -54,20 +128,23 @@ def insert_ais_record(
     lat: float,
     lon: float,
     sog: float,
-    cog: Optional[float],
-    port_id: str,
-    timestamp: str,
+    cog: Optional[float] = 0.0,
+    true_heading: Optional[float] = 0.0,
+    port_id: str = "",
+    zone_type: Optional[str] = None,
+    timestamp: str = "",
     is_demo: int = 0,
     db_path: Optional[Path] = None,
 ) -> None:
-    """Insert a single vessel position record."""
+    """Insert a single vessel report with zone classification."""
+    zone = zone_type or classify_zone(lat, lon, port_id)
     with get_connection(db_path) as conn:
         conn.execute(
             """
-            INSERT INTO ais_records (mmsi, ship_name, lat, lon, sog, cog, port_id, timestamp, is_demo)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO ais_records (mmsi, ship_name, lat, lon, sog, cog, true_heading, port_id, zone_type, timestamp, is_demo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (mmsi, ship_name or f"VESSEL-{mmsi}", lat, lon, sog, cog, port_id, timestamp, is_demo),
+            (mmsi, ship_name or f"VESSEL-{mmsi}", lat, lon, sog, cog or 0.0, true_heading or cog or 0.0, port_id, zone, timestamp, is_demo),
         )
         conn.commit()
 
@@ -76,14 +153,15 @@ def insert_ais_records_batch(
     records: List[tuple],
     db_path: Optional[Path] = None,
 ) -> None:
-    """Insert multiple vessel position records in a single fast transaction."""
+    """Fast batch insertion for multiple vessel position records."""
     if not records:
         return
+    init_db(db_path)
     with get_connection(db_path) as conn:
         conn.executemany(
             """
-            INSERT INTO ais_records (mmsi, ship_name, lat, lon, sog, cog, port_id, timestamp, is_demo)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO ais_records (mmsi, ship_name, lat, lon, sog, cog, true_heading, port_id, zone_type, timestamp, is_demo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             records,
         )
@@ -91,10 +169,7 @@ def insert_ais_records_batch(
 
 
 def get_latest_vessels(port_id: str, db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
-    """Get latest position and stationary status for each vessel in a port.
-
-    Returns empty list if no data exists.
-    """
+    """Retrieve the latest vessel positions, zone classification, and status."""
     init_db(db_path)
     with get_connection(db_path) as conn:
         cursor = conn.execute(
@@ -107,13 +182,16 @@ def get_latest_vessels(port_id: str, db_path: Optional[Path] = None) -> List[Dic
                     lon,
                     sog,
                     cog,
+                    true_heading,
+                    port_id,
+                    zone_type,
                     timestamp,
                     is_demo,
                     ROW_NUMBER() OVER (PARTITION BY mmsi ORDER BY timestamp DESC, id DESC) AS rn
                 FROM ais_records
                 WHERE port_id = ?
             )
-            SELECT mmsi, ship_name, lat, lon, sog, cog, timestamp, is_demo
+            SELECT mmsi, ship_name, lat, lon, sog, cog, true_heading, port_id, zone_type, timestamp, is_demo
             FROM ranked
             WHERE rn = 1
             ORDER BY sog ASC
@@ -124,51 +202,111 @@ def get_latest_vessels(port_id: str, db_path: Optional[Path] = None) -> List[Dic
 
     vessels = []
     for r in rows:
+        lat = float(r["lat"])
+        lon = float(r["lon"])
+        sog = float(r["sog"])
+        cog = float(r["cog"]) if r["cog"] is not None else 0.0
+        heading = float(r["true_heading"]) if r["true_heading"] is not None and r["true_heading"] != 511 else cog
+        zone = r["zone_type"] or classify_zone(lat, lon, port_id)
+        is_stationary = sog < STATIONARY_SPEED_KNOTS
+
         vessels.append({
             "mmsi": r["mmsi"],
             "ship_name": r["ship_name"] or f"VESSEL {r['mmsi']}",
-            "lat": float(r["lat"]),
-            "lon": float(r["lon"]),
-            "sog": float(r["sog"]),
-            "cog": float(r["cog"]) if r["cog"] is not None else 0.0,
-            "stationary": bool(r["sog"] < STATIONARY_SPEED_KNOTS),
+            "lat": lat,
+            "lon": lon,
+            "sog": sog,
+            "cog": cog,
+            "heading": heading,
+            "zone_type": zone,
+            "stationary": is_stationary,
+            "is_waiting": is_stationary and (zone == "anchorage" or zone != "berth"),
+            "at_berth": zone == "berth",
+            "at_anchorage": zone == "anchorage",
             "timestamp": r["timestamp"],
             "is_demo": bool(r["is_demo"]),
         })
     return vessels
 
 
-def get_hourly_stationary_history(port_id: str, db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
-    """Aggregate distinct stationary vessels (SOG < 0.5 kn) per hour.
-
-    Returns a list of dicts: [{'hour': 'YYYY-MM-DD HH:00:00', 'stationary': int}]
-    """
+def get_db_date_range(db_path: Optional[Path] = None) -> tuple[Optional[str], Optional[str]]:
+    """Get the earliest and latest recording dates from ais_records."""
     init_db(db_path)
     with get_connection(db_path) as conn:
-        cursor = conn.execute(
-            """
-            SELECT
-                strftime('%Y-%m-%d %H:00:00', timestamp) AS hour,
-                COUNT(DISTINCT mmsi) AS stationary
-            FROM ais_records
-            WHERE port_id = ? AND sog < ?
-            GROUP BY hour
-            ORDER BY hour ASC
-            """,
-            (port_id, STATIONARY_SPEED_KNOTS),
-        )
+        cursor = conn.execute("SELECT MIN(substr(timestamp, 1, 10)), MAX(substr(timestamp, 1, 10)) FROM ais_records")
+        row = cursor.fetchone()
+        if row and row[0] and row[1]:
+            return row[0], row[1]
+    return None, None
+
+
+def get_hourly_stationary_history(
+    port_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db_path: Optional[Path] = None,
+) -> List[Dict[str, Any]]:
+    """Aggregate hourly count of ships waiting (anchorage and stationary vessels).
+
+    Congestion specifically reflects ships waiting for a berth. Supports date filtering.
+    """
+    init_db(db_path)
+    where_clauses = ["port_id = ?"]
+    params: List[Any] = [port_id]
+
+    if start_date:
+        where_clauses.append("timestamp >= ?")
+        params.append(f"{start_date} 00:00:00")
+    if end_date:
+        where_clauses.append("timestamp <= ?")
+        params.append(f"{end_date} 23:59:59")
+
+    where_sql = " AND ".join(where_clauses)
+
+    query = f"""
+        SELECT
+            strftime('%Y-%m-%d %H:00:00', timestamp) AS hour,
+            COUNT(DISTINCT CASE WHEN sog < ? THEN mmsi END) AS stationary_count,
+            COUNT(DISTINCT CASE WHEN zone_type = 'anchorage' AND sog < ? THEN mmsi END) AS anchorage_waiting,
+            COUNT(DISTINCT CASE WHEN zone_type = 'berth' THEN mmsi END) AS at_berth
+        FROM ais_records
+        WHERE {where_sql}
+        GROUP BY hour
+        ORDER BY hour ASC
+    """
+    all_params = [STATIONARY_SPEED_KNOTS, STATIONARY_SPEED_KNOTS] + params
+
+    with get_connection(db_path) as conn:
+        cursor = conn.execute(query, all_params)
         rows = cursor.fetchall()
 
-    return [{"hour": r["hour"], "stationary": int(r["stationary"])} for r in rows if r["hour"]]
+    history = []
+    for r in rows:
+        if not r["hour"]:
+            continue
+        # If anchorage-specific records exist, waiting count prioritizes anchorage waiting
+        waiting = int(r["anchorage_waiting"]) if r["anchorage_waiting"] > 0 else int(r["stationary_count"])
+        history.append({
+            "hour": r["hour"],
+            "stationary": waiting,
+            "at_berth": int(r["at_berth"]),
+            "anchorage_waiting": int(r["anchorage_waiting"]),
+        })
+    return history
 
 
-def get_congestion_index(port_id: str, db_path: Optional[Path] = None) -> Optional[float]:
-    """Compute congestion index for a port.
+def get_congestion_index(
+    port_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db_path: Optional[Path] = None,
+) -> Optional[float]:
+    """Calculate Congestion Index reflecting waiting ships.
 
-    congestion_index = stationary_count(latest hour) / median(stationary_count per hour)
-    Returns None if there is not enough history or if median is 0.
+    Index = latest hourly waiting vessels / median hourly waiting vessels.
+    Returns None if fewer than 2 data points or median == 0.
     """
-    history = get_hourly_stationary_history(port_id, db_path=db_path)
+    history = get_hourly_stationary_history(port_id, start_date=start_date, end_date=end_date, db_path=db_path)
     if len(history) < 2:
         return None
 
@@ -182,14 +320,17 @@ def get_congestion_index(port_id: str, db_path: Optional[Path] = None) -> Option
 
 
 def get_all_ports_summary(db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
-    """Get high-level statistics and congestion index for all defined ports."""
+    """Get high-level summary across all ports split by berth vs anchorage waiting."""
     init_db(db_path)
     summary = []
     for port_id, info in PORTS.items():
         vessels = get_latest_vessels(port_id, db_path=db_path)
         ci = get_congestion_index(port_id, db_path=db_path)
+
+        berth_count = sum(1 for v in vessels if v["at_berth"])
+        anchorage_count = sum(1 for v in vessels if v["at_anchorage"])
         stationary_count = sum(1 for v in vessels if v["stationary"])
-        moving_count = len(vessels) - stationary_count
+        waiting_count = sum(1 for v in vessels if v["is_waiting"])
 
         status = "unknown"
         if ci is not None:
@@ -208,7 +349,83 @@ def get_all_ports_summary(db_path: Optional[Path] = None) -> List[Dict[str, Any]
             "congestion_index": ci,
             "status": status,
             "total_vessels": len(vessels),
+            "berth_vessels": berth_count,
+            "anchorage_vessels": anchorage_count,
+            "waiting_vessels": waiting_count,
             "stationary_vessels": stationary_count,
-            "moving_vessels": moving_count,
+            "moving_vessels": len(vessels) - stationary_count,
         })
     return summary
+
+
+def get_vessel_tracks(port_id: str, limit_vessels: int = 1000, points_per_vessel: int = 12, db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """Extract historical tracks per vessel for smooth animation (capped for performance)."""
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        cursor = conn.execute(
+            """
+            WITH ranked_tracks AS (
+                SELECT
+                    mmsi,
+                    ship_name,
+                    lat,
+                    lon,
+                    sog,
+                    cog,
+                    true_heading,
+                    zone_type,
+                    timestamp,
+                    ROW_NUMBER() OVER (PARTITION BY mmsi ORDER BY timestamp ASC, id ASC) AS rn,
+                    COUNT(*) OVER (PARTITION BY mmsi) AS total_pts
+                FROM ais_records
+                WHERE port_id = ?
+            )
+            SELECT mmsi, ship_name, lat, lon, sog, cog, true_heading, zone_type, timestamp
+            FROM ranked_tracks
+            WHERE rn > (total_pts - ?)
+            ORDER BY mmsi, timestamp ASC
+            """,
+            (port_id, points_per_vessel),
+        )
+        rows = cursor.fetchall()
+
+    vessels_dict = {}
+    for r in rows:
+        mmsi = r["mmsi"]
+        if mmsi not in vessels_dict:
+            if len(vessels_dict) >= limit_vessels:
+                break
+            vessels_dict[mmsi] = {
+                "mmsi": mmsi,
+                "name": r["ship_name"] or f"Vessel {mmsi}",
+                "track": [],
+            }
+
+        heading = float(r["true_heading"]) if r["true_heading"] is not None and r["true_heading"] != 511 else float(r["cog"] or 0.0)
+        vessels_dict[mmsi]["track"].append({
+            "lat": float(r["lat"]),
+            "lon": float(r["lon"]),
+            "sog": float(r["sog"]),
+            "cog": float(r["cog"] or 0.0),
+            "heading": heading,
+            "iso": r["timestamp"].replace(" ", "T") + "Z" if "T" not in r["timestamp"] else r["timestamp"],
+            "stationary": bool(float(r["sog"]) < STATIONARY_SPEED_KNOTS),
+        })
+
+    # Add summary fields for latest position
+    results = []
+    for mmsi, v in vessels_dict.items():
+        if not v["track"]:
+            continue
+        latest = v["track"][-1]
+        results.append({
+            "mmsi": mmsi,
+            "name": v["name"],
+            "lat": latest["lat"],
+            "lon": latest["lon"],
+            "sog": latest["sog"],
+            "heading": latest["heading"],
+            "stationary": latest["stationary"],
+            "track": v["track"],
+        })
+    return results
