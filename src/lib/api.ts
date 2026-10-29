@@ -44,7 +44,7 @@ function hash(id: string) {
   return [...id].reduce((a, c) => a + c.charCodeAt(0), 0);
 }
 function fallbackVessels(id: string): Vessel[] {
-  const p = FALLBACK_PORTS.find((x) => x.id === id) ?? FALLBACK_PORTS[0];
+  const p = FALLBACK_PORTS.find((x) => x.id === id) ?? FALLBACK_PORTS[0]!;
   const r = seeded(hash(id));
   return Array.from({ length: 24 }, (_, i) => {
     const stationary = r() > 0.45;
@@ -116,7 +116,7 @@ export function median(nums: number[]): number | null {
   if (!nums.length) return null;
   const s = [...nums].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
 }
 
 export function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
