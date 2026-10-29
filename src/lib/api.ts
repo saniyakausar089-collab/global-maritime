@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 /** Single place to configure the FastAPI backend. */
-export const API_BASE_URL = "https://YOUR-API-URL";
+export const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || "http://127.0.0.1:8000";
 export const REFRESH_MS = 60_000;
 
 export type Port = { id: string; name: string; lat: number; lon: number; congestion_index: number | null };
@@ -134,3 +134,4 @@ export function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
