@@ -45,7 +45,7 @@ function Compare() {
         byHour.set(pt.hour, row);
       });
     });
-    return [...byHour.values()].sort((a, b) => String(a.hour).localeCompare(String(b.hour)));
+    return [...byHour.values()].sort((a, b) => String(a["hour"]).localeCompare(String(b["hour"])));
   }, [sel, hs]);
 
   const toggle = (id: string) =>
