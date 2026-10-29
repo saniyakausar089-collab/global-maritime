@@ -11,18 +11,20 @@ export type HistoryPoint = { hour: string; stationary: number };
 export type Sourced<T> = { data: T; source: "live" | "fallback"; error?: string; fetchedAt: number };
 
 async function getJson<T>(path: string, fallback: () => T): Promise<Sourced<T>> {
+  let out: Sourced<T>;
   try {
     const res = await fetch(`${API_BASE_URL}${path}`, { headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return { data: (await res.json()) as T, source: "live", fetchedAt: Date.now() };
+    out = { data: (await res.json()) as T, source: "live", fetchedAt: Date.now() };
   } catch (e) {
-    return {
+    out = {
       data: fallback(),
       source: "fallback",
       error: e instanceof Error ? e.message : "Network error",
       fetchedAt: Date.now(),
     };
   }
+  return out;
 }
 
 // ---- Clearly labelled FALLBACK demo data (only used when the API is unreachable) ----
