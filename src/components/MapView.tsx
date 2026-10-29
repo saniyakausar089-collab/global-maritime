@@ -70,9 +70,9 @@ export function MapView({
       L.current = lib;
       map.current = lib.map(el.current, { worldCopyJump: true }).setView(center, zoom);
       lib
-        .tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-          attribution: "&copy; OpenStreetMap &copy; CARTO",
-          maxZoom: 18,
+        .tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap contributors",
+          maxZoom: 19,
         })
         .addTo(map.current);
       layer.current = lib.layerGroup().addTo(map.current);
