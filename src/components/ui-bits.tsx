@@ -16,7 +16,7 @@ export function StatusBadge({ ci, showIndex = true }: { ci: number | null; showI
   );
 }
 
-export function FallbackBanner({ error }: { error?: string }) {
+export function FallbackBanner({ error }: { error?: string | undefined }) {
   return (
     <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
@@ -42,7 +42,7 @@ export function Empty({ text = "Not enough data yet" }: { text?: string }) {
   );
 }
 
-export function RefreshControl({ updatedAt }: { updatedAt?: number }) {
+export function RefreshControl({ updatedAt }: { updatedAt?: number | undefined }) {
   const qc = useQueryClient();
   const fetching = useIsFetching() > 0;
   return (

@@ -8,7 +8,7 @@ export type Port = { id: string; name: string; lat: number; lon: number; congest
 export type Vessel = { mmsi: number; ship_name: string; lat: number; lon: number; sog: number; stationary: boolean };
 export type HistoryPoint = { hour: string; stationary: number };
 
-export type Sourced<T> = { data: T; source: "live" | "fallback"; error?: string; fetchedAt: number };
+export type Sourced<T> = { data: T; source: "live" | "fallback"; error?: string | undefined; fetchedAt: number };
 
 async function getJson<T>(path: string, fallback: () => T): Promise<Sourced<T>> {
   let out: Sourced<T>;
