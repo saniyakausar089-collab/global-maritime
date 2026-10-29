@@ -13,12 +13,15 @@ from fastapi.middleware.cors import CORSMiddleware
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from config import PORTS, DB_PATH
+from cesium_view import get_cesium_html
+from fastapi.responses import HTMLResponse
 from metrics import (
     init_db,
     get_all_ports_summary,
     get_latest_vessels,
     get_hourly_stationary_history,
     get_congestion_index,
+    get_vessel_tracks,
 )
 
 app = FastAPI(
@@ -97,6 +100,24 @@ def get_port_history(port_id: str) -> List[Dict[str, Any]]:
     if port_id not in PORTS:
         raise HTTPException(status_code=404, detail=f"Port '{port_id}' not found.")
     return get_hourly_stationary_history(port_id, DB_PATH)
+
+
+@app.get("/ports/{port_id}/globe-html", response_class=HTMLResponse)
+def get_port_globe_html(port_id: str):
+    """Retrieve full standalone 3D CesiumJS animated globe HTML with 3D vessel tracking."""
+    if port_id not in PORTS and port_id != "all":
+        raise HTTPException(status_code=404, detail=f"Port '{port_id}' not found.")
+    p = PORTS.get(port_id, {"name": "Global Fleet", "lat": 25.0, "lon": 55.0})
+    ci = get_congestion_index(port_id, DB_PATH) if port_id in PORTS else None
+    tracks = get_vessel_tracks(port_id, db_path=DB_PATH)
+    html_content = get_cesium_html(
+        port_name=p["name"],
+        center_lat=p["lat"],
+        center_lon=p["lon"],
+        vessels_with_tracks=tracks,
+        congestion_index=ci,
+    )
+    return HTMLResponse(content=html_content)
 
 
 if __name__ == "__main__":

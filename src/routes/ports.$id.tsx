@@ -30,6 +30,7 @@ function PortDetail() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "stationary" | "moving">("all");
   const [dir, setDir] = useState<1 | -1>(-1);
+  const [mapMode, setMapMode] = useState<"3d" | "2d">("3d");
 
   const vs = vessels.data?.data ?? [];
   const rows = useMemo(() => {
@@ -63,7 +64,31 @@ function PortDetail() {
       {fallback && <FallbackBanner error={fallback.error} />}
 
       <Card className="p-2">
-        {vessels.isLoading || !port ? (
+        <div className="flex items-center justify-between px-2 pb-2">
+          <span className="text-sm font-semibold tracking-wide">Maritime Visualizer</span>
+          <div className="flex rounded-lg border bg-muted/40 p-0.5">
+            <button
+              onClick={() => setMapMode("3d")}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition ${mapMode === "3d" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              🌍 3D Animated Globe
+            </button>
+            <button
+              onClick={() => setMapMode("2d")}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition ${mapMode === "2d" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              🗺️ 2D Map
+            </button>
+          </div>
+        </div>
+
+        {mapMode === "3d" ? (
+          <iframe
+            src={`http://127.0.0.1:8000/ports/${id}/globe-html`}
+            className="h-[520px] w-full rounded-lg border-0 shadow-inner"
+            title="3D Cesium Animated Globe"
+          />
+        ) : vessels.isLoading || !port ? (
           <Skeleton className="h-[400px] w-full" />
         ) : (
           <MapView
@@ -82,8 +107,8 @@ function PortDetail() {
           />
         )}
         <div className="flex gap-4 px-2 pt-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-vessel-stationary" />Stationary</span>
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-vessel-moving" />Moving</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-vessel-stationary" />Stationary (Waiting/Berth)</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-vessel-moving" />Moving Underway</span>
         </div>
       </Card>
 

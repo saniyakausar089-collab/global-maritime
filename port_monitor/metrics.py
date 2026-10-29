@@ -358,35 +358,38 @@ def get_all_ports_summary(db_path: Optional[Path] = None) -> List[Dict[str, Any]
     return summary
 
 
-def get_vessel_tracks(port_id: str, limit_vessels: int = 1000, points_per_vessel: int = 12, db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+def get_vessel_tracks(port_id: str = "all", limit_vessels: int = 1000, points_per_vessel: int = 12, db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
     """Extract historical tracks per vessel for smooth animation (capped for performance)."""
+    import math
+
     init_db(db_path)
-    with get_connection(db_path) as conn:
-        cursor = conn.execute(
-            """
-            WITH ranked_tracks AS (
-                SELECT
-                    mmsi,
-                    ship_name,
-                    lat,
-                    lon,
-                    sog,
-                    cog,
-                    true_heading,
-                    zone_type,
-                    timestamp,
-                    ROW_NUMBER() OVER (PARTITION BY mmsi ORDER BY timestamp ASC, id ASC) AS rn,
-                    COUNT(*) OVER (PARTITION BY mmsi) AS total_pts
-                FROM ais_records
-                WHERE port_id = ?
-            )
-            SELECT mmsi, ship_name, lat, lon, sog, cog, true_heading, zone_type, timestamp
-            FROM ranked_tracks
-            WHERE rn > (total_pts - ?)
-            ORDER BY mmsi, timestamp ASC
-            """,
-            (port_id, points_per_vessel),
+    where_sql = "1=1" if port_id == "all" else "port_id = ?"
+    params = () if port_id == "all" else (port_id,)
+
+    query = f"""
+        WITH ranked_tracks AS (
+            SELECT
+                mmsi,
+                ship_name,
+                lat,
+                lon,
+                sog,
+                cog,
+                true_heading,
+                zone_type,
+                timestamp,
+                ROW_NUMBER() OVER (PARTITION BY mmsi ORDER BY timestamp ASC, id ASC) AS rn,
+                COUNT(*) OVER (PARTITION BY mmsi) AS total_pts
+            FROM ais_records
+            WHERE {where_sql}
         )
+        SELECT mmsi, ship_name, lat, lon, sog, cog, true_heading, zone_type, timestamp, total_pts
+        FROM ranked_tracks
+        WHERE rn > (total_pts - ?)
+        ORDER BY total_pts DESC, mmsi, timestamp ASC
+    """
+    with get_connection(db_path) as conn:
+        cursor = conn.execute(query, params + (points_per_vessel,))
         rows = cursor.fetchall()
 
     vessels_dict = {}
@@ -402,22 +405,62 @@ def get_vessel_tracks(port_id: str, limit_vessels: int = 1000, points_per_vessel
             }
 
         heading = float(r["true_heading"]) if r["true_heading"] is not None and r["true_heading"] != 511 else float(r["cog"] or 0.0)
+        ts_clean = r["timestamp"].strip()
+        if ts_clean.endswith("Z"):
+            ts_clean = ts_clean[:-1]
+        iso_str = ts_clean.replace(" ", "T") + "Z"
+
         vessels_dict[mmsi]["track"].append({
             "lat": float(r["lat"]),
             "lon": float(r["lon"]),
             "sog": float(r["sog"]),
             "cog": float(r["cog"] or 0.0),
             "heading": heading,
-            "iso": r["timestamp"].replace(" ", "T") + "Z" if "T" not in r["timestamp"] else r["timestamp"],
+            "iso": iso_str,
             "stationary": bool(float(r["sog"]) < STATIONARY_SPEED_KNOTS),
         })
 
-    # Add summary fields for latest position
+    # Add summary fields for latest position and synthesize tracks for moving single-ping vessels
     results = []
+    now_dt = datetime.now(timezone.utc)
+
     for mmsi, v in vessels_dict.items():
         if not v["track"]:
             continue
+
         latest = v["track"][-1]
+        is_stationary = latest["stationary"]
+        track = v["track"]
+
+        # If a vessel is underway (sog >= 0.5 kn) but only has 1 recorded ping, generate a short 6-point glide track
+        if len(track) == 1 and not is_stationary and latest["sog"] >= 0.5:
+            try:
+                base_time = datetime.fromisoformat(latest["iso"].replace("Z", "+00:00"))
+            except Exception:
+                base_time = now_dt
+
+            rad = math.radians(latest["heading"])
+            # Invert heading to find where ship was 5, 10, 15, 20, 25 minutes ago
+            synth_track = []
+            for step in range(5, 0, -1):
+                minutes_ago = step * 5
+                dist_nm = (latest["sog"] * minutes_ago) / 60.0
+                dist_deg = dist_nm / 60.0  # 1 degree lat is ~60 nm
+                past_lat = latest["lat"] - dist_deg * math.cos(rad)
+                past_lon = latest["lon"] - (dist_deg * math.sin(rad)) / max(0.1, math.cos(math.radians(latest["lat"])))
+                past_time = base_time - timedelta(minutes=minutes_ago)
+                synth_track.append({
+                    "lat": round(past_lat, 6),
+                    "lon": round(past_lon, 6),
+                    "sog": latest["sog"],
+                    "cog": latest["cog"],
+                    "heading": latest["heading"],
+                    "iso": past_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "stationary": False,
+                })
+            synth_track.append(latest)
+            track = synth_track
+
         results.append({
             "mmsi": mmsi,
             "name": v["name"],
@@ -425,7 +468,7 @@ def get_vessel_tracks(port_id: str, limit_vessels: int = 1000, points_per_vessel
             "lon": latest["lon"],
             "sog": latest["sog"],
             "heading": latest["heading"],
-            "stationary": latest["stationary"],
-            "track": v["track"],
+            "stationary": is_stationary,
+            "track": track,
         })
     return results

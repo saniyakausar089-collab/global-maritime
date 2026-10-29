@@ -393,119 +393,137 @@ def main():
 
     # VIEW 2: All Monitored Ports (Global Summary + Comparison)
     elif selected_option == "all":
-        st.subheader("🌐 Global Port Ranking & Status")
+        tab_all_globe, tab_all_stats, tab_all_alerts = st.tabs([
+            "🌍 Global 3D Fleet Globe",
+            "📊 Port Rankings & Comparison",
+            "🔔 Alerts Log",
+        ])
 
-        # Global Ports Summary Table
-        table_rows = []
-        for p in ports_summary:
-            ci = p["congestion_index"]
-            status_text = "Normal" if ci and ci < 0.8 else "Busy" if ci and ci <= 1.2 else "Congested" if ci else "No Data"
-            table_rows.append({
-                "Port": p["name"],
-                "Congestion Index": f"{ci:.2f}" if ci is not None else "N/A",
-                "Status": status_text,
-                "Total Ships": p["total_vessels"],
-                "Waiting at Anchorage": p["anchorage_vessels"],
-                "Moored at Berth": p["berth_vessels"],
-                "Stationary (<0.5 kn)": p["stationary_vessels"],
-                "Moving": p["moving_vessels"],
-                "Coordinates": f"{p['lat']}, {p['lon']}",
-            })
-        df_summary = pd.DataFrame(table_rows)
-        st.dataframe(df_summary, use_container_width=True, hide_index=True)
+        with tab_all_globe:
+            st.caption("Interactive 3D CesiumJS Global Fleet: Real-time 3D vessels with interpolated trajectory tracks, heading orientation, and fading trails.")
+            global_tracks = get_vessel_tracks("all", db_path=DB_PATH)
+            render_cesium_globe(
+                port_name="Global Maritime Fleet",
+                center_lat=25.0,
+                center_lon=55.0,
+                vessels_with_tracks=global_tracks,
+                congestion_index=None,
+                height=620,
+            )
 
-        # CSV Download for Global Summary
-        st.download_button(
-            label="📥 Download Global Summary CSV",
-            data=df_summary.to_csv(index=False).encode("utf-8"),
-            file_name="global_port_summary.csv",
-            mime="text/csv",
-        )
+        with tab_all_stats:
+            st.subheader("🌐 Global Port Ranking & Status")
 
-        st.divider()
-
-        # Multi-Port Comparative View (Overlay Normalized History)
-        st.subheader("📊 Port Comparison View (Overlay Normalized Congestion)")
-        st.caption("Compares 2 to 4 ports normalized against each port's historical median baseline (1.0 = Baseline Median)")
-
-        default_selection = list(PORTS.keys())[:3]
-        selected_compare = st.multiselect(
-            "Select 2 to 4 ports to compare",
-            options=list(PORTS.keys()),
-            default=default_selection,
-            format_func=lambda x: PORTS[x]["name"],
-        )
-
-        if len(selected_compare) >= 2:
-            norm_series = {}
-            comp_table_rows = []
-
-            for pid in selected_compare:
-                p_name = PORTS[pid]["name"]
-                hist = get_hourly_stationary_history(pid, start_date=start_filter_date, end_date=end_filter_date, db_path=DB_PATH)
-                if not hist:
-                    continue
-
-                df_h = pd.DataFrame(hist)
-                med_val = df_h["stationary"].median() if not df_h.empty else 0.0
-
-                if med_val > 0:
-                    df_h["normalized_ci"] = (df_h["stationary"] / med_val).round(2)
-                else:
-                    df_h["normalized_ci"] = 1.0
-
-                df_h = df_h.set_index("hour")
-                norm_series[p_name] = df_h["normalized_ci"]
-
-                latest_ci = df_h["normalized_ci"].iloc[-1] if not df_h.empty else 1.0
-                peak_ci = df_h["normalized_ci"].max() if not df_h.empty else 1.0
-
-                comp_table_rows.append({
-                    "Port": p_name,
-                    "Baseline Median Ships": int(med_val),
-                    "Latest Relative Congestion": f"{latest_ci:.2f}x",
-                    "Peak Relative Congestion": f"{peak_ci:.2f}x",
-                    "Status": "Congested" if latest_ci > 1.2 else "Busy" if latest_ci >= 0.8 else "Normal",
+            # Global Ports Summary Table
+            table_rows = []
+            for p in ports_summary:
+                ci = p["congestion_index"]
+                status_text = "Normal" if ci and ci < 0.8 else "Busy" if ci and ci <= 1.2 else "Congested" if ci else "No Data"
+                table_rows.append({
+                    "Port": p["name"],
+                    "Congestion Index": f"{ci:.2f}" if ci is not None else "N/A",
+                    "Status": status_text,
+                    "Total Ships": p["total_vessels"],
+                    "Waiting at Anchorage": p["anchorage_vessels"],
+                    "Moored at Berth": p["berth_vessels"],
+                    "Stationary (<0.5 kn)": p["stationary_vessels"],
+                    "Moving": p["moving_vessels"],
+                    "Coordinates": f"{p['lat']}, {p['lon']}",
                 })
+            df_summary = pd.DataFrame(table_rows)
+            st.dataframe(df_summary, use_container_width=True, hide_index=True)
 
-            if norm_series:
-                df_compare = pd.DataFrame(norm_series).ffill().bfill()
-                st.line_chart(df_compare)
+            # CSV Download for Global Summary
+            st.download_button(
+                label="📥 Download Global Summary CSV",
+                data=df_summary.to_csv(index=False).encode("utf-8"),
+                file_name="global_port_summary.csv",
+                mime="text/csv",
+            )
 
-                df_comp_stats = pd.DataFrame(comp_table_rows)
-                st.dataframe(df_comp_stats, use_container_width=True, hide_index=True)
+            st.divider()
 
+            # Multi-Port Comparative View (Overlay Normalized History)
+            st.subheader("📊 Port Comparison View (Overlay Normalized Congestion)")
+            st.caption("Compares 2 to 4 ports normalized against each port's historical median baseline (1.0 = Baseline Median)")
+
+            default_selection = list(PORTS.keys())[:3]
+            selected_compare = st.multiselect(
+                "Select 2 to 4 ports to compare",
+                options=list(PORTS.keys()),
+                default=default_selection,
+                format_func=lambda x: PORTS[x]["name"],
+            )
+
+            if len(selected_compare) >= 2:
+                norm_series = {}
+                comp_table_rows = []
+
+                for pid in selected_compare:
+                    p_name = PORTS[pid]["name"]
+                    hist = get_hourly_stationary_history(pid, start_date=start_filter_date, end_date=end_filter_date, db_path=DB_PATH)
+                    if not hist:
+                        continue
+
+                    df_h = pd.DataFrame(hist)
+                    med_val = df_h["stationary"].median() if not df_h.empty else 0.0
+
+                    if med_val > 0:
+                        df_h["normalized_ci"] = (df_h["stationary"] / med_val).round(2)
+                    else:
+                        df_h["normalized_ci"] = 1.0
+
+                    df_h = df_h.set_index("hour")
+                    norm_series[p_name] = df_h["normalized_ci"]
+
+                    latest_ci = df_h["normalized_ci"].iloc[-1] if not df_h.empty else 1.0
+                    peak_ci = df_h["normalized_ci"].max() if not df_h.empty else 1.0
+
+                    comp_table_rows.append({
+                        "Port": p_name,
+                        "Baseline Median Ships": int(med_val),
+                        "Latest Relative Congestion": f"{latest_ci:.2f}x",
+                        "Peak Relative Congestion": f"{peak_ci:.2f}x",
+                        "Status": "Congested" if latest_ci > 1.2 else "Busy" if latest_ci >= 0.8 else "Normal",
+                    })
+
+                if norm_series:
+                    df_compare = pd.DataFrame(norm_series).ffill().bfill()
+                    st.line_chart(df_compare)
+
+                    df_comp_stats = pd.DataFrame(comp_table_rows)
+                    st.dataframe(df_comp_stats, use_container_width=True, hide_index=True)
+
+                    st.download_button(
+                        label="📥 Download Comparison Data CSV",
+                        data=df_compare.to_csv().encode("utf-8"),
+                        file_name="port_comparison_normalized.csv",
+                        mime="text/csv",
+                    )
+                else:
+                    st.info("Insufficient historical records to generate comparison.")
+            else:
+                st.warning("Please select at least 2 ports to enable comparison view.")
+
+        with tab_all_alerts:
+            # Recent Alerts Log
+            st.subheader("🔔 Recent Congestion Alerts Log")
+            all_alerts = get_recent_alerts(limit=20, db_path=DB_PATH)
+            if all_alerts:
+                df_alerts = pd.DataFrame(all_alerts)
+                st.dataframe(
+                    df_alerts[["timestamp", "port_name", "congestion_index", "message"]],
+                    use_container_width=True,
+                    hide_index=True,
+                )
                 st.download_button(
-                    label="📥 Download Comparison Data CSV",
-                    data=df_compare.to_csv().encode("utf-8"),
-                    file_name="port_comparison_normalized.csv",
+                    label="📥 Download Alerts Log CSV",
+                    data=df_alerts.to_csv(index=False).encode("utf-8"),
+                    file_name="port_alerts_log.csv",
                     mime="text/csv",
                 )
             else:
-                st.info("Insufficient historical records to generate comparison.")
-        else:
-            st.warning("Please select at least 2 ports to enable comparison view.")
-
-        st.divider()
-
-        # Recent Alerts Log
-        st.subheader("🔔 Recent Congestion Alerts Log")
-        all_alerts = get_recent_alerts(limit=20, db_path=DB_PATH)
-        if all_alerts:
-            df_alerts = pd.DataFrame(all_alerts)
-            st.dataframe(
-                df_alerts[["timestamp", "port_name", "congestion_index", "message"]],
-                use_container_width=True,
-                hide_index=True,
-            )
-            st.download_button(
-                label="📥 Download Alerts Log CSV",
-                data=df_alerts.to_csv(index=False).encode("utf-8"),
-                file_name="port_alerts_log.csv",
-                mime="text/csv",
-            )
-        else:
-            st.info("No congestion alerts logged in database.")
+                st.info("No congestion alerts logged in database.")
 
     # VIEW 3: Port Detail View
     else:
