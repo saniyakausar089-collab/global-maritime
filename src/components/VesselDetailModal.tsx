@@ -600,3 +600,4 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
     </>
   );
 }
+

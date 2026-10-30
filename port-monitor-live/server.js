@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { WebSocketServer, WebSocket } from "ws";
 import cors from "cors";
 import dotenv from "dotenv";
+import { startOceanFleet } from "./ocean-fleet.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config();
@@ -217,11 +218,11 @@ function connectUp() {
     up.send(
       JSON.stringify({
         APIKey: KEY,
-        BoundingBoxes: boxes,
+        BoundingBoxes: [[[90, -180], [-90, 180]]],
         FilterMessageTypes: ["PositionReport", "ShipStaticData"],
       }),
     );
-    console.log("Connected to AISStream (6 ports subscribed)");
+    console.log("Connected to AISStream (Global oceanic + ports coverage subscribed)");
   });
   up.on("message", (raw) => {
     try {
@@ -799,6 +800,9 @@ wss.on("connection", (ws) => {
       }, 60000);
   });
 });
+
+// Launch Global Ocean Shipping Fleet
+startOceanFleet(vessels, dirty);
 
 if (SIM) {
   startSim();
