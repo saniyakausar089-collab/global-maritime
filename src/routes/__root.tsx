@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { Anchor, Moon, Sun } from "lucide-react";
+import { LiveClock } from "@/components/ui-bits";
 
 import appCss from "../styles.css?url";
 
@@ -38,8 +39,7 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-  }, [error]);
+  useEffect(() => {}, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -89,7 +89,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -141,8 +144,11 @@ function Header() {
     document.documentElement.classList.toggle("dark", d);
     localStorage.setItem("theme", d ? "dark" : "light");
   };
-  const link = "rounded-md px-3 py-1.5 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground";
-  const active = { className: "rounded-md px-3 py-1.5 text-sm bg-sidebar-accent text-sidebar-primary font-medium" };
+  const link =
+    "rounded-md px-3 py-1.5 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground";
+  const active = {
+    className: "rounded-md px-3 py-1.5 text-sm bg-sidebar-accent text-sidebar-primary font-medium",
+  };
   return (
     <header className="sticky top-0 z-[1000] border-b border-sidebar-border bg-sidebar">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-3">
@@ -150,15 +156,27 @@ function Header() {
           <Anchor className="h-5 w-5 text-sidebar-primary" /> Port Monitor
         </Link>
         <nav className="flex flex-wrap gap-1">
-          <Link to="/" className={link} activeProps={active} activeOptions={{ exact: true }}>Overview</Link>
-          <Link to="/compare" className={link} activeProps={active}>Compare</Link>
-          <Link to="/methodology" className={link} activeProps={active}>Methodology</Link>
+          <Link to="/" className={link} activeProps={active} activeOptions={{ exact: true }}>
+            Overview
+          </Link>
+          <Link to="/compare" className={link} activeProps={active}>
+            Compare
+          </Link>
+          <Link to="/methodology" className={link} activeProps={active}>
+            Methodology
+          </Link>
         </nav>
-        <button onClick={toggle} aria-label="Toggle theme" className="ml-auto rounded-md p-2 text-sidebar-foreground hover:bg-sidebar-accent">
-          {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <LiveClock />
+          <button
+            onClick={toggle}
+            aria-label="Toggle theme"
+            className="rounded-md p-2 text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
     </header>
   );
 }
-

@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Port Monitor – Live Ships</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: Inter, system-ui, sans-serif;
+        color: #04203a;
+        background: #eef5f9;
+      }
+      header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 56px;
+        background: #04203a;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 18px;
+        z-index: 5;
+      }
+      header b {
+        font-size: 18px;
+      }
+      header .sp {
+        flex: 1;
+      }
+      #q {
+        height: 34px;
+        border-radius: 8px;
+        border: 0;
+        padding: 0 12px;
+        width: 210px;
+        font: inherit;
+      }
+      #badge {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 13px;
+        background: #0b3558;
+        padding: 6px 12px;
+        border-radius: 99px;
+        white-space: nowrap;
+      }
+      #dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #aaa;
+      }
+      .live #dot {
+        background: #2ee59d;
+        box-shadow: 0 0 0 0 #2ee59d99;
+        animation: p 1.6s infinite;
+      }
+      .warn #dot {
+        background: #ffb020;
+      }
+      .bad #dot {
+        background: #ff5470;
+      }
+      @keyframes p {
+        70% {
+          box-shadow: 0 0 0 8px #0000;
+        }
+        100% {
+          box-shadow: 0 0 0 0 #0000;
+        }
+      }
+      #map {
+        position: fixed;
+        top: 56px;
+        bottom: 0;
+        left: 0;
+        right: 0;
+      }
+      #panel {
+        position: fixed;
+        top: 72px;
+        left: 14px;
+        width: 270px;
+        max-height: calc(100% - 100px);
+        overflow: auto;
+        z-index: 4;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 10px 14px;
+        box-shadow: 0 2px 10px #0003;
+        cursor: pointer;
+        border: 2px solid transparent;
+      }
+      .card:hover {
+        border-color: #0f9d9a;
+      }
+      .card h4 {
+        margin: 0;
+        font-size: 14px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .card small {
+        color: #5b6b7a;
+      }
+      .hi {
+        color: #d6336c;
+      }
+      .ok {
+        color: #0f9d9a;
+      }
+      #info {
+        background: #fff;
+        border-radius: 12px;
+        padding: 10px 14px;
+        box-shadow: 0 2px 10px #0003;
+        font-size: 13px;
+      }
+      .sim {
+        background: #ffb020;
+        color: #000;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 12px;
+      }
+      @media (max-width: 700px) {
+        #panel {
+          top: auto;
+          bottom: 10px;
+          left: 10px;
+          right: 10px;
+          width: auto;
+          flex-direction: row;
+          max-height: none;
+          overflow-x: auto;
+        }
+        .card {
+          min-width: 150px;
+        }
+        #q {
+          width: 120px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <b>⚓ Port Monitor</b><span id="mode"></span><span class="sp"></span>
+      <input id="q" placeholder="Search ship name / MMSI" autocomplete="off" />
+      <div id="badge"><i id="dot"></i><span id="st">Connecting…</span></div>
+    </header>
+    <div id="map"></div>
+    <aside id="panel">
+      <div id="info">Waiting for ships…</div>
+      <div id="ports" style="display: contents"></div>
+    </aside>
+    <script>
+      const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
+      const ships = new Map();
+      let portsMeta = [],
+        stats = [],
+        ready = false,
+        lastMsg = Date.now(),
+        ws,
+        attempt = 0;
+      const $ = (id) => document.getElementById(id);
+
+      // ---------- map ----------
+      const map = new maplibregl.Map({
+        container: "map",
+        style: "https://tiles.openfreemap.org/styles/positron",
+        center: [4.05, 51.95],
+        zoom: 7.5,
+        attributionControl: { compact: true },
+      });
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+      function icon(color) {
+        const c = document.createElement("canvas");
+        c.width = c.height = 40;
+        const x = c.getContext("2d");
+        x.beginPath();
+        x.moveTo(20, 3);
+        x.lineTo(31, 35);
+        x.lineTo(20, 28);
+        x.lineTo(9, 35);
+        x.closePath();
+        x.fillStyle = color;
+        x.fill();
+        x.lineWidth = 2.5;
+        x.strokeStyle = "#fff";
+        x.stroke();
+        return x.getImageData(0, 0, 40, 40);
+      }
+      map.on("load", () => {
+        map.addImage("mv", icon("#0b6fd6"), { pixelRatio: 2 });
+        map.addImage("st", icon("#8a96a3"), { pixelRatio: 2 });
+        map.addSource("ships", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+        map.addLayer({
+          id: "ships",
+          type: "symbol",
+          source: "ships",
+          layout: {
+            "icon-image": ["case", ["==", ["get", "mv"], 1], "mv", "st"],
+            "icon-rotate": ["get", "hdg"],
+            "icon-rotation-alignment": "map",
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+            "icon-size": ["interpolate", ["linear"], ["zoom"], 2, 0.4, 8, 0.7, 12, 1.1],
+          },
+        });
+        map.on("click", "ships", (e) => showShip(e.features[0].properties.id));
+        map.on("mouseenter", "ships", () => (map.getCanvas().style.cursor = "pointer"));
+        map.on("mouseleave", "ships", () => (map.getCanvas().style.cursor = ""));
+        ready = true;
+        requestAnimationFrame(frame);
+      });
+
+      // ---------- smooth movement (dead reckoning + blended corrections) ----------
+      function pos(s, now) {
+        let la = s.lat,
+          lo = s.lon;
+        if (s.sog > 0.5) {
+          const el = Math.min(180, (now - s.t) / 1000),
+            m = s.sog * 0.514444 * el,
+            r = (s.cog * Math.PI) / 180;
+          la += (m * Math.cos(r)) / 111320;
+          lo += (m * Math.sin(r)) / (111320 * Math.cos((la * Math.PI) / 180));
+        }
+        if (s.ox || s.oy) {
+          const k = Math.exp(-(now - s.t) / 2000);
+          lo += s.ox * k;
+          la += s.oy * k;
+        }
+        return [lo, la];
+      }
+      let last = 0;
+      function frame(ts) {
+        requestAnimationFrame(frame);
+        if (ts - last < 70) return;
+        last = ts;
+        const now = Date.now(),
+          f = [];
+        for (const s of ships.values()) {
+          const p = pos(s, now);
+          f.push({
+            type: "Feature",
+            properties: { id: s.id, mv: s.sog > 0.5 ? 1 : 0, hdg: s.hdg },
+            geometry: { type: "Point", coordinates: p },
+          });
+        }
+        map.getSource("ships").setData({ type: "FeatureCollection", features: f });
+      }
+      function upsert(a) {
+        const [id, name, lat, lon, sog, cog, hdg, type] = a,
+          now = Date.now(),
+          o = ships.get(id),
+          s = { id, name, lat, lon, sog, cog, hdg, type, t: now, ox: 0, oy: 0 };
+        if (o) {
+          const p = pos(o, now),
+            dx = p[0] - lon,
+            dy = p[1] - lat;
+          if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+            s.ox = dx;
+            s.oy = dy;
+          }
+        }
+        ships.set(id, s);
+      }
+
+      // ---------- websocket ----------
+      function setStatus(cls, txt) {
+        $("badge").className = cls;
+        $("st").textContent = txt;
+      }
+      function connect() {
+        setStatus("warn", "Connecting…");
+        const w = setTimeout(() => setStatus("warn", "Waking up server…"), 3500);
+        ws = new WebSocket(WS_URL);
+        ws.onopen = () => {
+          clearTimeout(w);
+          attempt = 0;
+          lastMsg = Date.now();
+          setStatus("live", "LIVE");
+        };
+        ws.onmessage = (e) => handle(JSON.parse(e.data));
+        ws.onerror = () => ws.close();
+        ws.onclose = () => {
+          clearTimeout(w);
+          setStatus("bad", "Reconnecting…");
+          setTimeout(connect, Math.min(10000, 1000 * 2 ** attempt++));
+        };
+      }
+      setInterval(() => {
+        if (ws && ws.readyState === 1 && Date.now() - lastMsg > 10000) ws.close();
+      }, 3000);
+      function handle(m) {
+        lastMsg = Date.now();
+        if (m.t === "snap") {
+          ships.clear();
+          portsMeta = m.portsMeta;
+          $("mode").innerHTML = m.mode === "sim" ? '<span class="sim">SIMULATED DATA</span>' : "";
+        }
+        m.v.forEach(upsert);
+        (m.gone || []).forEach((id) => ships.delete(id));
+        stats = m.ports;
+        render();
+      }
+      function render() {
+        const moving = [...ships.values()].filter((s) => s.sog > 0.5).length;
+        $("info").innerHTML = ships.size
+          ? `<b>${ships.size}</b> ships tracked · <b>${moving}</b> moving`
+          : "Waiting for ships… (AIS can take up to a minute)";
+        $("ports").innerHTML = portsMeta
+          .map((p) => ({ p, s: stats.find((x) => x.id === p.id) || {} }))
+          .sort((a, b) => (b.s.index || 0) - (a.s.index || 0))
+          .map(
+            ({ p, s }) =>
+              `<div class="card" data-id="${p.id}"><h4>${p.name}<span class="${s.index > 1.2 ? "hi" : "ok"}">${s.index ?? "–"}</span></h4><small>${s.total || 0} ships nearby · ${s.slow || 0} waiting</small></div>`,
+          )
+          .join("");
+      }
+      $("ports").onclick = (e) => {
+        const c = e.target.closest(".card");
+        if (!c) return;
+        const p = portsMeta.find((x) => x.id === c.dataset.id);
+        map.flyTo({ center: [p.lon, p.lat], zoom: 9.5 });
+      };
+
+      // ---------- ship popup + search ----------
+      let popup;
+      function showShip(id) {
+        const s = ships.get(id);
+        if (!s) return;
+        popup && popup.remove();
+        popup = new maplibregl.Popup({ offset: 14 })
+          .setLngLat(pos(s, Date.now()))
+          .setHTML(
+            `<b>${s.name || "Unknown vessel"}</b><br>MMSI ${s.id}<br>Speed ${s.sog.toFixed(1)} kn · Course ${Math.round(s.cog)}°<br>Updated ${Math.round((Date.now() - s.t) / 1000)}s ago`,
+          )
+          .addTo(map);
+      }
+      $("q").onkeydown = (e) => {
+        if (e.key !== "Enter") return;
+        const q = e.target.value.trim().toLowerCase();
+        if (!q) return;
+        const s = [...ships.values()].find(
+          (s) => String(s.id) === q || (s.name || "").toLowerCase().includes(q),
+        );
+        if (s) {
+          map.flyTo({ center: pos(s, Date.now()), zoom: 11 });
+          showShip(s.id);
+        } else e.target.style.outline = "2px solid #ff5470";
+        setTimeout(() => (e.target.style.outline = ""), 900);
+      };
+      connect();
+    </script>
+  </body>
+</html>

@@ -40,6 +40,7 @@ A real-time Python maritime intelligence platform that monitors port congestion 
 ```
 
 ### Core Components
+
 - **`config.py`**: Centralized configuration loader for `.env` credentials, port polygon mappings, database paths, and thresholds.
 - **`build_geofences.py`**: Builds `data/ports.geojson` with high-precision polygon boundaries and sub-zones for **berths** and **anchorages** across all ports using OpenStreetMap and curated nautical fallbacks.
 - **`ingest.py`**: Asynchronous WebSocket client ingesting live AIS `PositionReport` packets from `wss://stream.aisstream.io/v0/stream`, recording SOG, COG, true heading, and spatial zone classification into `ais.db`.
@@ -57,9 +58,11 @@ A real-time Python maritime intelligence platform that monitors port congestion 
 ## Setup Steps (Windows PowerShell)
 
 ### 1. Prerequisites
+
 Ensure you have Python 3.10+ installed (`py --version`).
 
 ### 2. Navigate and Create Virtual Environment
+
 ```powershell
 cd port_monitor
 py -m venv .venv
@@ -67,22 +70,28 @@ py -m venv .venv
 ```
 
 > **Note**: If PowerShell displays an `Execution_Policies` restriction when activating the venv:
+>
 > ```powershell
 > Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 > ```
 
 ### 3. Install Dependencies
+
 ```powershell
 py -m pip install --upgrade pip
 py -m pip install -r requirements.txt
 ```
 
 ### 4. Configure Environment Keys
+
 Copy the example environment template:
+
 ```powershell
 cp .env.example .env
 ```
+
 Open `.env` in your editor and configure:
+
 - `AISSTREAM_API_KEY`: Free 40-character API key from [aisstream.io](https://aisstream.io).
 - `CESIUM_ION_TOKEN`: Token from [ion.cesium.com](https://ion.cesium.com) for high-resolution 3D terrain on the Cesium globe.
 - `EE_PROJECT`: (Optional) Google Cloud Project ID with Earth Engine API enabled (for `evaluate.py`).
@@ -93,16 +102,21 @@ Open `.env` in your editor and configure:
 ## How to Run Each Script
 
 ### 1. Test Dashboard Immediately (Demo Mode)
+
 To explore the complete dashboard with simulated vessels, headings, and 48-hour history:
+
 ```powershell
 py seed_demo.py
 ```
 
 ### 2. Launch Streamlit Dashboard
+
 ```powershell
 py -m streamlit run app.py
 ```
+
 Open `http://localhost:8501` in your browser. You can:
+
 - View active sustained congestion alert banners.
 - Replay the last 24 hours of vessel movements with heading rotation in the **2D Pydeck Map**.
 - Explore vessel glide and fading motion trails in the **3D Cesium Globe**.
@@ -112,43 +126,56 @@ Open `http://localhost:8501` in your browser. You can:
 - Review formulas and operational boundaries under the **📖 Methodology & Limitations** tab.
 
 ### 3. Run Live AIS Ingestion
+
 To capture real-time vessel transponders from AISStream:
+
 ```powershell
 py ingest.py
 ```
 
 ### 4. Build Port Geofences
+
 To query OpenStreetMap Overpass API and update polygon zones in `data/ports.geojson`:
+
 ```powershell
 py build_geofences.py
 ```
 
 ### 5. Check and Trigger Congestion Alerts
+
 To manually scan ports for sustained congestion (> 1.2 for 3 consecutive hours) and dispatch alerts:
+
 ```powershell
 py alerts.py
 ```
 
 ### 6. Validate Against Official Port Statistics
+
 ```powershell
 py validate_official.py
 ```
+
 Outputs statistical correlations, exports `validation_results.csv`, and generates `figures/validation.png`.
 
 > [!IMPORTANT]
 > `data/official_stats.csv` is populated with initial **PLACEHOLDER** records. Replace these rows with your actual Port Authority vessel call figures for production research.
 
 ### 7. Satellite Cross-Validation (Google Earth Engine)
+
 One-time machine authentication:
+
 ```powershell
 earthengine authenticate
 ```
+
 Then run:
+
 ```powershell
 py evaluate.py
 ```
 
 ### 8. Run Unit Tests
+
 ```powershell
 py -m pytest tests -v
 ```

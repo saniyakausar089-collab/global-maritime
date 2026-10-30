@@ -3,14 +3,16 @@
 function shipIcon(colour) {
   const svg =
     '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
-    '<path d="M16 2 L24 26 L16 21 L8 26 Z" fill="' + colour + '" stroke="white" stroke-width="1.5"/>' +
-    '</svg>';
+    '<path d="M16 2 L24 26 L16 21 L8 26 Z" fill="' +
+    colour +
+    '" stroke="white" stroke-width="1.5"/>' +
+    "</svg>";
   return "data:image/svg+xml;base64," + btoa(svg);
 }
 
 const ICONS = {
   stationary: shipIcon("#ffa726"),
-  moving: shipIcon("#26c6da")
+  moving: shipIcon("#26c6da"),
 };
 
 // Icon points "up" (north). Cesium rotates counter-clockwise, compass headings go

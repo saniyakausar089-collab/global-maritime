@@ -121,7 +121,7 @@ def get_cesium_html(
     </head>
     <body>
       <div class="control-panel">
-        <strong>⚓ {port_name} 3D Maritime Space</strong> &bull; <span id="vesselCount">{len(vessels)}</span> vessels
+        <strong>⚓ {port_name} 3D Maritime Space</strong> &bull; <span id="vesselCount">{len(vessels)}</span> vessels &bull; <span style="font-family: monospace; color: #38bdf8; font-weight: 600;"><span style="color:#22c55e;">●</span> <span id="cesiumLiveTime">--:--:-- UTC</span></span>
         {f'<span class="congested-badge">🚨 CONGESTED ({congestion_index:.2f})</span>' if is_congested else ''}
         <br>
         <span class="legend-indicator" style="background: #f97316; border-radius: 2px;"></span> Stationary / Waiting (&lt; 0.5 kn) &nbsp;&nbsp;
@@ -365,6 +365,15 @@ def get_cesium_html(
           viewer.clock.shouldAnimate = isPlaying;
           btnPlay.innerText = isPlaying ? '⏸ Pause' : '▶ Play';
         }});
+
+        function updateCesiumLiveClock() {
+          const d = new Date();
+          const pad = (n) => String(n).padStart(2, '0');
+          const el = document.getElementById('cesiumLiveTime');
+          if (el) el.textContent = pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds()) + ' UTC';
+        }
+        updateCesiumLiveClock();
+        setInterval(updateCesiumLiveClock, 1000);
 
         window.setSpeed = function(multiplier) {{
           viewer.clock.multiplier = multiplier;

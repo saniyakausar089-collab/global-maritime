@@ -15,19 +15,28 @@ const viewer = new Cesium.Viewer("globe", {
   geocoder: false,
   timeline: true,
   animation: false,
-  shouldAnimate: true
+  shouldAnimate: true,
 });
 
 function addPorts(ports) {
   if (!ports) return;
-  ports.forEach(p => {
+  ports.forEach((p) => {
     const colour = congestionColour(p.index);
     viewer.entities.add({
-      name: p.name + " (congestion index: " + (p.index !== null && p.index !== undefined ? p.index : "n/a") + ")",
+      name:
+        p.name +
+        " (congestion index: " +
+        (p.index !== null && p.index !== undefined ? p.index : "n/a") +
+        ")",
       position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat),
       point: { pixelSize: 14, color: colour, outlineColor: Cesium.Color.WHITE, outlineWidth: 2 },
-      label: { text: p.name, font: "14px sans-serif", pixelOffset: new Cesium.Cartesian2(0, -22),
-               fillColor: Cesium.Color.WHITE, showBackground: true }
+      label: {
+        text: p.name,
+        font: "14px sans-serif",
+        pixelOffset: new Cesium.Cartesian2(0, -22),
+        fillColor: Cesium.Color.WHITE,
+        showBackground: true,
+      },
     });
 
     // Pulsing red ring on congested ports
@@ -36,13 +45,19 @@ function addPorts(ports) {
         name: p.name + " Congestion Alert",
         position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat),
         ellipse: {
-          semiMajorAxis: new Cesium.CallbackProperty(() => 8000 + 4000 * Math.sin(Date.now() / 400), false),
-          semiMinorAxis: new Cesium.CallbackProperty(() => 8000 + 4000 * Math.sin(Date.now() / 400), false),
+          semiMajorAxis: new Cesium.CallbackProperty(
+            () => 8000 + 4000 * Math.sin(Date.now() / 400),
+            false,
+          ),
+          semiMinorAxis: new Cesium.CallbackProperty(
+            () => 8000 + 4000 * Math.sin(Date.now() / 400),
+            false,
+          ),
           material: Cesium.Color.RED.withAlpha(0.25),
           outline: true,
           outlineColor: Cesium.Color.RED,
-          height: 0
-        }
+          height: 0,
+        },
       });
     }
   });
@@ -50,12 +65,12 @@ function addPorts(ports) {
 
 function addVessels(vessels) {
   if (!vessels) return;
-  vessels.slice(0, cfg.MAX_VESSELS || 1000).forEach(v => {
+  vessels.slice(0, cfg.MAX_VESSELS || 1000).forEach((v) => {
     // Build a position-over-time property from the vessel's recent track
     const position = new Cesium.SampledPositionProperty();
     position.setInterpolationOptions({
       interpolationDegree: 1,
-      interpolationAlgorithm: Cesium.LinearApproximation
+      interpolationAlgorithm: Cesium.LinearApproximation,
     });
     position.forwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
     position.backwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
@@ -63,7 +78,10 @@ function addVessels(vessels) {
     if (v.track && v.track.length) {
       v.track.forEach(([time, lon, lat]) => {
         try {
-          position.addSample(Cesium.JulianDate.fromIso8601(time), Cesium.Cartesian3.fromDegrees(lon, lat));
+          position.addSample(
+            Cesium.JulianDate.fromIso8601(time),
+            Cesium.Cartesian3.fromDegrees(lon, lat),
+          );
         } catch (e) {}
       });
     }
@@ -76,17 +94,20 @@ function addVessels(vessels) {
       billboard: {
         image: ICONS[type],
         scale: 0.7,
-        rotation: headingToRotation(v.heading)
+        rotation: headingToRotation(v.heading),
       },
       // fading trail behind moving ships
-      path: v.stationary ? undefined : {
-        leadTime: 0,
-        trailTime: 1800,
-        width: 3,
-        material: new Cesium.PolylineGlowMaterialProperty({
-          glowPower: 0.25, color: Cesium.Color.fromCssColorString("#26c6da").withAlpha(0.7)
-        })
-      }
+      path: v.stationary
+        ? undefined
+        : {
+            leadTime: 0,
+            trailTime: 1800,
+            width: 3,
+            material: new Cesium.PolylineGlowMaterialProperty({
+              glowPower: 0.25,
+              color: Cesium.Color.fromCssColorString("#26c6da").withAlpha(0.7),
+            }),
+          },
     });
   });
 }
@@ -99,10 +120,10 @@ function setupControls() {
       playBtn.textContent = viewer.clock.shouldAnimate ? "Pause" : "Play";
     };
   }
-  document.querySelectorAll("[data-speed]").forEach(btn => {
+  document.querySelectorAll("[data-speed]").forEach((btn) => {
     btn.onclick = () => {
       viewer.clock.multiplier = Number(btn.dataset.speed);
-      document.querySelectorAll("[data-speed]").forEach(b => b.classList.remove("on"));
+      document.querySelectorAll("[data-speed]").forEach((b) => b.classList.remove("on"));
       btn.classList.add("on");
     };
   });
@@ -135,17 +156,29 @@ async function start() {
     const statusEl = document.getElementById("status");
     if (statusEl) {
       statusEl.textContent =
-        (data.vessels ? data.vessels.length : 0) + " vessels, " +
-        (data.ports ? data.ports.length : 0) + " ports loaded.";
+        (data.vessels ? data.vessels.length : 0) +
+        " vessels, " +
+        (data.ports ? data.ports.length : 0) +
+        " ports loaded.";
     }
   } catch (err) {
     const statusEl = document.getElementById("status");
     if (statusEl) {
-      statusEl.textContent =
-        "Could not load data. Run export_tracks.py first.";
+      statusEl.textContent = "Could not load data. Run export_tracks.py first.";
     }
     console.error("Error loading tracks:", err);
   }
 }
 
 start();
+
+function updateGlobeLiveClock() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const el = document.getElementById("globeLiveTime");
+  if (el)
+    el.textContent =
+      pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds()) + " UTC";
+}
+updateGlobeLiveClock();
+setInterval(updateGlobeLiveClock, 1000);

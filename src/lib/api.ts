@@ -1,14 +1,38 @@
 import { queryOptions } from "@tanstack/react-query";
 
-/** Single place to configure the FastAPI backend. */
-export const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || "http://127.0.0.1:8000";
+/** Single place to configure the relay backend. */
+export const API_BASE_URL =
+  (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ||
+  "http://localhost:3000";
+
+export const WS_BASE_URL =
+  (import.meta as unknown as { env?: { VITE_WS_URL?: string } }).env?.VITE_WS_URL ||
+  API_BASE_URL.replace(/^http/, "ws") + "/ws";
 export const REFRESH_MS = 60_000;
 
-export type Port = { id: string; name: string; lat: number; lon: number; congestion_index: number | null };
-export type Vessel = { mmsi: number; ship_name: string; lat: number; lon: number; sog: number; stationary: boolean };
+export type Port = {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  congestion_index: number | null;
+};
+export type Vessel = {
+  mmsi: number;
+  ship_name: string;
+  lat: number;
+  lon: number;
+  sog: number;
+  stationary: boolean;
+};
 export type HistoryPoint = { hour: string; stationary: number };
 
-export type Sourced<T> = { data: T; source: "live" | "fallback"; error?: string | undefined; fetchedAt: number };
+export type Sourced<T> = {
+  data: T;
+  source: "live" | "fallback";
+  error?: string | undefined;
+  fetchedAt: number;
+};
 
 async function getJson<T>(path: string, fallback: () => T): Promise<Sourced<T>> {
   let out: Sourced<T>;
@@ -17,6 +41,7 @@ async function getJson<T>(path: string, fallback: () => T): Promise<Sourced<T>> 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     out = { data: (await res.json()) as T, source: "live", fetchedAt: Date.now() };
   } catch (e) {
+    console.error(`[API Error] Failed to fetch ${API_BASE_URL}${path}:`, e);
     out = {
       data: fallback(),
       source: "fallback",
@@ -38,7 +63,7 @@ const FALLBACK_PORTS: Port[] = [
 ];
 function seeded(seed: number) {
   let s = seed;
-  return () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+  return () => (s = (s * 9301 + 49297) % 233280) / 233280;
 }
 function hash(id: string) {
   return [...id].reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -76,19 +101,26 @@ export const portsQuery = () =>
   queryOptions({
     queryKey: ["ports"],
     queryFn: () => getJson<Port[]>("/ports", () => FALLBACK_PORTS),
-    refetchInterval: REFRESH_MS,
+    refetchInterval: (query) => (query.state.data?.source === "fallback" ? 4000 : REFRESH_MS),
+    refetchIntervalInBackground: true,
   });
 export const vesselsQuery = (id: string) =>
   queryOptions({
     queryKey: ["vessels", id],
-    queryFn: () => getJson<Vessel[]>(`/ports/${encodeURIComponent(id)}/vessels`, () => fallbackVessels(id)),
-    refetchInterval: REFRESH_MS,
+    queryFn: () =>
+      getJson<Vessel[]>(`/ports/${encodeURIComponent(id)}/vessels`, () => fallbackVessels(id)),
+    refetchInterval: (query) => (query.state.data?.source === "fallback" ? 4000 : REFRESH_MS),
+    refetchIntervalInBackground: true,
   });
 export const historyQuery = (id: string) =>
   queryOptions({
     queryKey: ["history", id],
-    queryFn: () => getJson<HistoryPoint[]>(`/ports/${encodeURIComponent(id)}/history`, () => fallbackHistory(id)),
-    refetchInterval: REFRESH_MS,
+    queryFn: () =>
+      getJson<HistoryPoint[]>(`/ports/${encodeURIComponent(id)}/history`, () =>
+        fallbackHistory(id),
+      ),
+    refetchInterval: (query) => (query.state.data?.source === "fallback" ? 4000 : REFRESH_MS),
+    refetchIntervalInBackground: true,
   });
 
 // ---- Helpers ----
@@ -112,6 +144,18 @@ export const STATUS_VAR: Record<Status, string> = {
   unknown: "var(--status-none)",
 };
 
+export function getShipTypeLabel(typeNum?: number): string {
+  const t = Number(typeNum) || 0;
+  if (t >= 70 && t <= 79) return "Cargo";
+  if (t >= 80 && t <= 89) return "Tanker";
+  if (t >= 60 && t <= 69) return "Passenger";
+  if (t >= 50 && t <= 59) return "Special Craft / Tug";
+  if (t === 30) return "Fishing";
+  if (t >= 36 && t <= 37) return "Pleasure Craft";
+  if (t > 0) return "Other";
+  return "Unknown";
+}
+
 export function median(nums: number[]): number | null {
   if (!nums.length) return null;
   const s = [...nums].sort((a, b) => a - b);
@@ -126,7 +170,9 @@ export function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
     const s = String(v ?? "");
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const csv = [headers.join(","), ...rows.map((r) => headers.map((h) => esc(r[h])).join(","))].join("\n");
+  const csv = [headers.join(","), ...rows.map((r) => headers.map((h) => esc(r[h])).join(","))].join(
+    "\n",
+  );
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
   const a = document.createElement("a");
   a.href = url;
@@ -134,4 +180,3 @@ export function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
   a.click();
   URL.revokeObjectURL(url);
 }
-

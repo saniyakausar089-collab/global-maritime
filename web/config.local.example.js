@@ -3,5 +3,5 @@
 window.APP_CONFIG = {
   CESIUM_ION_TOKEN: "",
   DATA_URL: "data/tracks.json",
-  MAX_VESSELS: 1000
+  MAX_VESSELS: 1000,
 };

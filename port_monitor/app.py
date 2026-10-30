@@ -234,7 +234,27 @@ def main():
         st.title("⚓ Global Maritime Port Monitor")
         st.caption("Real-time AIS congestion metrics, polygon geofencing, 3D Cesium globe, and automated alerting")
     with col_refresh:
-        st.write("")
+        st.components.v1.html(
+            """
+            <div style="font-family: monospace; font-size: 12px; color: #94a3b8; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 4px 0;">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#22c55e; box-shadow:0 0 6px #22c55e;"></span>
+                <span style="color:#22c55e; font-weight:700;">LIVE</span>
+                <span id="st-clock" style="color:#f8fafc; font-weight:600;">--:--:-- UTC</span>
+            </div>
+            <script>
+                function tick() {
+                    const d = new Date();
+                    const pad = (n) => String(n).padStart(2, '0');
+                    const utc = pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds()) + ' UTC';
+                    const el = document.getElementById('st-clock');
+                    if (el) el.textContent = utc;
+                }
+                tick();
+                setInterval(tick, 1000);
+            </script>
+            """,
+            height=34,
+        )
         if st.button("🔄 Refresh Data", use_container_width=True):
             check_and_trigger_alerts(DB_PATH)
             st.rerun()

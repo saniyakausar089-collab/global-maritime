@@ -5,9 +5,17 @@ export const Route = createFileRoute("/methodology")({
   head: () => ({
     meta: [
       { title: "Methodology — Global Maritime Port Monitor" },
-      { name: "description", content: "How AIS data, geofencing and the congestion index are computed." },
+      {
+        name: "description",
+        content:
+          "How AIS data, 25km geofencing, anchorage queues, and the congestion index are computed.",
+      },
       { property: "og:title", content: "Methodology — Port Monitor" },
-      { property: "og:description", content: "How AIS data, geofencing and the congestion index are computed." },
+      {
+        name: "description",
+        content:
+          "How AIS data, 25km geofencing, anchorage queues, and the congestion index are computed.",
+      },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -16,18 +24,25 @@ export const Route = createFileRoute("/methodology")({
 });
 
 const sections = [
-  ["AIS data source", "Vessel positions come from the Automatic Identification System (AIS): transponder broadcasts carrying each ship's MMSI, name, position and speed over ground (SOG). Messages are collected by the backend and aggregated per port."],
-  ["Geofencing", "Each port is defined by a geographic boundary around its anchorages and terminals. Only vessels whose latest position falls inside that boundary are counted for the port."],
-  ["Stationary threshold", "A vessel is classed as stationary when its speed over ground is below 0.5 knots — typically anchored, moored or waiting for a berth. Anything faster is treated as moving."],
-  ["Congestion index", "Every hour the backend counts stationary vessels in the geofence. The index is the latest hourly stationary count divided by that port's median hourly count. 1.0 means typical; below 0.8 is Normal, 0.8–1.2 Busy, above 1.2 Congested. If there isn't enough history to compute a median the index is shown as \"Not enough data\"."],
+  [
+    "Live AISStream Relay Architecture",
+    "Data source: AISStream live AIS transponder feeds streamed directly from global terrestrial VHF coastal stations. Because browsers cannot maintain authenticated AISStream sockets with strict quota limits, our Node relay maintains a single upstream connection to wss://stream.aisstream.io/v0/stream, tracks vessels in memory with 15-minute expiry, and pushes batched 2-second diffs to clients over WebSockets.",
+  ],
+  [
+    "Port Geofencing & Monitored Hubs",
+    "Each of our 6 global hub ports (Rotterdam, Singapore, Shanghai, Los Angeles, Hamburg, Santos) is bounded by a 0.6° sector box covering shipping approaches, container berths, and waiting anchorages.",
+  ],
+  [
+    "Congestion Index Formula",
+    "The congestion index measures the share of commercial vessels within 25 km of a port moving under 0.5 knots (anchored, moored, or queuing for an open berth). When at least 5 vessels are detected within 25 km, the index is calculated as:",
+  ],
 ] as const;
 
 const limits = [
-  "AIS coverage gaps (satellite/terrestrial reception) can undercount vessels.",
-  "Some ships switch off or misreport AIS; names and speeds may be inaccurate.",
-  "Moored vessels at berth working cargo are counted the same as ships waiting at anchor.",
-  "Geofences are approximations and may include nearby traffic lanes or exclude outer anchorages.",
-  "New ports need several days of history before the median, and therefore the index, is meaningful.",
+  "Free AISStream data can lag 1–3 minutes per vessel depending on coastal receiver traffic and uplink load.",
+  "Coverage is best near ports with active terrestrial antenna networks; open ocean stretches between ports have patchy satellite coverage.",
+  "Vessels at anchor may occasionally experience GPS drift; dead-reckoning filters dampen position jitter.",
+  "If the upstream relay is started without an API key or with SIMULATE=1, simulated vessels are generated and clearly flagged in the UI.",
 ];
 
 function Methodology() {
@@ -41,12 +56,30 @@ function Methodology() {
         </Card>
       ))}
       <Card>
-        <p className="font-mono text-sm">congestion_index = stationary_count(latest hour) / median(stationary_count per hour)</p>
+        <p className="font-mono text-sm leading-relaxed">
+          slow_vessels = count(distance &lt;= 25km AND speed &lt; 0.5 kn)
+          <br />
+          congestion_index = total &gt;= 5 ? min(2.0, 0.6 + 1.6 * (slow / total)) : null
+        </p>
+        <div className="mt-3 flex flex-wrap gap-4 text-xs">
+          <span className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" /> &lt; 0.8: Normal (Smooth flow)
+          </span>
+          <span className="flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
+            <span className="h-2 w-2 rounded-full bg-amber-500" /> 0.8 – 1.2: Busy (Moderate volume)
+          </span>
+          <span className="flex items-center gap-1.5 font-medium text-rose-600 dark:text-rose-400">
+            <span className="h-2 w-2 rounded-full bg-rose-500" /> &gt; 1.2: Congested (Queuing
+            delay)
+          </span>
+        </div>
       </Card>
       <Card>
         <h2 className="font-semibold text-accent">Known limitations</h2>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          {limits.map((l) => <li key={l}>{l}</li>)}
+          {limits.map((l) => (
+            <li key={l}>{l}</li>
+          ))}
         </ul>
       </Card>
     </div>
