@@ -44,7 +44,7 @@ export function deadReckonPos(s: LiveVessel, now: number): [number, number] {
   let la = s.lat;
   let lo = s.lon;
   if (s.sog > 0.5) {
-    const el = Math.min(180, (now - s.t) / 1000);
+    const el = Math.min(45, (now - s.t) / 1000);
     const m = s.sog * 0.514444 * el;
     const r = (s.cog * Math.PI) / 180;
     la += (m * Math.cos(r)) / 111320;

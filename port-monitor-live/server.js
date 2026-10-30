@@ -211,87 +211,6 @@ function connectUp() {
   });
 }
 
-// Realistic commercial global traffic corridors (Trans-Pacific, Indian Ocean, Malacca, North Atlantic, etc.)
-const CORRIDORS = [
-  // Trans-Pacific (Shanghai -> Los Angeles)
-  { from: [31.2, 122.5], to: [33.7, -118.5], count: 50, speed: [14, 21], type: 70 },
-  // Asia - Europe via Indian Ocean (Singapore -> Rotterdam approach)
-  { from: [1.3, 103.8], to: [12.5, 44.5], count: 45, speed: [13, 19], type: 70 },
-  { from: [12.5, 44.5], to: [36.0, -5.5], count: 40, speed: [12, 18], type: 80 },
-  { from: [36.0, -5.5], to: [51.9, 4.2], count: 40, speed: [12, 17], type: 70 },
-  // North Atlantic (Rotterdam/Hamburg -> East Coast / Panama)
-  { from: [50.5, -0.5], to: [25.0, -75.0], count: 35, speed: [14, 20], type: 70 },
-  // South America Atlantic (Santos -> North Atlantic / Europe)
-  { from: [-23.9, -46.0], to: [15.0, -30.0], count: 30, speed: [11, 16], type: 80 },
-  { from: [15.0, -30.0], to: [50.0, -5.0], count: 30, speed: [12, 17], type: 70 },
-  // Regional Straits & High-density coastal corridors
-  { from: [1.2, 103.5], to: [5.5, 99.5], count: 40, speed: [8, 16], type: 70 }, // Malacca
-  { from: [51.0, 1.5], to: [53.5, 8.5], count: 35, speed: [10, 15], type: 70 },  // North Sea / German Bight
-  { from: [30.0, 122.0], to: [34.0, 129.0], count: 40, speed: [12, 18], type: 70 }, // East China Sea
-  { from: [32.0, -117.5], to: [36.0, -122.5], count: 25, speed: [11, 17], type: 80 }, // California Coast
-];
-
-const VESSEL_NAMES_CARGO = [
-  "MSC TESSA", "EVER GOLDEN", "CMA CGM JACQUES SAADE", "OOCL SPAIN", "MADRID MAERSK",
-  "HAPAG-LLOYD BERLIN", "ONE APUS", "COSCO UNIVERSE", "BERGE BULKER", "HYUNDAI PRIDE",
-  "YANG MING WISDOM", "WAN HAI 516", "ZIM ROTTERDAM", "PACIFIC TRADER", "ATLANTIC PIONEER",
-  "ORIENTAL HIGHWAY", "GLOBAL VOYAGER", "STAR CLIPPER", "SEASPAN BRAVO", "NORDIC GLORY",
-  "MAERSK MC-KINNEY", "EVER GIVEN", "MSC OSCAR", "CMA CGM ANTOINE", "ONE STORK",
-];
-
-const VESSEL_NAMES_TANKER = [
-  "TI EUROPE", "FRONT ALTAIR", "EURONAV ARAPAHO", "NORDIC POLLUX", "STENA SUPREME",
-  "BW OAK", "TEEKAY SPIRIT", "DHT LOTUS", "OVERSEAS SANTORINI", "PACIFIC SAPPHIRE",
-  "VALE BRASIL", "MINERVA OCEAN", "MARAN GAS APOLLO", "GASLOG SINGAPORE", "GOLAR GLACIER",
-];
-
-function startGlobalAmbientTraffic() {
-  let simId = 910000000;
-  for (const corr of CORRIDORS) {
-    for (let i = 0; i < corr.count; i++) {
-      const frac = Math.random();
-      const lat = corr.from[0] + (corr.to[0] - corr.from[0]) * frac + (Math.random() - 0.5) * 0.4;
-      const lon = corr.from[1] + (corr.to[1] - corr.from[1]) * frac + (Math.random() - 0.5) * 0.4;
-      const dLat = corr.to[0] - corr.from[0];
-      const dLon = corr.to[1] - corr.from[1];
-      const angle = (Math.atan2(dLon, dLat) * 180) / Math.PI;
-      const cog = (angle + 360) % 360;
-      const sog = corr.speed[0] + Math.random() * (corr.speed[1] - corr.speed[0]);
-      const isTanker = corr.type === 80 || (corr.type === 70 && Math.random() < 0.3);
-      const namePool = isTanker ? VESSEL_NAMES_TANKER : VESSEL_NAMES_CARGO;
-      const name = namePool[Math.floor(Math.random() * namePool.length)] + ` (${Math.floor(Math.random() * 900 + 100)})`;
-      const type = isTanker ? 80 : Math.random() < 0.1 ? 60 : 70;
-
-      vessels.set(simId, {
-        id: simId,
-        name,
-        lat,
-        lon,
-        sog,
-        cog,
-        hdg: cog,
-        type,
-        seen: Date.now(),
-        corr,
-      });
-      simId++;
-    }
-  }
-
-  // Continuously advance ocean transit vessels smoothly
-  setInterval(() => {
-    for (const [id, v] of vessels) {
-      if (id < 910000000) continue; // Only advance ambient en-route vessels
-      const m = (v.sog || 12) * 0.514444 * 2;
-      const r = ((v.cog || 0) * Math.PI) / 180;
-      v.lat += (m * Math.cos(r)) / 111320;
-      v.lon += (m * Math.sin(r)) / (111320 * Math.cos((v.lat * Math.PI) / 180));
-      v.seen = Date.now();
-      if (Math.random() < 0.18) dirty.add(id);
-    }
-  }, 2000);
-}
-
 // ---- simulation (only when no key or SIMULATE=1) ----
 function startSim() {
   let n = 1;
@@ -488,8 +407,7 @@ if (SIM) {
 }
 
 if (process.env.NODE_ENV !== "test") {
-  startGlobalAmbientTraffic();
-  server.listen(PORT, () => console.log(`Port Monitor live on http://localhost:${PORT}`));
+    server.listen(PORT, () => console.log(`Port Monitor live on http://localhost:${PORT}`));
 }
 
 export { app, server, vessels };

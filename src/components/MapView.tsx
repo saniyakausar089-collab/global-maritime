@@ -50,60 +50,187 @@ const MAP_STYLES = {
   clean: "https://tiles.openfreemap.org/styles/positron",
 };
 
-function createNauticalArrowIcon(color: string, isAnchored = false): ImageData {
+function createRealisticShipIcon(type: string, color: string): ImageData {
   const c = document.createElement("canvas");
-  c.width = 44;
-  c.height = 44;
+  c.width = 54;
+  c.height = 54;
   const x = c.getContext("2d")!;
+  const cx = 27;
 
-  if (isAnchored) {
-    // Moored buoy icon
-    x.beginPath();
-    x.arc(22, 22, 12, 0, Math.PI * 2);
-    x.fillStyle = "#64748b";
-    x.fill();
-    x.lineWidth = 2.5;
-    x.strokeStyle = "#ffffff";
-    x.stroke();
+  // Custom hull dimensions based on vessel category
+  let bowY = 5;
+  let sternY = 47;
+  let hw = 7.5; // half width (beam)
 
-    // Inner anchor symbol
-    x.fillStyle = "#ffffff";
-    x.fillRect(20, 14, 4, 15);
-    x.fillRect(16, 17, 12, 3);
-    x.beginPath();
-    x.arc(22, 24, 6, 0, Math.PI);
-    x.lineWidth = 2.5;
-    x.strokeStyle = "#ffffff";
-    x.stroke();
-    return x.getImageData(0, 0, 44, 44);
+  if (type === "tug") {
+    bowY = 12;
+    sternY = 42;
+    hw = 8.5;
+  } else if (type === "fast") {
+    bowY = 4;
+    sternY = 48;
+    hw = 6.2;
+  } else if (type === "tanker") {
+    bowY = 6;
+    sternY = 48;
+    hw = 8.2;
+  } else if (type === "passenger") {
+    bowY = 5;
+    sternY = 48;
+    hw = 7.2;
   }
 
-  // Directional ship arrow with glowing aura
-  x.shadowColor = color;
-  x.shadowBlur = 5;
+  // 1. Hydrodynamic stern wake when vessel is under way
+  if (type !== "anchored") {
+    x.strokeStyle = "rgba(255, 255, 255, 0.45)";
+    x.lineWidth = 1.5;
+    x.beginPath();
+    x.moveTo(cx - hw * 0.7, sternY - 2);
+    x.lineTo(cx - hw * 1.5, sternY + 6);
+    x.moveTo(cx + hw * 0.7, sternY - 2);
+    x.lineTo(cx + hw * 1.5, sternY + 6);
+    x.stroke();
+  }
+
+  // 2. Realistic Hull Silhouette (hydrodynamic pointed bow + long parallel midbody + flat transom stern)
+  x.shadowColor = "rgba(0, 0, 0, 0.45)";
+  x.shadowBlur = 4;
+  x.shadowOffsetY = 1;
 
   x.beginPath();
-  x.moveTo(22, 3);   // Sharp bow
-  x.lineTo(34, 39);  // Starboard stern
-  x.lineTo(22, 31);  // Center stern indentation
-  x.lineTo(10, 39);  // Port stern
+  // Bow tip
+  x.moveTo(cx, bowY);
+  // Starboard forward curve
+  x.bezierCurveTo(cx + hw * 0.6, bowY + 3, cx + hw, bowY + 11, cx + hw, bowY + 16);
+  // Starboard parallel hull down to stern
+  x.lineTo(cx + hw, sternY - 4);
+  // Starboard transom corner curve
+  x.quadraticCurveTo(cx + hw, sternY, cx + hw - 2, sternY);
+  // Transom flat stern
+  x.lineTo(cx - hw + 2, sternY);
+  // Port transom corner curve
+  x.quadraticCurveTo(cx - hw, sternY, cx - hw, sternY - 4);
+  // Port parallel hull up to forward curve
+  x.lineTo(cx - hw, bowY + 16);
+  // Port forward curve back to bow tip
+  x.bezierCurveTo(cx - hw, bowY + 11, cx - hw * 0.6, bowY + 3, cx, bowY);
   x.closePath();
+
+  // Primary hull color
   x.fillStyle = color;
   x.fill();
 
-  // Clean white hull boundary
+  // Crisp white hull perimeter
   x.shadowBlur = 0;
-  x.lineWidth = 2.5;
+  x.shadowOffsetY = 0;
+  x.lineWidth = 1.8;
   x.strokeStyle = "#ffffff";
   x.stroke();
 
-  // Bridge wheelhouse center light
+  // 3. Inner Main Deck
+  const deckHw = hw - 2.2;
+  const deckBowY = bowY + 6;
+  const deckSternY = sternY - 3;
+
   x.beginPath();
-  x.arc(22, 23, 2.5, 0, Math.PI * 2);
-  x.fillStyle = "#ffffff";
+  x.moveTo(cx, deckBowY);
+  x.lineTo(cx + deckHw, deckBowY + 10);
+  x.lineTo(cx + deckHw, deckSternY);
+  x.lineTo(cx - deckHw, deckSternY);
+  x.lineTo(cx - deckHw, deckBowY + 10);
+  x.closePath();
+  x.fillStyle = "rgba(15, 23, 42, 0.35)";
   x.fill();
 
-  return x.getImageData(0, 0, 44, 44);
+  // 4. Authentic Top-Down Deck Equipment & Superstructure
+  if (type === "cargo" || type === "other") {
+    // Container bays / Cargo hold hatches
+    x.fillStyle = "rgba(255, 255, 255, 0.85)";
+    const hW = deckHw * 1.5;
+    for (let i = 0; i < 4; i++) {
+      const hy = deckBowY + 6 + i * 5;
+      if (hy < sternY - 13) {
+        x.fillRect(cx - hW / 2, hy, hW, 3);
+      }
+    }
+    // Aft Navigation Bridge with bridge wings
+    const brY = sternY - 11;
+    x.fillStyle = "#ffffff";
+    x.fillRect(cx - (deckHw + 1), brY, (deckHw + 1) * 2, 4);
+    // Smokestack / Funnel
+    x.fillStyle = "#0f172a";
+    x.fillRect(cx - 2, brY + 4.5, 4, 2.5);
+  } else if (type === "tanker") {
+    // Longitudinal center pipeline
+    x.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    x.lineWidth = 1.4;
+    x.beginPath();
+    x.moveTo(cx, deckBowY + 5);
+    x.lineTo(cx, sternY - 11);
+    x.stroke();
+    // Tank dome manifolds
+    x.fillStyle = "#ffffff";
+    for (let i = 0; i < 3; i++) {
+      x.beginPath();
+      x.arc(cx, deckBowY + 8 + i * 7, 2.2, 0, Math.PI * 2);
+      x.fill();
+    }
+    // Aft Bridge & Funnel
+    const brY = sternY - 10;
+    x.fillStyle = "#ffffff";
+    x.fillRect(cx - deckHw, brY, deckHw * 2, 4);
+    x.fillStyle = "#0f172a";
+    x.fillRect(cx - 2.5, brY + 4.5, 5, 2.5);
+  } else if (type === "passenger") {
+    // Multi-tier passenger decks
+    x.fillStyle = "rgba(255, 255, 255, 0.92)";
+    x.fillRect(cx - deckHw + 0.8, deckBowY + 5, (deckHw - 0.8) * 2, sternY - deckBowY - 11);
+    // Twin funnels / radomes
+    x.fillStyle = "#ec4899";
+    x.fillRect(cx - 3, deckBowY + 12, 6, 2.5);
+    x.fillRect(cx - 3, deckBowY + 18, 6, 2.5);
+  } else if (type === "tug") {
+    // Heavy rubber bow bumper fender
+    x.fillStyle = "#0f172a";
+    x.beginPath();
+    x.arc(cx, bowY + 2, 3.5, 0, Math.PI * 2);
+    x.fill();
+    // Round wheelhouse
+    x.fillStyle = "#ffffff";
+    x.beginPath();
+    x.ellipse(cx, (bowY + sternY) / 2, 4.5, 5.5, 0, 0, Math.PI * 2);
+    x.fill();
+  } else if (type === "fast") {
+    // Slender cockpit & streamlined bridge
+    x.fillStyle = "#ffffff";
+    x.beginPath();
+    x.moveTo(cx, bowY + 8);
+    x.lineTo(cx + 3, bowY + 22);
+    x.lineTo(cx - 3, bowY + 22);
+    x.closePath();
+    x.fill();
+  }
+
+  // 5. Anchored vessel badge overlay
+  if (type === "anchored") {
+    x.fillStyle = "#ffffff";
+    x.beginPath();
+    x.arc(cx, (bowY + sternY) / 2 - 3, 3, 0, Math.PI * 2);
+    x.fill();
+    x.strokeStyle = "#ffffff";
+    x.lineWidth = 1.6;
+    x.beginPath();
+    x.moveTo(cx, (bowY + sternY) / 2);
+    x.lineTo(cx, (bowY + sternY) / 2 + 7);
+    x.moveTo(cx - 4, (bowY + sternY) / 2 + 2);
+    x.lineTo(cx + 4, (bowY + sternY) / 2 + 2);
+    x.stroke();
+    x.beginPath();
+    x.arc(cx, (bowY + sternY) / 2 + 5, 4, 0, Math.PI);
+    x.stroke();
+  }
+
+  return x.getImageData(0, 0, 54, 54);
 }
 
 function getShipIconKey(s: LiveVessel): string {
@@ -205,7 +332,7 @@ export function MapView({
       Object.entries(SHIP_COLORS).forEach(([key, conf]) => {
         const id = `ship_${key}`;
         if (!map.hasImage(id)) {
-          map.addImage(id, createNauticalArrowIcon(conf.fill, key === "anchored"), {
+          map.addImage(id, createRealisticShipIcon(key, conf.fill), {
             pixelRatio: 2,
           });
         }
