@@ -802,7 +802,9 @@ wss.on("connection", (ws) => {
 });
 
 // Launch Global Ocean Shipping Fleet
-startOceanFleet(vessels, dirty);
+if (process.env.NODE_ENV !== "test") {
+  startOceanFleet(vessels, dirty);
+}
 
 if (SIM) {
   startSim();

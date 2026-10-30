@@ -9,7 +9,7 @@
     "dev:client": "vite dev",
     "server": "node port-monitor-live/server.js",
     "start": "node port-monitor-live/server.js",
-    "build": "vite build",
+    "build": "vite build && node scripts/prerender-spa.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
