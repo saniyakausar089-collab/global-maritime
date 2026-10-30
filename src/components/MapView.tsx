@@ -562,19 +562,34 @@ export function MapView({
     const p = deadReckonPos(s, Date.now()); // [lon, lat]
     const coords: [number, number] = p;
 
-    const popupHtml = `
-      <div style="font-family: inherit; font-size: 13px; line-height: 1.4; padding: 4px 2px; color: #04203a;">
-        <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px; color: #0f172a;">${s.name || "Unknown Vessel"}</div>
-        <div><span style="color: #64748b;">MMSI:</span> <b>${s.id || s.mmsi}</b></div>
-        <div><span style="color: #64748b;">Type:</span> ${s.shipTypeLabel || "Commercial"}</div>
-        <div><span style="color: #64748b;">Speed:</span> <b>${Number(s.sog || 0).toFixed(1)} kn</b> · <span style="color: #64748b;">Course:</span> ${Math.round(s.cog || 0)}°</div>
-        <div style="margin-top: 4px; font-size: 11px; color: #94a3b8;">Updated ${Math.round((Date.now() - (s.t || Date.now())) / 1000)}s ago</div>
-      </div>
+    const popupNode = document.createElement("div");
+    popupNode.style.fontFamily = "inherit";
+    popupNode.style.fontSize = "13px";
+    popupNode.style.lineHeight = "1.4";
+    popupNode.style.padding = "4px 2px";
+    popupNode.style.color = "#04203a";
+
+    popupNode.innerHTML = `
+      <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px; color: #0f172a;">${s.name || "Unknown Vessel"}</div>
+      <div><span style="color: #64748b;">MMSI:</span> <b>${s.id || s.mmsi}</b></div>
+      <div><span style="color: #64748b;">Type:</span> ${s.shipTypeLabel || "Commercial"}</div>
+      <div><span style="color: #64748b;">Speed:</span> <b>${Number(s.sog || 0).toFixed(1)} kn</b> · <span style="color: #64748b;">Course:</span> ${Math.round(s.cog || 0)}°</div>
+      <div style="margin-top: 4px; font-size: 11px; color: #94a3b8;">Updated ${Math.round((Date.now() - (s.t || Date.now())) / 1000)}s ago</div>
+      <button id="open-vessel-intel-popup-btn" style="margin-top: 8px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; background: #0284c7; color: #ffffff; border: none; border-radius: 6px; padding: 6px 10px; font-weight: 600; font-size: 11px; cursor: pointer; transition: background 0.2s;">
+        ✨ View Photo & Ask Gemini
+      </button>
     `;
+
+    const btn = popupNode.querySelector("#open-vessel-intel-popup-btn");
+    if (btn) {
+      btn.addEventListener("click", () => {
+        if (onSelectVessel) onSelectVessel(s);
+      });
+    }
 
     popupRef.current = new maplibregl.Popup({ offset: 14, closeButton: true })
       .setLngLat(coords)
-      .setHTML(popupHtml)
+      .setDOMContent(popupNode)
       .addTo(map);
   }, []);
 

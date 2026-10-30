@@ -317,6 +317,7 @@ setInterval(() => {
 }, 2000);
 
 const app = express();
+app.use(express.json());
 
 const ALLOWED_ORIGINS = (
   process.env.ALLOWED_ORIGINS ||
@@ -397,6 +398,380 @@ app.get(["/api/history", "/ports/:id/history"], (req, res) => {
   if (!id) return res.json([]);
   const list = hourlyHistory.get(id) || [];
   res.json(list);
+});
+
+// --- MID Flag State Mapping ---
+const MID_MAP = {
+  205: { country: "Belgium", code: "BE", flag: "🇧🇪" },
+  211: { country: "Germany", code: "DE", flag: "🇩🇪" },
+  218: { country: "Germany", code: "DE", flag: "🇩🇪" },
+  219: { country: "Denmark", code: "DK", flag: "🇩🇰" },
+  220: { country: "Denmark", code: "DK", flag: "🇩🇰" },
+  224: { country: "Spain", code: "ES", flag: "🇪🇸" },
+  225: { country: "Spain", code: "ES", flag: "🇪🇸" },
+  226: { country: "France", code: "FR", flag: "🇫🇷" },
+  227: { country: "France", code: "FR", flag: "🇫🇷" },
+  228: { country: "France", code: "FR", flag: "🇫🇷" },
+  232: { country: "United Kingdom", code: "GB", flag: "🇬🇧" },
+  233: { country: "United Kingdom", code: "GB", flag: "🇬🇧" },
+  234: { country: "United Kingdom", code: "GB", flag: "🇬🇧" },
+  235: { country: "United Kingdom", code: "GB", flag: "🇬🇧" },
+  237: { country: "Greece", code: "GR", flag: "🇬🇷" },
+  239: { country: "Greece", code: "GR", flag: "🇬🇷" },
+  240: { country: "Greece", code: "GR", flag: "🇬🇷" },
+  241: { country: "Greece", code: "GR", flag: "🇬🇷" },
+  244: { country: "Netherlands", code: "NL", flag: "🇳🇱" },
+  245: { country: "Netherlands", code: "NL", flag: "🇳🇱" },
+  246: { country: "Netherlands", code: "NL", flag: "🇳🇱" },
+  247: { country: "Italy", code: "IT", flag: "🇮🇹" },
+  249: { country: "Malta", code: "MT", flag: "🇲🇹" },
+  257: { country: "Norway", code: "NO", flag: "🇳🇴" },
+  258: { country: "Norway", code: "NO", flag: "🇳🇴" },
+  259: { country: "Norway", code: "NO", flag: "🇳🇴" },
+  271: { country: "Turkey", code: "TR", flag: "🇹🇷" },
+  273: { country: "Russia", code: "RU", flag: "🇷🇺" },
+  304: { country: "Antigua and Barbuda", code: "AG", flag: "🇦🇬" },
+  305: { country: "Antigua and Barbuda", code: "AG", flag: "🇦🇬" },
+  310: { country: "Bermuda", code: "BM", flag: "🇧🇲" },
+  311: { country: "Bahamas", code: "BS", flag: "🇧🇸" },
+  312: { country: "Belize", code: "BZ", flag: "🇧🇿" },
+  351: { country: "Panama", code: "PA", flag: "🇵🇦" },
+  352: { country: "Panama", code: "PA", flag: "🇵🇦" },
+  353: { country: "Panama", code: "PA", flag: "🇵🇦" },
+  354: { country: "Panama", code: "PA", flag: "🇵🇦" },
+  355: { country: "Panama", code: "PA", flag: "🇵🇦" },
+  356: { country: "Panama", code: "PA", flag: "🇵🇦" },
+  357: { country: "Panama", code: "PA", flag: "🇵🇦" },
+  366: { country: "United States", code: "US", flag: "🇺🇸" },
+  367: { country: "United States", code: "US", flag: "🇺🇸" },
+  368: { country: "United States", code: "US", flag: "🇺🇸" },
+  369: { country: "United States", code: "US", flag: "🇺🇸" },
+  370: { country: "Panama", code: "PA", flag: "🇵🇦" },
+  371: { country: "Panama", code: "PA", flag: "🇵🇦" },
+  372: { country: "Panama", code: "PA", flag: "🇵🇦" },
+  373: { country: "Panama", code: "PA", flag: "🇵🇦" },
+  412: { country: "China", code: "CN", flag: "🇨🇳" },
+  413: { country: "China", code: "CN", flag: "🇨🇳" },
+  414: { country: "China", code: "CN", flag: "🇨🇳" },
+  419: { country: "India", code: "IN", flag: "🇮🇳" },
+  431: { country: "Japan", code: "JP", flag: "🇯🇵" },
+  432: { country: "Japan", code: "JP", flag: "🇯🇵" },
+  440: { country: "South Korea", code: "KR", flag: "🇰🇷" },
+  441: { country: "South Korea", code: "KR", flag: "🇰🇷" },
+  477: { country: "Hong Kong", code: "HK", flag: "🇭🇰" },
+  503: { country: "Australia", code: "AU", flag: "🇦🇺" },
+  512: { country: "New Zealand", code: "NZ", flag: "🇳🇿" },
+  538: { country: "Marshall Islands", code: "MH", flag: "🇲🇭" },
+  563: { country: "Singapore", code: "SG", flag: "🇸🇬" },
+  564: { country: "Singapore", code: "SG", flag: "🇸🇬" },
+  565: { country: "Singapore", code: "SG", flag: "🇸🇬" },
+  566: { country: "Singapore", code: "SG", flag: "🇸🇬" },
+  636: { country: "Liberia", code: "LR", flag: "🇱🇷" },
+  710: { country: "Brazil", code: "BR", flag: "🇧🇷" },
+};
+
+function getFlag(mmsi) {
+  if (!mmsi) return { country: "International", code: "UN", flag: "🌐" };
+  const mid = parseInt(String(mmsi).slice(0, 3), 10);
+  return MID_MAP[mid] || { country: "International", code: "UN", flag: "🌐" };
+}
+
+function getShipTypeInfo(type) {
+  const t = Number(type) || 0;
+  if (t >= 70 && t <= 79) return { category: "cargo", label: "Cargo / Container Carrier" };
+  if (t >= 80 && t <= 89) return { category: "tanker", label: "Crude Oil & Chemical Tanker" };
+  if (t >= 60 && t <= 69) return { category: "passenger", label: "Passenger / Cruise Ferry" };
+  if (t === 31 || t === 32 || t === 52) return { category: "tug", label: "Tugboat & Port Towing" };
+  if (t === 30) return { category: "fishing", label: "Commercial Fishing Trawler" };
+  if (t === 36 || t === 37) return { category: "yacht", label: "Pleasure Craft / Yacht" };
+  if (t >= 50 && t <= 59) return { category: "special", label: "Special Operations / Pilot / SAR" };
+  return { category: "default", label: "Merchant Marine Vessel" };
+}
+
+const CATEGORY_FALLBACK_PHOTOS = {
+  cargo: {
+    photoUrl: "https://images.unsplash.com/photo-1559136555-9303baea8ebd?auto=format&fit=crop&w=1200&q=80",
+    source: "Maritime Fleet Archive (Container & Cargo Carrier)",
+  },
+  tanker: {
+    photoUrl: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80",
+    source: "Maritime Fleet Archive (Crude Oil & Chemical Tanker)",
+  },
+  passenger: {
+    photoUrl: "https://images.unsplash.com/photo-1548574505-5e239809ee19?auto=format&fit=crop&w=1200&q=80",
+    source: "Maritime Fleet Archive (Passenger Cruise Liner)",
+  },
+  tug: {
+    photoUrl: "https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?auto=format&fit=crop&w=1200&q=80",
+    source: "Maritime Fleet Archive (Harbor Tug & Escort)",
+  },
+  fishing: {
+    photoUrl: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=1200&q=80",
+    source: "Maritime Fleet Archive (Commercial Fishing Vessel)",
+  },
+  special: {
+    photoUrl: "https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=1200&q=80",
+    source: "Maritime Fleet Archive (Specialized Offshore Craft)",
+  },
+  default: {
+    photoUrl: "https://images.unsplash.com/photo-1505705694340-019e1e335916?auto=format&fit=crop&w=1200&q=80",
+    source: "Maritime Fleet Archive (Merchant Vessel)",
+  },
+};
+
+const photoCache = new Map();
+
+async function getVesselPhoto(shipName, shipType) {
+  const normName = (shipName || "").trim();
+  const cacheKey = `${normName}_${shipType}`;
+  if (photoCache.has(cacheKey)) return photoCache.get(cacheKey);
+
+  const typeInfo = getShipTypeInfo(shipType);
+  const fallback = CATEGORY_FALLBACK_PHOTOS[typeInfo.category] || CATEGORY_FALLBACK_PHOTOS.default;
+
+  if (normName && normName.length > 2 && !normName.startsWith("VESSEL-") && !normName.startsWith("SHIP-")) {
+    try {
+      const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(normName)}&prop=pageimages&format=json&pithumbsize=900&origin=*`;
+      const res = await fetch(url, { headers: { "User-Agent": "GlobalMaritimeMonitor/1.0" } });
+      if (res.ok) {
+        const d = await res.json();
+        const pages = d.query?.pages || {};
+        for (const k in pages) {
+          const thumb = pages[k].thumbnail?.source;
+          if (thumb && !thumb.endsWith(".svg.png") && !thumb.endsWith(".svg")) {
+            const result = {
+              photoUrl: thumb,
+              source: `Wikimedia Commons (${pages[k].title})`,
+              isSpecific: true,
+            };
+            photoCache.set(cacheKey, result);
+            return result;
+          }
+        }
+      }
+    } catch {}
+
+    try {
+      const sUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(normName + " ship")}&format=json&origin=*`;
+      const sRes = await fetch(sUrl, { headers: { "User-Agent": "GlobalMaritimeMonitor/1.0" } });
+      if (sRes.ok) {
+        const sd = await sRes.json();
+        const top = sd.query?.search?.[0]?.title;
+        if (top) {
+          const pUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(top)}&prop=pageimages&format=json&pithumbsize=900&origin=*`;
+          const pRes = await fetch(pUrl, { headers: { "User-Agent": "GlobalMaritimeMonitor/1.0" } });
+          if (pRes.ok) {
+            const pd = await pRes.json();
+            const pages = pd.query?.pages || {};
+            for (const k in pages) {
+              const thumb = pages[k].thumbnail?.source;
+              if (thumb && !thumb.endsWith(".svg.png") && !thumb.endsWith(".svg")) {
+                const result = {
+                  photoUrl: thumb,
+                  source: `Wikimedia Commons (${pages[k].title})`,
+                  isSpecific: true,
+                };
+                photoCache.set(cacheKey, result);
+                return result;
+              }
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  const result = {
+    photoUrl: fallback.photoUrl,
+    source: fallback.source,
+    isSpecific: false,
+  };
+  photoCache.set(cacheKey, result);
+  return result;
+}
+
+// Single vessel details endpoint
+app.get("/api/vessels/:id", (req, res) => {
+  const mmsi = req.params.id;
+  const v = vessels.get(Number(mmsi)) || vessels.get(mmsi);
+  if (!v) {
+    return res.status(404).json({ error: "Vessel not found or signal expired" });
+  }
+  const flag = getFlag(v.id);
+  const typeInfo = getShipTypeInfo(v.type);
+
+  let nearestPort = null;
+  let minDistance = 99999;
+  for (const p of PORTS) {
+    const k = Math.cos((p.lat * Math.PI) / 180);
+    const dy = (v.lat - p.lat) * 111.32;
+    const dx = (v.lon - p.lon) * 111.32 * k;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d < minDistance) {
+      minDistance = d;
+      nearestPort = { id: p.id, name: p.name, distanceKm: Math.round(d) };
+    }
+  }
+
+  res.json({
+    id: v.id,
+    mmsi: v.id,
+    name: v.name || `VESSEL-${v.id}`,
+    lat: v.lat,
+    lon: v.lon,
+    sog: v.sog || 0,
+    cog: v.cog || 0,
+    hdg: v.hdg ?? v.cog ?? 0,
+    type: v.type || 0,
+    typeLabel: typeInfo.label,
+    category: typeInfo.category,
+    flag: `${flag.flag} ${flag.country}`,
+    flagCode: flag.code,
+    stationary: (v.sog || 0) < 0.5,
+    lastSeen: v.seen || Date.now(),
+    nearestPort,
+  });
+});
+
+// Vessel photo lookup endpoint
+app.get("/api/vessels/:id/photo", async (req, res) => {
+  const mmsi = req.params.id;
+  const v = vessels.get(Number(mmsi)) || vessels.get(mmsi) || {};
+  const name = v.name || req.query.name || "";
+  const type = v.type || req.query.type || 0;
+
+  const photo = await getVesselPhoto(name, type);
+  const flag = getFlag(mmsi);
+  const typeInfo = getShipTypeInfo(type);
+
+  res.json({
+    mmsi,
+    name: name || `VESSEL-${mmsi}`,
+    typeLabel: typeInfo.label,
+    flag: `${flag.flag} ${flag.country}`,
+    photoUrl: photo.photoUrl,
+    source: photo.source,
+    isSpecific: photo.isSpecific,
+    marineTrafficUrl: `https://www.marinetraffic.com/en/ais/details/ships/mmsi:${mmsi}`,
+    vesselFinderUrl: `https://www.vesselfinder.com/vessels?name=${encodeURIComponent(name || mmsi)}`,
+  });
+});
+
+// Gemini AI Chat endpoint for specific vessel intelligence
+app.post("/api/vessels/:id/chat", async (req, res) => {
+  const mmsi = req.params.id;
+  const { question, history, vesselContext } = req.body || {};
+  if (!question || typeof question !== "string") {
+    return res.status(400).json({ error: "question string is required" });
+  }
+
+  const v = vessels.get(Number(mmsi)) || vessels.get(mmsi) || vesselContext || {};
+  const flag = getFlag(v.id || mmsi);
+  const typeInfo = getShipTypeInfo(v.type);
+
+  // Compute nearest monitored port
+  let nearestPort = "International Waters";
+  let minDistance = 99999;
+  if (v.lat != null && v.lon != null) {
+    for (const p of PORTS) {
+      const k = Math.cos((p.lat * Math.PI) / 180);
+      const dy = (v.lat - p.lat) * 111.32;
+      const dx = (v.lon - p.lon) * 111.32 * k;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < minDistance) {
+        minDistance = d;
+        nearestPort = `${p.name} (~${Math.round(d)} km)`;
+      }
+    }
+  }
+
+  const vesselSummary = {
+    name: v.name || `VESSEL-${mmsi}`,
+    mmsi: mmsi,
+    flag: `${flag.flag} ${flag.country}`,
+    type: typeInfo.label,
+    speedKnots: Number(v.sog || 0).toFixed(1),
+    courseDeg: Math.round(v.cog || 0),
+    headingDeg: Math.round(v.hdg ?? v.cog ?? 0),
+    latitude: v.lat != null ? Number(v.lat).toFixed(4) : "Unknown",
+    longitude: v.lon != null ? Number(v.lon).toFixed(4) : "Unknown",
+    status: (v.sog || 0) < 0.5 ? "Anchored / Moored" : "Under way",
+    nearestPort,
+  };
+
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  if (!apiKey) {
+    return res.json({
+      answer: `**${vesselSummary.name}** is a **${vesselSummary.type}** flying the flag of **${vesselSummary.flag}**. Navigating at **${vesselSummary.speedKnots} knots** on heading **${vesselSummary.courseDeg}°**, nearest to ${vesselSummary.nearestPort}. *(Please configure GEMINI_API_KEY for deep AI intelligence.)*`,
+      vessel: vesselSummary,
+    });
+  }
+
+  const systemInstruction = `You are the Maritime AI Fleet Intelligence Officer on the Global Port Congestion & Maritime Live Tracking platform.
+You possess deep maritime domain expertise covering global commercial shipping, naval architecture, cargo types, deadweight tonnage, AIS telemetry, international trade corridors (Suez Canal, Malacca Strait, English Channel, Panama Canal, etc.), port logistics, flag states, and fleet management.
+
+Live Telemetry & AIS Data for this vessel:
+- Vessel Name: ${vesselSummary.name}
+- MMSI: ${vesselSummary.mmsi}
+- Flag State: ${vesselSummary.flag}
+- Category: ${vesselSummary.type}
+- Speed Over Ground: ${vesselSummary.speedKnots} knots
+- Course / Heading: ${vesselSummary.courseDeg}°
+- Navigational Status: ${vesselSummary.status}
+- Current Coordinates: ${vesselSummary.latitude}, ${vesselSummary.longitude}
+- Nearest Monitored Port: ${vesselSummary.nearestPort}
+
+Guidelines:
+- Deliver an informative, authoritative, engaging, and well-structured answer.
+- Format responses cleanly with Markdown (use bolding, bullet points, and concise sections where helpful).
+- If asked about cargo, explain the typical cargo commodities carried by this vessel category, loading operations, and standard stowage.
+- If asked about routes or speed, interpret the current AIS coordinates, heading, and speed relative to international shipping lanes.
+- If asked about the ship's operator or history, provide known details if famous or explain the typical commercial fleet operations for this class of ship.
+- Keep the tone professional, nautical, and helpful.`;
+
+  try {
+    const contents = [];
+    if (Array.isArray(history)) {
+      for (const h of history) {
+        if (h && (h.role === "user" || h.role === "model") && h.parts?.[0]?.text) {
+          contents.push({ role: h.role, parts: [{ text: h.parts[0].text }] });
+        }
+      }
+    }
+    contents.push({ role: "user", parts: [{ text: question }] });
+
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const geminiRes = await fetch(geminiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents,
+      }),
+    });
+
+    if (!geminiRes.ok) {
+      const errText = await geminiRes.text();
+      console.error("Gemini API error status:", geminiRes.status, errText);
+      return res.json({
+        answer: `I am tracking **${vesselSummary.name}** (${vesselSummary.type}, ${vesselSummary.flag}). It is currently positioned at ${vesselSummary.latitude}, ${vesselSummary.longitude} traveling at ${vesselSummary.speedKnots} knots toward ${vesselSummary.nearestPort}.`,
+        vessel: vesselSummary,
+      });
+    }
+
+    const data = await geminiRes.json();
+    const answer =
+      data.candidates?.[0]?.content?.parts?.[0]?.text ||
+      `Analysis for ${vesselSummary.name} completed successfully.`;
+
+    return res.json({ answer, vessel: vesselSummary });
+  } catch (err) {
+    console.error("Gemini route error:", err);
+    return res.json({
+      answer: `**${vesselSummary.name}** is currently navigating at ${vesselSummary.speedKnots} knots on course ${vesselSummary.courseDeg}°. Nearest monitored port is ${vesselSummary.nearestPort}.`,
+      vessel: vesselSummary,
+    });
+  }
 });
 
 app.use(express.static(path.join(__dirname, "public")));

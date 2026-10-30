@@ -1,3 +1,4 @@
+import { VesselDetailModal } from "@/components/VesselDetailModal";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -360,6 +361,12 @@ function PortDetail() {
           </div>
         )}
       </Card>
+
+      {/* Vessel Details & Gemini AI Assistant */}
+      <VesselDetailModal
+        vessel={live.selectedVessel}
+        onClose={() => live.setSelectedVessel(null)}
+      />
     </div>
   );
 }
