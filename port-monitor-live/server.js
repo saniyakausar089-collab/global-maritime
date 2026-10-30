@@ -82,10 +82,33 @@ export const PORTS = [
 ];
 
 // AISStream expects [[maxLat, minLon], [minLat, maxLon]] (North-West to South-East)
-const boxes = PORTS.map((p) => [
+// Port-specific dense monitoring boxes (AISStream expects [[maxLat, minLon], [minLat, maxLon]])
+const PORT_BOXES = PORTS.map((p) => [
   [p.lat + BOX, p.lon - BOX],
   [p.lat - BOX, p.lon + BOX],
 ]);
+
+// Global ocean maritime transit corridors (North Atlantic, North Pacific, Indian Ocean, Mediterranean, South China Sea, Caribbean, South Atlantic)
+const OCEAN_BOXES = [
+  // North Atlantic Ocean (Europe <-> North America)
+  [[60, -65], [15, -5]],
+  // North Pacific Ocean (East Asia <-> US West Coast great circle lanes)
+  [[55, 125], [15, 180]],
+  [[55, -180], [15, -115]],
+  // Indian Ocean & Arabian Sea (Asia-Europe route via Suez / Malacca)
+  [[28, 40], [-20, 100]],
+  // Mediterranean Sea & Gibraltar
+  [[45, -8], [30, 36]],
+  // South China Sea & Philippine Sea
+  [[26, 105], [2, 130]],
+  // South Atlantic (South America <-> Africa / Europe)
+  [[0, -50], [-40, 15]],
+  // Caribbean Sea & Gulf of Mexico (Panama Canal approach)
+  [[30, -98], [8, -58]],
+];
+
+// Combined real-world subscription boxes: 6 core ports + all global oceans
+const boxes = [...PORT_BOXES, ...OCEAN_BOXES];
 
 export function getShipTypeLabel(typeNum) {
   const t = Number(typeNum) || 0;
@@ -179,7 +202,8 @@ function ingest(m) {
     v.type = s.Type;
     v.name = (s.Name || v.name || "").trim();
   } else return;
-  if (v.lat === undefined) return;
+  if (v.lat === undefined || v.lon === undefined) return;
+  if (v.lat < -90 || v.lat > 90 || v.lon < -180 || v.lon > 180) return;
   vessels.set(id, v);
   dirty.add(id);
 }
