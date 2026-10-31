@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as MethodologyRouteImport } from './routes/methodology'
+import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as PortsIdRouteImport } from './routes/ports.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const MethodologyRoute = MethodologyRouteImport.update({
   path: '/methodology',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OverviewRoute = OverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PortsIdRoute = PortsIdRouteImport.update({
   id: '/ports/$id',
   path: '/ports/$id',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/compare': typeof CompareRoute
   '/methodology': typeof MethodologyRoute
+  '/overview': typeof OverviewRoute
   '/ports/$id': typeof PortsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/compare': typeof CompareRoute
   '/methodology': typeof MethodologyRoute
+  '/overview': typeof OverviewRoute
   '/ports/$id': typeof PortsIdRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,23 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/compare': typeof CompareRoute
   '/methodology': typeof MethodologyRoute
+  '/overview': typeof OverviewRoute
   '/ports/$id': typeof PortsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/compare' | '/methodology' | '/ports/$id'
+  fullPaths: '/' | '/compare' | '/methodology' | '/overview' | '/ports/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/compare' | '/methodology' | '/ports/$id'
-  id: '__root__' | '/' | '/compare' | '/methodology' | '/ports/$id'
+  to: '/' | '/compare' | '/methodology' | '/overview' | '/ports/$id'
+  id:
+    '__root__' | '/' | '/compare' | '/methodology' | '/overview' | '/ports/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CompareRoute: typeof CompareRoute
   MethodologyRoute: typeof MethodologyRoute
+  OverviewRoute: typeof OverviewRoute
   PortsIdRoute: typeof PortsIdRoute
 }
 
@@ -92,6 +103,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MethodologyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/overview': {
+      id: '/overview'
+      path: '/overview'
+      fullPath: '/overview'
+      preLoaderRoute: typeof OverviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ports/$id': {
       id: '/ports/$id'
       path: '/ports/$id'
@@ -106,6 +124,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CompareRoute: CompareRoute,
   MethodologyRoute: MethodologyRoute,
+  OverviewRoute: OverviewRoute,
   PortsIdRoute: PortsIdRoute,
 }
 export const routeTree = rootRouteImport

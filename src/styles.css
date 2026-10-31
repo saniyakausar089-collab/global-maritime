@@ -1,24 +1,184 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
-
 @import "leaflet/dist/leaflet.css";
 
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design system definition.
- *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
- *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
- *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ * REFINED EDITORIAL THEME (WARM OBSIDIAN & WARM PAPER)
+ * Typography: Fraunces / Playfair for headings, Inter for data.
+ * Zero blue. All maritime colors use:
+ * Cargo = Amber (#e8a33d), Passenger = Coral (#d9694f), Tanker = Sea-Glass (#7fb89a)
  */
+
+:root {
+  /* Default: Dark Mode (Warm Obsidian) */
+  --bg: #0e0d0c;
+  --surface: #171513;
+  --surface-2: #211e1b;
+  --border: #2d2926;
+  --text: #f2ece3;
+  --muted: #9a9187;
+
+  /* Primary Accent & Semantic Colors */
+  --accent: #e8a33d;     /* Amber Primary */
+  --accent-2: #d9694f;   /* Terracotta / Coral */
+  --accent-3: #7fb89a;   /* Sea-Glass Green */
+  --good: #7fb89a;
+  --warn: #e8a33d;
+  --bad: #e0533d;
+
+  /* Ship Type Colors */
+  --vessel-cargo: #e8a33d;
+  --vessel-passenger: #d9694f;
+  --vessel-tanker: #7fb89a;
+  --vessel-moving: #e8a33d;
+  --vessel-stationary: #e0533d;
+
+  /* Semantic UI Tokens */
+  --radius: 0.75rem;
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: #0e0d0c;
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--text);
+  --muted-bg: var(--surface-2);
+  --muted-foreground: var(--muted);
+  --destructive: var(--bad);
+  --destructive-foreground: #ffffff;
+  --input: var(--border);
+  --ring: var(--accent);
+
+  /* Sidebar Tokens */
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: #0e0d0c;
+  --sidebar-accent: var(--surface-2);
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--accent);
+
+  /* Status Tokens */
+  --status-ok: var(--good);
+  --status-busy: var(--warn);
+  --status-hot: var(--bad);
+  --status-none: var(--muted);
+
+  /* Chart Colors */
+  --chart-1: #e8a33d;
+  --chart-2: #7fb89a;
+  --chart-3: #d9694f;
+  --chart-4: #e0533d;
+  --chart-5: #b49b82;
+
+  --font-serif: "Fraunces", "Playfair Display", Georgia, serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* Light Theme: Warm Paper Theme (#f6f0e6 background) */
+html:not(.dark) {
+  --bg: #f6f0e6;
+  --surface: #ede5d8;
+  --surface-2: #e3dad0;
+  --border: #d5ccc0;
+  --text: #26221f;
+  --muted: #736b62;
+
+  --accent: #d97706;     /* Amber */
+  --accent-2: #c2410c;   /* Terracotta */
+  --accent-3: #2e7d5b;   /* Sea-Glass */
+  --good: #2e7d5b;
+  --warn: #d97706;
+  --bad: #dc2626;
+
+  --vessel-cargo: #d97706;
+  --vessel-passenger: #c2410c;
+  --vessel-tanker: #2e7d5b;
+  --vessel-moving: #d97706;
+  --vessel-stationary: #dc2626;
+
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: #ffffff;
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--text);
+  --muted-bg: var(--surface-2);
+  --muted-foreground: var(--muted);
+  --destructive: var(--bad);
+  --destructive-foreground: #ffffff;
+  --input: var(--border);
+  --ring: var(--accent);
+
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--surface-2);
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--accent);
+}
+
+.dark {
+  --bg: #0e0d0c;
+  --surface: #171513;
+  --surface-2: #211e1b;
+  --border: #2d2926;
+  --text: #f2ece3;
+  --muted: #9a9187;
+
+  --accent: #e8a33d;
+  --accent-2: #d9694f;
+  --accent-3: #7fb89a;
+  --good: #7fb89a;
+  --warn: #e8a33d;
+  --bad: #e0533d;
+
+  --vessel-cargo: #e8a33d;
+  --vessel-passenger: #d9694f;
+  --vessel-tanker: #7fb89a;
+  --vessel-moving: #e8a33d;
+  --vessel-stationary: #e0533d;
+
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: #0e0d0c;
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--text);
+  --muted-bg: var(--surface-2);
+  --muted-foreground: var(--muted);
+  --destructive: var(--bad);
+  --destructive-foreground: #ffffff;
+  --input: var(--border);
+  --ring: var(--accent);
+
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: #0e0d0c;
+  --sidebar-accent: var(--surface-2);
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--accent);
+}
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -38,10 +198,10 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
+  --color-muted: var(--muted-bg);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-foreground: var(--primary-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -59,6 +219,7 @@
   --color-status-none: var(--status-none);
   --color-vessel-moving: var(--vessel-moving);
   --color-vessel-stationary: var(--vessel-stationary);
+  --font-serif: var(--font-serif);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --color-sidebar: var(--sidebar);
@@ -71,93 +232,37 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-:root {
-  --radius: 0.5rem;
-  --background: oklch(0.975 0.006 230);
-  --foreground: oklch(0.22 0.05 250);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.05 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.05 250);
-  --primary: oklch(0.32 0.08 250);
-  --primary-foreground: oklch(0.98 0.005 230);
-  --secondary: oklch(0.94 0.015 230);
-  --secondary-foreground: oklch(0.28 0.06 250);
-  --muted: oklch(0.95 0.01 230);
-  --muted-foreground: oklch(0.5 0.03 245);
-  --accent: oklch(0.62 0.11 190);
-  --accent-foreground: oklch(0.99 0 0);
-  --destructive: oklch(0.58 0.21 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.9 0.015 235);
-  --input: oklch(0.9 0.015 235);
-  --ring: oklch(0.62 0.11 190);
-  --status-ok: oklch(0.65 0.15 155);
-  --status-busy: oklch(0.77 0.15 75);
-  --status-hot: oklch(0.6 0.21 25);
-  --status-none: oklch(0.65 0.01 250);
-  --vessel-moving: oklch(0.62 0.11 190);
-  --vessel-stationary: oklch(0.6 0.21 25);
-  --chart-1: oklch(0.62 0.11 190);
-  --chart-2: oklch(0.45 0.12 255);
-  --chart-3: oklch(0.77 0.15 75);
-  --chart-4: oklch(0.6 0.21 25);
-  --chart-5: oklch(0.65 0.15 155);
-  --sidebar: oklch(0.24 0.06 252);
-  --sidebar-foreground: oklch(0.95 0.01 230);
-  --sidebar-primary: oklch(0.7 0.12 190);
-  --sidebar-primary-foreground: oklch(0.2 0.05 250);
-  --sidebar-accent: oklch(0.3 0.06 250);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(0.32 0.05 250);
-  --sidebar-ring: oklch(0.7 0.12 190);
-  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
-}
-
-.dark {
-  --background: oklch(0.17 0.035 252);
-  --foreground: oklch(0.94 0.01 230);
-  --card: oklch(0.21 0.04 252);
-  --card-foreground: oklch(0.94 0.01 230);
-  --popover: oklch(0.21 0.04 252);
-  --popover-foreground: oklch(0.94 0.01 230);
-  --primary: oklch(0.72 0.12 190);
-  --primary-foreground: oklch(0.17 0.035 252);
-  --secondary: oklch(0.26 0.04 252);
-  --secondary-foreground: oklch(0.94 0.01 230);
-  --muted: oklch(0.25 0.035 252);
-  --muted-foreground: oklch(0.68 0.03 240);
-  --accent: oklch(0.72 0.12 190);
-  --accent-foreground: oklch(0.17 0.035 252);
-  --destructive: oklch(0.65 0.2 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.72 0.12 190);
-  --chart-2: oklch(0.7 0.1 260);
-  --sidebar: oklch(0.14 0.03 252);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-accent: oklch(0.22 0.04 252);
-}
-
 @layer base {
   * {
-    border-color: var(--color-border);
+    border-color: var(--border);
   }
 
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+  }
+
+  h1, h2, h3, .font-heading {
+    font-family: var(--font-serif);
   }
 }
 
-@layer base {
-  body {
-    font-family: var(--font-sans);
-  }
-  .leaflet-container {
-    background: var(--muted);
-    font-family: var(--font-sans);
-  }
+/* Subtle Warm Card Grain & Inner Glow */
+.warm-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+}
+
+/* Pulse indicator animation */
+@keyframes warm-pulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 0.3; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.animate-warm-pulse {
+  animation: warm-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

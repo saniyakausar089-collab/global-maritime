@@ -25,14 +25,14 @@ export type MapViewProps = {
 };
 
 const SHIP_COLORS: Record<string, { fill: string; label: string }> = {
-  cargo: { fill: "#10b981", label: "Cargo (Container/Bulk)" },
-  tanker: { fill: "#f59e0b", label: "Tanker (Oil/Chemical/Gas)" },
-  passenger: { fill: "#ec4899", label: "Passenger / Cruise / Ferry" },
-  tug: { fill: "#06b6d4", label: "Tug / Pilot / Workboat" },
-  fast: { fill: "#8b5cf6", label: "High-Speed (>14 kn)" },
-  fishing: { fill: "#eab308", label: "Fishing Fleet" },
-  other: { fill: "#3b82f6", label: "Moving Commercial" },
-  anchored: { fill: "#64748b", label: "Anchored / Moored (<0.5 kn)" },
+  cargo: { fill: "#e8a33d", label: "Cargo (Container/Bulk)" },
+  tanker: { fill: "#7fb89a", label: "Tanker (Oil/Chemical/Gas)" },
+  passenger: { fill: "#d9694f", label: "Passenger / Cruise / Ferry" },
+  tug: { fill: "#b49b82", label: "Tug / Pilot / Workboat" },
+  fast: { fill: "#d9694f", label: "High-Speed (>14 kn)" },
+  fishing: { fill: "#e8a33d", label: "Fishing Fleet" },
+  other: { fill: "#b49b82", label: "Moving Commercial" },
+  anchored: { fill: "#575047", label: "Anchored / Moored (<0.5 kn)" },
 };
 
 const PORT_FLAGS: Record<string, string> = {
@@ -364,14 +364,14 @@ export function MapView({
             "circle-color": [
               "match",
               ["get", "icon"],
-              "cargo", "#10b981",
-              "tanker", "#f59e0b",
-              "passenger", "#ec4899",
-              "tug", "#06b6d4",
-              "fast", "#8b5cf6",
-              "fishing", "#eab308",
-              "anchored", "#64748b",
-              "#3b82f6",
+              "cargo", "#e8a33d",
+              "tanker", "#7fb89a",
+              "passenger", "#d9694f",
+              "tug", "#b49b82",
+              "fast", "#d9694f",
+              "fishing", "#e8a33d",
+              "anchored", "#575047",
+              "#b49b82",
             ],
             "circle-opacity": 0.45,
             "circle-blur": 0.5,
@@ -411,7 +411,7 @@ export function MapView({
       map.on("click", "ships", (e) => {
         const feat = e.features?.[0];
         if (!feat) return;
-        const id = Number(feat.properties?.id);
+        const id = Number(feat.properties?.["id"]);
         const s = vesselsRef.current.find((v) => v.id === id);
         if (s) {
           if (onSelectVessel) onSelectVessel(s);
@@ -508,22 +508,22 @@ export function MapView({
       el.className = "cursor-pointer select-none";
 
       const ci = p.congestion_index;
-      let statusColor = "#10b981"; // emerald
-      let statusBg = "rgba(16, 185, 129, 0.25)";
+      let statusColor = "#7fb89a"; // sea-glass
+      let statusBg = "rgba(127, 184, 154, 0.2)";
       if (ci != null) {
         if (ci > 1.2) {
-          statusColor = "#ef4444"; // red
-          statusBg = "rgba(239, 68, 68, 0.25)";
+          statusColor = "#e0533d"; // warm red
+          statusBg = "rgba(224, 83, 61, 0.25)";
         } else if (ci >= 0.8) {
-          statusColor = "#f59e0b"; // amber
-          statusBg = "rgba(245, 158, 11, 0.25)";
+          statusColor = "#e8a33d"; // amber
+          statusBg = "rgba(232, 163, 61, 0.25)";
         }
       }
 
       const flag = PORT_FLAGS[p.id] || "⚓";
 
       el.innerHTML = `
-        <div style="transform: translate(-50%, -50%); position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 9999px; font-family: system-ui, -apple-system, sans-serif; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,0.45); border: 1.5px solid ${statusColor}; background: linear-gradient(135deg, rgba(15, 23, 42, 0.96) 0%, rgba(30, 41, 59, 0.94) 100%); color: #ffffff;">
+        <div style="transform: translate(-50%, -50%); position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 9999px; font-family: system-ui, -apple-system, sans-serif; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,0.45); border: 1.5px solid ${statusColor}; background: linear-gradient(135deg, #171513 0%, #211e1b 100%); color: #ffffff;">
           <span style="font-size: 13px;">${flag}</span>
           <span style="letter-spacing: -0.01em;">${p.name}</span>
           <span style="padding: 1px 6px; border-radius: 6px; background: ${statusBg}; color: ${statusColor}; font-family: monospace; font-size: 10px; font-weight: 800;">CI ${ci != null ? Number(ci).toFixed(2) : "—"}</span>
@@ -709,10 +709,10 @@ export function MapView({
         {/* Legend pill */}
         <div className="hidden sm:flex items-center gap-3 rounded-full border border-border bg-background/85 px-3 py-1 text-[11px] backdrop-blur-md shadow-md text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#0b6fd6]" /> Moving
+            <span className="h-2.5 w-2.5 rounded-full bg-[#e8a33d]" /> Moving
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#8a96a3]" /> Anchored / Moored (&lt;0.5
+            <span className="h-2.5 w-2.5 rounded-full bg-[#575047]" /> Anchored / Moored (&lt;0.5
             kn)
           </span>
         </div>

@@ -95,6 +95,14 @@ def migrate_db(conn: sqlite3.Connection) -> None:
             acknowledged INTEGER DEFAULT 0
         )
     """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS weather_cache (
+            port_id TEXT PRIMARY KEY,
+            data TEXT NOT NULL,
+            updated_at REAL NOT NULL
+        )
+    """)
     conn.commit()
 
 
@@ -472,3 +480,174 @@ def get_vessel_tracks(port_id: str = "all", limit_vessels: int = 1000, points_pe
             "track": track,
         })
     return results
+
+
+# --- Vessel Static Data & Fleet Categorization ---
+
+def classify_ship_type(type_code: int, length: float = 0.0, name: str = "") -> str:
+    """Classify AIS numeric ship type into container, tanker, bulk, or other."""
+    t = int(type_code or 0)
+    name_upper = (name or "").upper()
+
+    if 70 <= t <= 79:
+        # Cargo: differentiate container ships vs bulk carriers via dimensions & carrier names
+        container_keywords = [
+            "CONTAINER", "MAERSK", "MSC", "EVER", "COSCO", "CMA", "ONE",
+            "LINE", "EXPRESS", "FEEDER", "GLORY", "HONOR", "BRIDGE", "TITAN"
+        ]
+        if length >= 260.0 or any(k in name_upper for k in container_keywords):
+            return "container"
+        return "bulk"
+    elif 80 <= t <= 89:
+        return "tanker"
+    elif 60 <= t <= 69:
+        return "passenger"
+    elif t in (31, 32, 52):
+        return "tug"
+    elif t == 30:
+        return "fishing"
+    else:
+        return "other"
+
+
+def upsert_vessel_static(
+    mmsi: int,
+    ship_name: str,
+    ship_type: int,
+    destination: str = "",
+    eta: str = "",
+    length: float = 0.0,
+    width: float = 0.0,
+    db_path: Optional[Path] = None,
+) -> None:
+    """Insert or update vessel static voyage metadata."""
+    category = classify_ship_type(ship_type, length, ship_name)
+    now = datetime.now(timezone.utc).isoformat()
+    with get_connection(db_path) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS vessels_static (
+                mmsi INTEGER PRIMARY KEY,
+                ship_name TEXT,
+                ship_type INTEGER,
+                type_category TEXT,
+                destination TEXT,
+                eta TEXT,
+                length REAL,
+                width REAL,
+                updated_at TEXT
+            )
+        """)
+        conn.execute("""
+            INSERT OR REPLACE INTO vessels_static
+            (mmsi, ship_name, ship_type, type_category, destination, eta, length, width, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (mmsi, ship_name, ship_type, category, destination, eta, length, width, now))
+        conn.commit()
+
+
+def get_fleet_types_summary(db_path: Optional[Path] = None) -> Dict[str, Any]:
+    """Calculate fleet distribution, speeds, and queue shares across categories."""
+    educational = {
+        "container": {
+            "name": "Container Ships (ULCV & Post-Panamax)",
+            "typical_dimensions": "Length: 300–400m | Beam: 48–61m | Capacity: 10,000–24,000 TEU | Draught: 14.5–16.5m",
+            "carries": "Standardized ISO 20ft/40ft containers carrying manufactured finished goods, electronics, textiles, machinery, and chilled produce.",
+            "why_queues": "Dwell times surge when berth container quay cranes (STS) operate at capacity, tidal draft limits narrow port access, or inland intermodal rail transfers bottleneck.",
+        },
+        "tanker": {
+            "name": "Crude & Product Tankers (VLCC & Suezmax)",
+            "typical_dimensions": "Length: 250–333m | Beam: 44–60m | Capacity: 120,000–320,000 DWT | Draught: 16.0–21.5m",
+            "carries": "Liquid bulk energy commodities: unrefined crude petroleum, refined diesel, jet-A1 fuel, naphtha, and liquefied natural gas (LNG).",
+            "why_queues": "Queues at offshore single-point mooring (SPM) buoys and jetty manifolds awaiting storage tank ullage, crude oil refinery blending schedules, and strict safety de-ballasting clearances.",
+        },
+        "bulk": {
+            "name": "Dry Bulk Carriers (Capesize & Supramax)",
+            "typical_dimensions": "Length: 190–300m | Beam: 32–50m | Capacity: 55,000–210,000 DWT | Draught: 12.5–18.5m",
+            "carries": "Homogeneous unpackaged raw minerals and agrarian foodstuffs: iron ore fines, metallurgical coking coal, bauxite, grain, soybeans, and phosphate.",
+            "why_queues": "Subject to weather holds (rain halts open-hatch grain/ore loading to prevent cargo liquefaction), conveyor unloader downtime, and stockpile yard congestion.",
+        },
+        "other": {
+            "name": "Specialized Craft, Tugs & Passenger",
+            "typical_dimensions": "Length: 30–350m | Specialized towing winches and offshore dynamic positioning",
+            "carries": "Harbor towage escorts, cruise passengers, marine pilots, and offshore supply equipment.",
+            "why_queues": "Harbor tugs remain stationed at staging docks; passenger ferries enjoy designated express terminal priority.",
+        },
+    }
+
+    # Query active vessels from ais_records joined with static data if present
+    types_res = {}
+    with get_connection(db_path) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS vessels_static (
+                mmsi INTEGER PRIMARY KEY,
+                ship_name TEXT,
+                ship_type INTEGER,
+                type_category TEXT,
+                destination TEXT,
+                eta TEXT,
+                length REAL,
+                width REAL,
+                updated_at TEXT
+            )
+        """)
+
+        # Fallback realistic seed distribution if table empty
+        row_count = conn.execute("SELECT COUNT(*) FROM vessels_static").fetchone()[0]
+
+        if row_count > 0:
+            for cat in ["container", "tanker", "bulk", "other"]:
+                cat_rows = conn.execute("""
+                    SELECT a.sog, a.zone_type
+                    FROM ais_records a
+                    JOIN vessels_static s ON a.mmsi = s.mmsi
+                    WHERE s.type_category = ?
+                """, (cat,)).fetchall()
+
+                count = len(cat_rows)
+                speeds = [r["sog"] for r in cat_rows]
+                waiting = sum(1 for r in cat_rows if r["sog"] < STATIONARY_SPEED_KNOTS)
+
+                avg_speed = round(sum(speeds) / max(1, count), 1) if count else 14.5
+                anchorage_pct = round((waiting / max(1, count)) * 100, 1) if count else 25.0
+                dwell = round(24.0 + (anchorage_pct * 0.4), 1)
+
+                info = educational[cat]
+                types_res[cat] = {
+                    "type_key": cat,
+                    "name": info["name"],
+                    "count": count or (450 if cat == "container" else 320 if cat == "tanker" else 280 if cat == "bulk" else 110),
+                    "avg_speed_knots": avg_speed,
+                    "avg_dwell_hours": dwell,
+                    "anchorage_share_pct": anchorage_pct,
+                    "typical_dimensions": info["typical_dimensions"],
+                    "carries": info["carries"],
+                    "why_queues": info["why_queues"],
+                }
+        else:
+            # High-fidelity realistic distribution across global commercial fleet
+            specs = [
+                ("container", 584, 17.4, 34.2, 38.5),
+                ("tanker", 412, 13.8, 48.6, 34.2),
+                ("bulk", 315, 12.1, 52.4, 21.8),
+                ("other", 146, 9.6, 14.8, 5.5),
+            ]
+            for cat, count, spd, dwell, share in specs:
+                info = educational[cat]
+                types_res[cat] = {
+                    "type_key": cat,
+                    "name": info["name"],
+                    "count": count,
+                    "avg_speed_knots": spd,
+                    "avg_dwell_hours": dwell,
+                    "anchorage_share_pct": share,
+                    "typical_dimensions": info["typical_dimensions"],
+                    "carries": info["carries"],
+                    "why_queues": info["why_queues"],
+                }
+
+    return {
+        "total_vessels": sum(t["count"] for t in types_res.values()),
+        "types": types_res,
+        "is_demo": True,
+        "badge": "DEMO DATA",
+    }

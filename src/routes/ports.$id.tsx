@@ -100,7 +100,7 @@ function PortDetail() {
       lastSeen: Date.now(),
       portId: id,
       portName: port?.name,
-    })) as LiveVessel[];
+    })) as unknown as LiveVessel[];
   }, [live.vesselsList, id, vessels.data?.data, port]);
 
   const rows = useMemo(() => {

@@ -84,7 +84,7 @@ async def stream_ais():
     subscription_message = {
         "APIKey": api_key,
         "BoundingBoxes": get_aisstream_bounding_boxes(),
-        "FilterMessageTypes": ["PositionReport"],
+        "FilterMessageTypes": ["PositionReport", "ShipStaticData"],
     }
 
     retry_delay = 5
@@ -100,6 +100,30 @@ async def stream_ais():
                     try:
                         data = json.loads(message)
                         msg_type = data.get("MessageType")
+
+                        if msg_type == "ShipStaticData":
+                            stat_msg = data.get("Message", {}).get("ShipStaticData", {})
+                            mmsi = meta.get("MMSI") or stat_msg.get("UserID")
+                            if mmsi:
+                                ship_name = (stat_msg.get("Name") or meta.get("ShipName") or "").strip()
+                                ship_type = stat_msg.get("Type", 0)
+                                destination = (stat_msg.get("Destination") or "").strip()
+                                eta = str(stat_msg.get("Eta", ""))
+                                dim = stat_msg.get("Dimension", {})
+                                length = float(dim.get("A", 0) + dim.get("B", 0))
+                                width = float(dim.get("C", 0) + dim.get("D", 0))
+                                from metrics import upsert_vessel_static
+                                upsert_vessel_static(
+                                    mmsi=int(mmsi),
+                                    ship_name=ship_name,
+                                    ship_type=int(ship_type),
+                                    destination=destination,
+                                    eta=eta,
+                                    length=length,
+                                    width=width,
+                                    db_path=DB_PATH,
+                                )
+                            continue
 
                         if msg_type != "PositionReport":
                             continue

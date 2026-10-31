@@ -4,12 +4,13 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { Anchor, Moon, Sun } from "lucide-react";
+import { Anchor, Moon, Sun, Sparkles } from "lucide-react";
 import { LiveClock } from "@/components/ui-bits";
 
 import appCss from "../styles.css?url";
@@ -25,10 +26,10 @@ function NotFoundComponent() {
         </p>
         <div className="mt-6">
           <Link
-            to="/"
+            to="/overview"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Go home
+            Go to Overview
           </Link>
         </div>
       </div>
@@ -61,10 +62,10 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
             Try again
           </button>
           <a
-            href="/"
+            href="/overview"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Go home
+            Go to Overview
           </a>
         </div>
       </div>
@@ -90,9 +91,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "alternate icon", href: "/favicon.ico", type: "image/x-icon" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap",
       },
     ],
   }),
@@ -118,15 +120,20 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const routerState = useRouterState();
+  const isLanding = routerState.location.pathname === "/";
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <div className="min-h-screen bg-background">
-        <Header />
-        <main className="mx-auto max-w-7xl px-4 py-6">
+        {!isLanding && <Header />}
+        {isLanding ? (
           <Outlet />
-        </main>
+        ) : (
+          <main className="mx-auto max-w-7xl px-4 py-6">
+            <Outlet />
+          </main>
+        )}
       </div>
     </QueryClientProvider>
   );
@@ -153,11 +160,11 @@ function Header() {
   return (
     <header className="sticky top-0 z-[1000] border-b border-sidebar-border bg-sidebar">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-3">
-        <Link to="/" className="mr-4 flex items-center gap-2 font-semibold text-sidebar-foreground">
+        <Link to="/overview" className="mr-4 flex items-center gap-2 font-semibold text-sidebar-foreground">
           <Anchor className="h-5 w-5 text-sidebar-primary" /> Port Monitor
         </Link>
         <nav className="flex flex-wrap gap-1">
-          <Link to="/" className={link} activeProps={active} activeOptions={{ exact: true }}>
+          <Link to="/overview" className={link} activeProps={active} activeOptions={{ exact: true }}>
             Overview
           </Link>
           <Link to="/compare" className={link} activeProps={active}>
@@ -165,6 +172,12 @@ function Header() {
           </Link>
           <Link to="/methodology" className={link} activeProps={active}>
             Methodology
+          </Link>
+          <Link
+            to="/"
+            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-amber-400 hover:bg-sidebar-accent hover:text-amber-300 transition-colors"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-amber-400" /> 3D Story
           </Link>
         </nav>
         <div className="ml-auto flex items-center gap-2 sm:gap-3">

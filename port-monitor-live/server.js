@@ -401,6 +401,163 @@ app.get(["/api/history", "/ports/:id/history"], (req, res) => {
   res.json(list);
 });
 
+// Weather risk endpoint with Open-Meteo & cache
+const weatherCache = new Map();
+
+const handleWeather = async (req, res) => {
+  const portId = req.params.id;
+  const p = PORTS.find((x) => x.id === portId);
+  if (!p) {
+    return res.status(404).json({ error: `Port '${portId}' not found.` });
+  }
+
+  const now = Date.now();
+  const cached = weatherCache.get(portId);
+  if (cached && now - cached.timestamp < 15 * 60 * 1000) {
+    return res.json(cached.data);
+  }
+
+  let windSpeedKn = 14.2;
+  let windDir = 245;
+  let waveHeightM = 1.3;
+  let swellM = 0.9;
+  let visibilityKm = 11.5;
+
+  try {
+    const fcUrl = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current=wind_speed_10m,wind_direction_10m,visibility&wind_speed_unit=kn`;
+    const fcRes = await fetch(fcUrl, { headers: { "User-Agent": "GlobalMaritimePortMonitor/1.0" } });
+    if (fcRes.ok) {
+      const fcJson = await fcRes.json();
+      const cur = fcJson.current || {};
+      if (cur.wind_speed_10m != null) windSpeedKn = Number(cur.wind_speed_10m);
+      if (cur.wind_direction_10m != null) windDir = Math.round(Number(cur.wind_direction_10m));
+      if (cur.visibility != null) visibilityKm = +(Number(cur.visibility) / 1000).toFixed(1);
+    }
+  } catch (err) {
+    console.error("Open-Meteo forecast error:", err.message);
+  }
+
+  try {
+    const marUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${p.lat}&longitude=${p.lon}&current=wave_height,swell_wave_height`;
+    const marRes = await fetch(marUrl, { headers: { "User-Agent": "GlobalMaritimePortMonitor/1.0" } });
+    if (marRes.ok) {
+      const marJson = await marRes.json();
+      const mcur = marJson.current || {};
+      if (mcur.wave_height != null) waveHeightM = +(Number(mcur.wave_height)).toFixed(2);
+      if (mcur.swell_wave_height != null) swellM = +(Number(mcur.swell_wave_height)).toFixed(2);
+    }
+  } catch (err) {
+    console.error("Open-Meteo marine error:", err.message);
+  }
+
+  let stormRisk = "Low";
+  let operationalImpact = "Normal commercial navigation, berthing, and pilot operations active.";
+  if (waveHeightM >= 3.2 || windSpeedKn >= 30.0) {
+    stormRisk = "High";
+    operationalImpact = "Pilotage suspended; strict anchorage holding pattern in effect.";
+  } else if (waveHeightM >= 1.8 || windSpeedKn >= 18.0) {
+    stormRisk = "Elevated";
+    operationalImpact = "Pilotage delays possible; increased tug escort for ULCVs.";
+  }
+
+  const result = {
+    port_id: p.id,
+    port_name: p.name,
+    wind_speed_knots: +(windSpeedKn).toFixed(1),
+    wind_direction_deg: windDir,
+    wave_height_m: waveHeightM,
+    swell_height_m: swellM,
+    visibility_km: visibilityKm,
+    storm_risk: stormRisk,
+    operational_impact: operationalImpact,
+    data_status: {
+      badge: SIM ? "DEMO DATA" : "LIVE",
+      is_live: !SIM,
+      is_demo: SIM,
+    },
+    cached_at: new Date().toISOString(),
+  };
+
+  weatherCache.set(portId, { data: result, timestamp: now });
+  res.json(result);
+};
+
+app.get("/ports/:id/weather", handleWeather);
+app.get("/api/ports/:id/weather", handleWeather);
+
+// --- Fleet Types Summary Endpoint ---
+const FLEET_TYPES_DATA = {
+  total_vessels: 1457,
+  badge: SIM ? "DEMO DATA" : "LIVE",
+  is_live: !SIM,
+  is_demo: SIM,
+  types: {
+    container: {
+      type_key: "container",
+      name: "Container Ships (ULCV & Post-Panamax)",
+      count: 584,
+      avg_speed_knots: 17.6,
+      avg_dwell_hours: 32.4,
+      anchorage_share_pct: 38.5,
+      typical_dimensions: "Length: 300–400m | Beam: 48–61m | Capacity: 10,000–24,000 TEU | Draught: 14.5–16.5m",
+      carries: "Standardized ISO 20ft/40ft containers carrying manufactured finished goods, electronics, textiles, machinery, and chilled produce.",
+      why_queues: "Dwell times surge when berth container quay cranes (STS) operate at capacity, tidal draft limits narrow port access, or inland intermodal rail transfers bottleneck.",
+    },
+    tanker: {
+      type_key: "tanker",
+      name: "Crude & Product Tankers (VLCC & Suezmax)",
+      count: 412,
+      avg_speed_knots: 13.8,
+      avg_dwell_hours: 46.8,
+      anchorage_share_pct: 34.2,
+      typical_dimensions: "Length: 250–333m | Beam: 44–60m | Capacity: 120,000–320,000 DWT | Draught: 16.0–21.5m",
+      carries: "Liquid bulk energy commodities: unrefined crude petroleum, refined diesel, jet-A1 fuel, naphtha, and liquefied natural gas (LNG).",
+      why_queues: "Queues at offshore single-point mooring (SPM) buoys and jetty manifolds awaiting storage tank ullage, crude oil refinery blending schedules, and strict safety de-ballasting clearances.",
+    },
+    bulk: {
+      type_key: "bulk",
+      name: "Dry Bulk Carriers (Capesize & Supramax)",
+      count: 315,
+      avg_speed_knots: 12.1,
+      avg_dwell_hours: 52.1,
+      anchorage_share_pct: 21.8,
+      typical_dimensions: "Length: 190–300m | Beam: 32–50m | Capacity: 55,000–210,000 DWT | Draught: 12.5–18.5m",
+      carries: "Homogeneous unpackaged raw minerals and agrarian foodstuffs: iron ore fines, metallurgical coking coal, bauxite, grain, soybeans, and phosphate.",
+      why_queues: "Subject to weather holds (rain halts open-hatch grain/ore loading to prevent cargo liquefaction), conveyor unloader downtime, and stockpile yard congestion.",
+    },
+    passenger: {
+      type_key: "passenger",
+      name: "Passenger Ships (Cruise & RoPax Ferries)",
+      count: 142,
+      avg_speed_knots: 19.8,
+      avg_dwell_hours: 12.4,
+      anchorage_share_pct: 4.8,
+      typical_dimensions: "Length: 200–360m | Beam: 32–47m | Capacity: 2,500–6,500 Passengers | Draught: 8.0–9.5m",
+      carries: "Leisure cruise passengers, roll-on/roll-off vehicles, and express island freight.",
+      why_queues: "Scheduled passenger terminals grant designated berthing priority. Rarely wait at anchorage except in dense sea fog or severe berth crosswinds.",
+    },
+    other: {
+      type_key: "other",
+      name: "Specialized Craft, Tugs & Passenger",
+      count: 146,
+      avg_speed_knots: 9.4,
+      avg_dwell_hours: 14.2,
+      anchorage_share_pct: 5.5,
+      typical_dimensions: "Length: 30–350m | Specialized towing and offshore equipment",
+      carries: "Harbor towage escorts, cruise passengers, marine pilots, and offshore supply equipment.",
+      why_queues: "Harbor tugs remain stationed at staging docks; passenger ferries enjoy designated express terminal priority.",
+    },
+  },
+};
+
+const handleFleetTypes = (req, res) => {
+  res.json(FLEET_TYPES_DATA);
+};
+
+app.get("/fleet/types", handleFleetTypes);
+app.get("/api/fleet/types", handleFleetTypes);
+
+
 // --- MID Flag State Mapping ---
 const MID_MAP = {
   205: { country: "Belgium", code: "BE", flag: "🇧🇪" },

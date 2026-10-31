@@ -16,7 +16,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config import DB_PATH, PORTS, STATIONARY_SPEED_KNOTS
-from metrics import init_db, insert_ais_records_batch, get_connection
+from metrics import init_db, insert_ais_records_batch, get_connection, upsert_vessel_static
 from build_geofences import FALLBACK_ZONES
 
 SHIP_TYPES = ["CONTAINER", "TANKER", "BULK CARRIER", "CARGO", "TUG", "CAR CARRIER"]
@@ -95,6 +95,17 @@ def seed_demo_data(num_vessels_per_port: int = 30, history_hours: int = 48) -> N
                 "stationary": is_stationary,
                 "zone_type": zone_type,
             })
+            type_code = 70 if "CONTAINER" in ship_type else 80 if "TANKER" in ship_type else 75 if "BULK" in ship_type else 60
+            upsert_vessel_static(
+                mmsi=mmsi,
+                ship_name=ship_name,
+                ship_type=type_code,
+                destination=f"{p['name'].upper()} TERMINAL",
+                eta=(now + timedelta(hours=rng.randint(2, 48))).strftime("%m-%d %H:%M"),
+                length=366.0 if "CONTAINER" in ship_type else 275.0 if "TANKER" in ship_type else 225.0,
+                width=51.0 if "CONTAINER" in ship_type else 44.0 if "TANKER" in ship_type else 32.0,
+                db_path=DB_PATH,
+            )
 
         batch_records = []
         # Generate 48 hours of smooth historical track points for animation

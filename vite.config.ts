@@ -14,12 +14,10 @@ function relayServerPlugin(): Plugin {
     name: "maritime-relay-server",
     apply: "serve", // dev mode only
     configureServer(server) {
-      // Check if port 3000 is already running
-      const req = http.get("http://127.0.0.1:3000/health", () => {
-        console.log("[Relay Dev Plugin] Port 3000 is already active and healthy.");
-      });
-
-      req.on("error", () => {
+      let started = false;
+      const startRelay = () => {
+        if (started || relayProcess) return;
+        started = true;
         console.log("[Relay Dev Plugin] Auto-starting relay server on port 3000...");
         const serverPath = path.resolve(__dirname, "port-monitor-live", "server.js");
         relayProcess = spawn(process.execPath, [serverPath], {
@@ -33,6 +31,20 @@ function relayServerPlugin(): Plugin {
             console.error(`[Relay Dev Plugin] Relay process exited with code ${code}`);
           }
         });
+      };
+
+      const req = http.get("http://127.0.0.1:3000/health", { timeout: 800 }, (res) => {
+        if (res.statusCode === 200) {
+          console.log("[Relay Dev Plugin] Port 3000 is already active and healthy.");
+        } else {
+          startRelay();
+        }
+      });
+
+      req.on("error", startRelay);
+      req.on("timeout", () => {
+        req.destroy();
+        startRelay();
       });
 
       const cleanup = () => {
@@ -71,6 +83,10 @@ export default defineConfig({
           target: "http://127.0.0.1:3000",
           changeOrigin: true,
         },
+        "/fleet": {
+          target: "http://127.0.0.1:3000",
+          changeOrigin: true,
+        },
         "/health": {
           target: "http://127.0.0.1:3000",
           changeOrigin: true,
@@ -83,8 +99,6 @@ export default defineConfig({
     },
   },
   tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
     server: { entry: "server" },
   },
 });
