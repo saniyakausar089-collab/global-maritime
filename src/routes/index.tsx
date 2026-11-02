@@ -73,7 +73,7 @@ function LandingPage() {
     gsap.ticker.add(tickerCb);
     gsap.ticker.lagSmoothing(0);
 
-    // Setup GSAP ScrollTrigger for 13 continuous scenes across 1560vh
+    // Setup GSAP ScrollTrigger for 8 continuous scenes
     const ctx = gsap.context(() => {
       ScrollTrigger.create({
         trigger: containerRef.current,
@@ -84,8 +84,8 @@ function LandingPage() {
           const p = self.progress;
           setScrollProgress(p);
 
-          // Map 0.0 - 1.0 to scene indices 0 to 12
-          const sceneIdx = Math.min(12, Math.max(0, Math.floor(p * 13)));
+          // Map 0.0 - 1.0 to scene indices 0 to 7
+          const sceneIdx = Math.min(7, Math.max(0, Math.floor(p * 8)));
           setCurrentScene(sceneIdx);
         },
       });
@@ -102,7 +102,7 @@ function LandingPage() {
   const handleJumpToScene = (index: number) => {
     if (!lenisRef.current || !containerRef.current) return;
     const totalHeight = containerRef.current.scrollHeight - window.innerHeight;
-    const targetY = (index / 13) * totalHeight;
+    const targetY = (index / 8) * totalHeight;
     lenisRef.current.scrollTo(targetY, { duration: 1.4 });
   };
 
@@ -120,7 +120,7 @@ function LandingPage() {
             selectedVesselId={selectedVessel?.id}
           />
         ) : (
-          <div className="absolute inset-0 bg-[#020814] flex items-center justify-center">
+          <div className="absolute inset-0 bg-[#080F20] flex items-center justify-center">
             <div className="flex flex-col items-center gap-3 text-cyan-400">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
               <span className="text-xs font-mono tracking-widest uppercase text-slate-400">
@@ -143,46 +143,16 @@ function LandingPage() {
         selectedVessel={selectedVessel}
       />
 
-      {/* 13 Discrete 120vh Scroll Sections (Total: 1560vh >= 15x viewport height) */}
+      {/* 8 Discrete 120vh Scroll Sections */}
       <div className="relative z-10 pointer-events-none">
-        {/* Scene 01: Awakening of Earth */}
         <section id="scene-0" className="h-[120vh] w-full" />
-
-        {/* Scene 02: Global Trade Network */}
         <section id="scene-1" className="h-[120vh] w-full" />
-
-        {/* Scene 03: The Living Ocean */}
         <section id="scene-2" className="h-[120vh] w-full" />
-
-        {/* Scene 04: The Vessel Reveal */}
         <section id="scene-3" className="h-[120vh] w-full" />
-
-        {/* Scene 05: Live Fleet Tracking */}
         <section id="scene-4" className="h-[120vh] w-full" />
-
-        {/* Scene 06: The Port Discovery */}
         <section id="scene-5" className="h-[120vh] w-full" />
-
-        {/* Scene 07: Port Congestion Intelligence */}
         <section id="scene-6" className="h-[120vh] w-full" />
-
-        {/* Scene 08: Weather Risk Intelligence */}
         <section id="scene-7" className="h-[120vh] w-full" />
-
-        {/* Scene 09: The Temporal Digital Twin */}
-        <section id="scene-8" className="h-[120vh] w-full" />
-
-        {/* Scene 10: Time Machine Intelligence Suite */}
-        <section id="scene-9" className="h-[120vh] w-full" />
-
-        {/* Scene 11: Global Ripple Effect */}
-        <section id="scene-10" className="h-[120vh] w-full" />
-
-        {/* Scene 12: Engineering and Methodology */}
-        <section id="scene-11" className="h-[120vh] w-full" />
-
-        {/* Scene 13: Enter the Global Control Centre */}
-        <section id="scene-12" className="h-[120vh] w-full" />
       </div>
     </div>
   );

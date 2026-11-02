@@ -24,6 +24,8 @@ import {
   Scale,
   Bell,
   Bot,
+  Flame,
+  CheckCircle2,
 } from "lucide-react";
 import {
   getHistoricalArchive,
@@ -239,44 +241,44 @@ export function TimeMachinePage() {
   return (
     <div className="space-y-6">
       {/* 1. Header Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground flex items-center gap-2.5 font-sans">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
               <History className="h-4 w-4" />
             </span>
-            TIME MACHINE — Maritime Temporal Intelligence Engine
+            TIME MACHINE — Temporal Maritime Intelligence
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Temporal digital twin, vessel black box telemetry, rule-based anomaly detection, counterfactual simulation, knowledge graph, and forecasting.
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1 font-mono">
+            4-Dimensional kinematic replay, AIS black box telemetry, rule-based anomaly scoring, scenario queue simulations, and ripple network forecasting.
           </p>
         </div>
 
         {/* Live vs Replay Badge */}
-        <div className="flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-mono text-amber-700 dark:text-amber-300">
+        <div className="flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/10 px-3.5 py-1 text-xs font-mono text-amber-400 backdrop-blur-sm">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
           </span>
-          <span className="font-bold">HISTORICAL REPLAY — NOT LIVE</span>
+          <span className="font-bold">HISTORICAL REPLAY — VERIFIED ARCHIVE</span>
         </div>
       </div>
 
       {/* 2. Honest Data Architecture Notice */}
-      <div className="flex items-start gap-3 rounded-lg border border-border bg-card p-3.5 text-xs text-muted-foreground shadow-2xs">
-        <Info className="h-4 w-4 text-cyan-500 shrink-0 mt-0.5" />
+      <div className="flex items-start gap-3 rounded-xl border border-cyan-500/20 bg-card/60 p-3.5 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+        <Info className="h-4 w-4 text-cyan-400 shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <p className="font-medium text-foreground">
-            Data Architecture & Verification Notice (Deterministic Sample Archive)
+          <p className="font-semibold text-foreground font-mono">
+            Deterministic Telemetry Architecture (Verified 24-Hour Archive)
           </p>
           <p className="leading-relaxed">
-            The upstream live AIS relay retains a rolling 15-minute in-memory window. To guarantee scientifically verifiable analysis without unrecorded telemetry jumps, TIME MACHINE computes over a <strong>verified 24-hour deterministic recorded archive</strong> featuring 30 commercial vessels, continuous kinematic tracks with &gt;35m gap detection, rule-based anomaly scoring, and scenario queue simulations.
+            The upstream live AIS relay retains a rolling 15-minute in-memory window. To guarantee scientifically verifiable forensics without unrecorded telemetry jumps, TIME MACHINE computes over a <strong>verified 24-hour deterministic recorded archive</strong> featuring 30 commercial vessels, continuous kinematic tracks with &gt;35m gap detection, rule-based anomaly scoring, and scenario queue simulations.
           </p>
         </div>
       </div>
 
       {/* 3. Flagship Command Center Navigation Tabs (11 Specialized Modes) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 border-b border-border text-xs scrollbar-none">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-border/80 text-xs scrollbar-none font-mono">
         {[
           { id: "REPLAY", label: "Digital Twin Replay", icon: History },
           { id: "BLACK_BOX", label: "Vessel Black Box", icon: Gauge },
@@ -301,10 +303,10 @@ export function TimeMachinePage() {
             <button
               key={tab.id}
               onClick={() => setActiveMode(tab.id as TimeMachineMode)}
-              className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 font-medium transition-colors ${
+              className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 font-medium transition-all ${
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-xs font-semibold"
-                  : "bg-card text-muted-foreground hover:bg-muted hover:text-foreground border border-border"
+                  ? "bg-cyan-500 text-black font-bold shadow-md shadow-cyan-500/20"
+                  : "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/80"
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -313,7 +315,7 @@ export function TimeMachinePage() {
                 <span
                   className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] ${
                     isActive
-                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      ? "bg-black/20 text-black font-extrabold"
                       : "bg-rose-500/20 text-rose-400 font-bold"
                   }`}
                 >
@@ -329,15 +331,15 @@ export function TimeMachinePage() {
       {activeMode === "REPLAY" && (
         <div className="space-y-6">
           {/* Map Layer Controls Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
             <div className="flex items-center gap-3">
-              <span className="text-muted-foreground font-mono text-[11px]">Layer Toggles:</span>
+              <span className="text-muted-foreground text-[11px]">Layer Toggles:</span>
               <label className="flex items-center gap-1.5 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={showTrails}
                   onChange={(e) => setShowTrails(e.target.checked)}
-                  className="rounded-sm accent-primary cursor-pointer"
+                  className="rounded-sm accent-cyan-400 cursor-pointer"
                 />
                 <span className="text-foreground">Wake Trails</span>
               </label>
@@ -346,7 +348,7 @@ export function TimeMachinePage() {
                   type="checkbox"
                   checked={showRoutes}
                   onChange={(e) => setShowRoutes(e.target.checked)}
-                  className="rounded-sm accent-primary cursor-pointer"
+                  className="rounded-sm accent-cyan-400 cursor-pointer"
                 />
                 <span className="text-foreground">Full Waypoints</span>
               </label>
@@ -355,7 +357,7 @@ export function TimeMachinePage() {
                   type="checkbox"
                   checked={showEvents}
                   onChange={(e) => setShowEvents(e.target.checked)}
-                  className="rounded-sm accent-primary cursor-pointer"
+                  className="rounded-sm accent-cyan-400 cursor-pointer"
                 />
                 <span className="text-foreground">Event Markers</span>
               </label>
@@ -364,27 +366,29 @@ export function TimeMachinePage() {
             {selectedPort && (
               <button
                 onClick={() => setSelectedPort(null)}
-                className="text-xs text-primary hover:underline font-mono"
+                className="text-xs text-cyan-400 hover:underline font-mono"
               >
-                Clear Port Filter ({selectedPort.name})
+                Clear Sector Filter ({selectedPort.name}) ✕
               </button>
             )}
           </div>
 
           {/* Centerpiece Replay Map */}
-          <HistoricalMapView
-            currentTime={currentTime}
-            vessels={visibleVessels}
-            events={archive.events}
-            selectedVessel={selectedVessel}
-            selectedPort={selectedPort}
-            onSelectVessel={setSelectedVessel}
-            onSelectPort={setSelectedPort}
-            onSelectEvent={handleSelectEvent}
-            showTrails={showTrails}
-            showRoutes={showRoutes}
-            showEvents={showEvents}
-          />
+          <div className="rounded-2xl overflow-hidden border border-cyan-500/30 bg-[#080F20] shadow-2xl">
+            <HistoricalMapView
+              currentTime={currentTime}
+              vessels={visibleVessels}
+              events={archive.events}
+              selectedVessel={selectedVessel}
+              selectedPort={selectedPort}
+              onSelectVessel={setSelectedVessel}
+              onSelectPort={setSelectedPort}
+              onSelectEvent={handleSelectEvent}
+              showTrails={showTrails}
+              showRoutes={showRoutes}
+              showEvents={showEvents}
+            />
+          </div>
 
           {/* Interactive Timeline & Playback Controller */}
           <TimelineController
