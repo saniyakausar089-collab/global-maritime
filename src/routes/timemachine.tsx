@@ -20,6 +20,10 @@ import {
   ShieldAlert,
   Network,
   BookOpen,
+  TrendingUp,
+  Scale,
+  Bell,
+  Bot,
 } from "lucide-react";
 import {
   getHistoricalArchive,
@@ -40,14 +44,24 @@ import { AnomalyDetective } from "@/components/AnomalyDetective";
 import { WhatIfSimulator } from "@/components/WhatIfSimulator";
 import { RippleEffectNetwork } from "@/components/RippleEffectNetwork";
 import { InvestigationWorkspace } from "@/components/InvestigationWorkspace";
+import { TemporalKnowledgeGraph } from "@/components/TemporalKnowledgeGraph";
+import { PredictiveIntelligence } from "@/components/PredictiveIntelligence";
+import { TemporalChangeDetection } from "@/components/TemporalChangeDetection";
+import { TimeAwareAlerts } from "@/components/TimeAwareAlerts";
+import { AiMaritimeAssistant } from "@/components/AiMaritimeAssistant";
 import { Card } from "@/components/ui-bits";
 
-type TimeMachineMode =
+export type TimeMachineMode =
   | "REPLAY"
   | "BLACK_BOX"
   | "ANOMALIES"
   | "WHAT_IF"
   | "RIPPLE"
+  | "KNOWLEDGE_GRAPH"
+  | "PREDICTIVE"
+  | "CHANGE_DETECTION"
+  | "ALERTS"
+  | "AI_ASSISTANT"
   | "INVESTIGATIONS";
 
 export const Route = createFileRoute("/timemachine")({
@@ -57,13 +71,13 @@ export const Route = createFileRoute("/timemachine")({
       {
         name: "description",
         content:
-          "Temporal maritime intelligence: 24h vessel replay, black box telemetry, rule-based anomaly detection, what-if queue simulation, and ripple corridor network.",
+          "Temporal maritime intelligence: 24h vessel replay, black box telemetry, rule-based anomaly detection, what-if queue simulation, knowledge graph, forecasting, and ripple network.",
       },
       { property: "og:title", content: "Time Machine — Global Maritime Port Monitor" },
       {
         property: "og:description",
         content:
-          "Temporal maritime intelligence: 24h vessel replay, black box telemetry, rule-based anomaly detection, what-if queue simulation, and ripple corridor network.",
+          "Temporal maritime intelligence: 24h vessel replay, black box telemetry, rule-based anomaly detection, what-if queue simulation, knowledge graph, forecasting, and ripple network.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -176,7 +190,6 @@ export function TimeMachinePage() {
     setCurrentTime(event.timestamp);
     setIsPlaying(false);
 
-    // If event has an associated vessel, select it
     const v = archive.vessels.find((item) => item.id === event.vesselId);
     if (v) setSelectedVessel(v);
   }, [archive.vessels]);
@@ -200,6 +213,22 @@ export function TimeMachinePage() {
     setActiveMode("RIPPLE");
   }, []);
 
+  const handleSelectVesselById = useCallback((vesselId: number) => {
+    const v = archive.vessels.find((item) => item.id === vesselId);
+    if (v) {
+      setSelectedVessel(v);
+      setActiveMode("REPLAY");
+    }
+  }, [archive.vessels]);
+
+  const handleSelectPortById = useCallback((portId: string) => {
+    const p = MONITORED_PORTS.find((item) => item.id === portId);
+    if (p) {
+      setSelectedPort(p);
+      setActiveMode("REPLAY");
+    }
+  }, []);
+
   const eventTickTimestamps = useMemo(() => {
     return archive.events.map((e) => ({
       timestamp: e.timestamp,
@@ -219,7 +248,7 @@ export function TimeMachinePage() {
             TIME MACHINE — Maritime Temporal Intelligence Engine
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Historical reconstruction, vessel black box telemetry, rule-based anomaly detection, and operational scenario simulation.
+            Temporal digital twin, vessel black box telemetry, rule-based anomaly detection, counterfactual simulation, knowledge graph, and forecasting.
           </p>
         </div>
 
@@ -241,24 +270,29 @@ export function TimeMachinePage() {
             Data Architecture & Verification Notice (Deterministic Sample Archive)
           </p>
           <p className="leading-relaxed">
-            The upstream live AIS stream maintains a 15-minute rolling buffer. TIME MACHINE computes over a <strong>verified 24-hour deterministic recorded archive</strong> featuring 30 commercial vessels, continuous kinematic tracks with &gt;35m gap detection, rule-based anomaly scoring, and scenario queue simulations.
+            The upstream live AIS relay retains a rolling 15-minute in-memory window. To guarantee scientifically verifiable analysis without unrecorded telemetry jumps, TIME MACHINE computes over a <strong>verified 24-hour deterministic recorded archive</strong> featuring 30 commercial vessels, continuous kinematic tracks with &gt;35m gap detection, rule-based anomaly scoring, and scenario queue simulations.
           </p>
         </div>
       </div>
 
-      {/* 3. Flagship Command Center Navigation Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-border text-xs scrollbar-none">
+      {/* 3. Flagship Command Center Navigation Tabs (11 Specialized Modes) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 border-b border-border text-xs scrollbar-none">
         {[
-          { id: "REPLAY", label: "Replay & Map Twin", icon: History },
+          { id: "REPLAY", label: "Digital Twin Replay", icon: History },
           { id: "BLACK_BOX", label: "Vessel Black Box", icon: Gauge },
           {
             id: "ANOMALIES",
-            label: "Anomaly Detective",
+            label: "Anomaly Detective 2.0",
             icon: ShieldAlert,
             badge: archive.anomalies.length,
           },
           { id: "WHAT_IF", label: "What-If Simulator", icon: SlidersHorizontal },
           { id: "RIPPLE", label: "Ripple Network", icon: Network },
+          { id: "KNOWLEDGE_GRAPH", label: "Knowledge Graph", icon: Compass },
+          { id: "PREDICTIVE", label: "Forecasting", icon: TrendingUp },
+          { id: "CHANGE_DETECTION", label: "Change Detection", icon: Scale },
+          { id: "ALERTS", label: "Alert Engine", icon: Bell },
+          { id: "AI_ASSISTANT", label: "AI Assistant", icon: Bot },
           { id: "INVESTIGATIONS", label: "Incident Dossiers", icon: BookOpen },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -267,7 +301,7 @@ export function TimeMachinePage() {
             <button
               key={tab.id}
               onClick={() => setActiveMode(tab.id as TimeMachineMode)}
-              className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 font-medium transition-colors ${
+              className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 font-medium transition-colors ${
                 isActive
                   ? "bg-primary text-primary-foreground shadow-xs font-semibold"
                   : "bg-card text-muted-foreground hover:bg-muted hover:text-foreground border border-border"
@@ -429,6 +463,48 @@ export function TimeMachinePage() {
         <RippleEffectNetwork
           initialPortId={rippleInitialData.portId}
           initialDelayHours={rippleInitialData.delayHours}
+        />
+      )}
+
+      {activeMode === "KNOWLEDGE_GRAPH" && (
+        <TemporalKnowledgeGraph
+          onSelectVessel={handleSelectVesselById}
+          onSelectPort={handleSelectPortById}
+          onSeekTime={(t) => {
+            setCurrentTime(t);
+            setActiveMode("REPLAY");
+          }}
+        />
+      )}
+
+      {activeMode === "PREDICTIVE" && (
+        <PredictiveIntelligence />
+      )}
+
+      {activeMode === "CHANGE_DETECTION" && (
+        <TemporalChangeDetection />
+      )}
+
+      {activeMode === "ALERTS" && (
+        <TimeAwareAlerts
+          onSeekTime={(t) => {
+            setCurrentTime(t);
+            setActiveMode("REPLAY");
+          }}
+        />
+      )}
+
+      {activeMode === "AI_ASSISTANT" && (
+        <AiMaritimeAssistant
+          currentTime={currentTime}
+          onSeekTime={(t) => {
+            setCurrentTime(t);
+            setActiveMode("REPLAY");
+          }}
+          onSelectVessel={(v) => {
+            setSelectedVessel(v);
+            setActiveMode("REPLAY");
+          }}
         />
       )}
 

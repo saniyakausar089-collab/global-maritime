@@ -23,6 +23,8 @@ import {
   AlertCircle,
   Flag,
   Radio,
+  Camera,
+  Box,
 } from "lucide-react";
 
 if (typeof window !== "undefined" && typeof maplibregl.setWorkerUrl === "function") {
@@ -144,6 +146,30 @@ export function HistoricalMapView({
 
   const [mapLoaded, setMapLoaded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [is3DMode, setIs3DMode] = useState(false);
+
+  const toggle3DMode = () => {
+    if (!mapRef.current) return;
+    const next = !is3DMode;
+    setIs3DMode(next);
+    mapRef.current.easeTo({
+      pitch: next ? 50 : 0,
+      bearing: next ? -20 : 0,
+      duration: 1000,
+    });
+  };
+
+  const captureMapSnapshot = () => {
+    if (!mapRef.current) return;
+    const canvas = mapRef.current.getCanvas();
+    const dataUrl = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = `port_monitor_snapshot_${new Date(currentTime).toISOString().replace(/[:.]/g, "-")}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Initialize MapLibre GL
   useEffect(() => {
@@ -521,6 +547,25 @@ export function HistoricalMapView({
           className="flex h-7 w-7 items-center justify-center rounded text-white/70 hover:text-white hover:bg-white/10 transition"
         >
           <RotateCcw className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={toggle3DMode}
+          title={is3DMode ? "Switch to 2D Top-Down" : "Switch to 2.5D Digital Twin Tilt"}
+          className={`flex h-7 px-1.5 items-center justify-center rounded text-xs font-mono font-bold transition ${
+            is3DMode ? "bg-primary text-primary-foreground" : "text-white/70 hover:text-white hover:bg-white/10"
+          }`}
+        >
+          <Box className="h-3.5 w-3.5 mr-0.5" />
+          <span>{is3DMode ? "2.5D" : "2D"}</span>
+        </button>
+        <button
+          type="button"
+          onClick={captureMapSnapshot}
+          title="Capture Map Replay Snapshot (.png)"
+          className="flex h-7 w-7 items-center justify-center rounded text-white/70 hover:text-white hover:bg-white/10 transition"
+        >
+          <Camera className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"

@@ -374,3 +374,4 @@ export function WhatIfSimulator({ onNavigateToRipple }: WhatIfSimulatorProps) {
     </div>
   );
 }
+

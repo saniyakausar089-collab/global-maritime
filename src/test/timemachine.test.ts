@@ -12,6 +12,12 @@ import {
   getStoredInvestigations,
   exportInvestigationMarkdown,
 } from "../lib/investigationStore";
+import {
+  buildMaritimeKnowledgeGraph,
+  queryKnowledgeGraph,
+} from "../lib/knowledgeGraph";
+import { computePortForecast } from "../lib/forecastEngine";
+import { evaluateHistoricalAlerts } from "../lib/alertEngine";
 
 describe("TIME MACHINE Engine & Kinematics", () => {
   it("loads deterministic 24-hour recorded maritime archive", () => {
@@ -70,5 +76,30 @@ describe("TIME MACHINE Engine & Kinematics", () => {
     expect(md).toContain("# MARITIME INVESTIGATION DOSSIER");
     expect(md).toContain("## 1. Executive Summary");
     expect(md).toContain("## 3. Evidence & Findings");
+  });
+
+  it("builds and queries temporal knowledge graph with semantic edges", () => {
+    const graph = buildMaritimeKnowledgeGraph();
+    expect(graph.nodes.length).toBeGreaterThan(10);
+    expect(graph.edges.length).toBeGreaterThan(10);
+
+    const queried = queryKnowledgeGraph(graph, { types: ["PORT"] });
+    expect(queried.nodes.every((n) => n.type === "PORT")).toBe(true);
+  });
+
+  it("computes predictive time-series forecast with backtesting validation", () => {
+    const forecast = computePortForecast("rotterdam", "QUEUE_SIZE", 16, 8);
+    expect(forecast.points.length).toBe(24);
+    expect(forecast.evaluation.mae).toBeGreaterThanOrEqual(0);
+    expect(forecast.evaluation.trainingWindowHours).toBe(16);
+    expect(forecast.evaluation.horizonHours).toBe(8);
+  });
+
+  it("evaluates time-aware retrospective alert rules", () => {
+    const alerts = evaluateHistoricalAlerts();
+    expect(alerts.length).toBeGreaterThan(0);
+    const first = alerts[0];
+    expect(first.evidenceRef).toBeDefined();
+    expect(["CRITICAL", "WARNING", "ADVISORY"]).toContain(first.severity);
   });
 });
