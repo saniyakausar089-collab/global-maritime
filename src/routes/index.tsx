@@ -107,7 +107,7 @@ function LandingPage() {
   };
 
   return (
-    <div ref={containerRef} className="relative bg-[#050C18] text-[#F2F6FA]">
+    <div ref={containerRef} className="relative bg-[#080F20] text-[#F4F8FF]">
       {/* Fixed 3D WebGL Three.js Canvas */}
       <div className="fixed inset-0 h-screen w-screen overflow-hidden">
         {mounted ? (

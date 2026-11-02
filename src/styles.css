@@ -8,18 +8,18 @@
 
 /*
  * Global Maritime Design System
- * Cinematic Maritime Visual Identity:
- * - Background: #050C18
- * - Deep ocean: #07182A
- * - Secondary navy: #0B2137
- * - Electric cyan: #36C5E8
- * - Ocean blue: #1676B9
- * - Amber: #E8A33D
- * - Normal: #10B981
- * - Warning: #E8A33D
- * - Critical: #E0533D
- * - Main text: #F2F6FA
- * - Secondary text: #A7B6C7
+ * Premium Futuristic Maritime Intelligence Visual Identity:
+ * - Main background: #080F20
+ * - Primary surfaces: #111E36
+ * - Secondary surfaces: #172744
+ * - Electric cyan: #22D3EE
+ * - Bright blue: #3978FF
+ * - Violet: #A78BFA
+ * - Emerald: #18D69B
+ * - Amber: #FFB547
+ * - Coral red: #FF5577
+ * - Primary text: #F4F8FF
+ * - Secondary text: #A9BAD2
  */
 
 @theme inline {
@@ -61,13 +61,15 @@
   --color-status-none: var(--status-none);
   --color-vessel-moving: var(--vessel-moving);
   --color-vessel-stationary: var(--vessel-stationary);
-  --color-navy-deep: #050C18;
-  --color-navy-secondary: #07182A;
-  --color-navy-surface: #0B2137;
-  --color-teal-accent: #36C5E8;
-  --color-cyan-accent: #36C5E8;
-  --color-ocean-blue: #1676B9;
-  --color-amber-accent: #E8A33D;
+  --color-cyan-glow: #22D3EE;
+  --color-blue-bright: #3978FF;
+  --color-violet-ai: #A78BFA;
+  --color-emerald-live: #18D69B;
+  --color-amber-warn: #FFB547;
+  --color-coral-crit: #FF5577;
+  --color-navy-deep: #080F20;
+  --color-navy-primary: #111E36;
+  --color-navy-secondary: #172744;
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --color-sidebar: var(--sidebar);
@@ -82,87 +84,87 @@
 
 :root {
   --radius: 0.5rem;
-  --background: #F3F7FA;
-  --foreground: #050C18;
+  --background: #F0F4FA;
+  --foreground: #080F20;
   --card: #FFFFFF;
-  --card-foreground: #050C18;
+  --card-foreground: #080F20;
   --popover: #FFFFFF;
-  --popover-foreground: #050C18;
-  --primary: #07182A;
+  --popover-foreground: #080F20;
+  --primary: #3978FF;
   --primary-foreground: #FFFFFF;
-  --secondary: #E8EFF5;
-  --secondary-foreground: #050C18;
-  --muted: #EDF3F8;
-  --muted-foreground: #52667A;
-  --accent: #36C5E8;
-  --accent-foreground: #050C18;
-  --destructive: #E0533D;
+  --secondary: #E2EAF5;
+  --secondary-foreground: #080F20;
+  --muted: #E8F0F8;
+  --muted-foreground: #475B73;
+  --accent: #22D3EE;
+  --accent-foreground: #080F20;
+  --destructive: #FF5577;
   --destructive-foreground: #FFFFFF;
-  --border: #D7E2EA;
-  --input: #D7E2EA;
-  --ring: #36C5E8;
-  --status-ok: #10B981;
-  --status-busy: #E8A33D;
-  --status-hot: #E0533D;
+  --border: #D0DEEC;
+  --input: #D0DEEC;
+  --ring: #22D3EE;
+  --status-ok: #18D69B;
+  --status-busy: #FFB547;
+  --status-hot: #FF5577;
   --status-none: #94A3B8;
-  --vessel-moving: #36C5E8;
+  --vessel-moving: #22D3EE;
   --vessel-stationary: #64748B;
-  --chart-1: #36C5E8;
-  --chart-2: #1676B9;
-  --chart-3: #E8A33D;
-  --chart-4: #E0533D;
-  --chart-5: #10B981;
-  --sidebar: #050C18;
-  --sidebar-foreground: #F2F6FA;
-  --sidebar-primary: #36C5E8;
-  --sidebar-primary-foreground: #050C18;
-  --sidebar-accent: #07182A;
+  --chart-1: #22D3EE;
+  --chart-2: #3978FF;
+  --chart-3: #FFB547;
+  --chart-4: #FF5577;
+  --chart-5: #18D69B;
+  --sidebar: #080F20;
+  --sidebar-foreground: #F4F8FF;
+  --sidebar-primary: #22D3EE;
+  --sidebar-primary-foreground: #080F20;
+  --sidebar-accent: #111E36;
   --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: rgba(54, 197, 232, 0.18);
-  --sidebar-ring: #36C5E8;
+  --sidebar-border: rgba(34, 211, 238, 0.16);
+  --sidebar-ring: #22D3EE;
   --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 .dark {
-  --background: #050C18;
-  --foreground: #F2F6FA;
-  --card: #07182A;
-  --card-foreground: #F2F6FA;
-  --popover: #07182A;
-  --popover-foreground: #F2F6FA;
-  --primary: #36C5E8;
-  --primary-foreground: #050C18;
-  --secondary: #0B2137;
-  --secondary-foreground: #F2F6FA;
-  --muted: #0B2137;
-  --muted-foreground: #A7B6C7;
-  --accent: #1676B9;
-  --accent-foreground: #F2F6FA;
-  --destructive: #E0533D;
+  --background: #080F20;
+  --foreground: #F4F8FF;
+  --card: #111E36;
+  --card-foreground: #F4F8FF;
+  --popover: #111E36;
+  --popover-foreground: #F4F8FF;
+  --primary: #22D3EE;
+  --primary-foreground: #080F20;
+  --secondary: #172744;
+  --secondary-foreground: #F4F8FF;
+  --muted: #172744;
+  --muted-foreground: #A9BAD2;
+  --accent: #3978FF;
+  --accent-foreground: #F4F8FF;
+  --destructive: #FF5577;
   --destructive-foreground: #FFFFFF;
-  --border: rgba(54, 197, 232, 0.15);
-  --input: rgba(54, 197, 232, 0.2);
-  --ring: #36C5E8;
-  --status-ok: #10B981;
-  --status-busy: #E8A33D;
-  --status-hot: #E0533D;
+  --border: rgba(34, 211, 238, 0.16);
+  --input: rgba(34, 211, 238, 0.2);
+  --ring: #22D3EE;
+  --status-ok: #18D69B;
+  --status-busy: #FFB547;
+  --status-hot: #FF5577;
   --status-none: #64748B;
-  --vessel-moving: #36C5E8;
+  --vessel-moving: #22D3EE;
   --vessel-stationary: #64748B;
-  --chart-1: #36C5E8;
-  --chart-2: #1676B9;
-  --chart-3: #E8A33D;
-  --chart-4: #E0533D;
-  --chart-5: #10B981;
-  --sidebar: #050C18;
-  --sidebar-foreground: #F2F6FA;
-  --sidebar-primary: #36C5E8;
-  --sidebar-primary-foreground: #050C18;
-  --sidebar-accent: #07182A;
+  --chart-1: #22D3EE;
+  --chart-2: #3978FF;
+  --chart-3: #FFB547;
+  --chart-4: #FF5577;
+  --chart-5: #18D69B;
+  --sidebar: #080F20;
+  --sidebar-foreground: #F4F8FF;
+  --sidebar-primary: #22D3EE;
+  --sidebar-primary-foreground: #080F20;
+  --sidebar-accent: #111E36;
   --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: rgba(54, 197, 232, 0.14);
-  --sidebar-ring: #36C5E8;
+  --sidebar-border: rgba(34, 211, 238, 0.16);
+  --sidebar-ring: #22D3EE;
 }
 
 @layer base {

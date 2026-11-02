@@ -38,9 +38,9 @@ export function MeteorologicalWeather({
     const positions = new Float32Array(streamCount * 3);
     const colors = new Float32Array(streamCount * 3);
 
-    const tealColor = new THREE.Color("#06b6d4"); // Gentle < 15 kn
-    const amberColor = new THREE.Color("#f59e0b"); // Moderate 20-30 kn
-    const crimsonColor = new THREE.Color("#ef4444"); // Storm > 35 kn
+    const tealColor = new THREE.Color("#22D3EE"); // Gentle < 15 kn
+    const amberColor = new THREE.Color("#FFB547"); // Moderate 20-30 kn
+    const crimsonColor = new THREE.Color("#FF5577"); // Storm > 35 kn
 
     for (let i = 0; i < streamCount; i++) {
       const x = (Math.random() - 0.5) * 50;

@@ -150,14 +150,14 @@ function Overview() {
       {/* 4 Upgraded Responsive KPI Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
-          label="Ports Monitored"
+          label="Ports Monitored" variant="blue"
           value={q.isLoading ? null : `${ports.length}`}
           context="Global gateway ports"
           tooltip="Total number of major maritime ports currently monitored for vessel congestion and turn-around delay."
         />
 
         <KpiCard
-          label="Busiest Port"
+          label="Busiest Port" variant="amber"
           value={busiest ? busiest.name : q.isLoading ? null : "None"}
           subValue={busiest?.congestion_index != null ? `CI ${busiest.congestion_index.toFixed(2)}` : undefined}
           flag={busiest ? PORT_FLAGS[busiest.id] : undefined}
@@ -166,7 +166,7 @@ function Overview() {
         />
 
         <KpiCard
-          label="Ports Above Threshold"
+          label="Ports Above Threshold" variant="red"
           value={q.isLoading ? null : `${congested}`}
           subValue={`of ${ports.length}`}
           context="Congestion Index > 1.2"
@@ -175,7 +175,7 @@ function Overview() {
         />
 
         <KpiCard
-          label="Live Vessels Tracked"
+          label="Live Vessels Tracked" variant="cyan"
           value={
             live.totalVesselsCount > 0
               ? live.totalVesselsCount.toLocaleString()
@@ -490,6 +490,7 @@ function KpiCard({
   context,
   tooltip,
   accent,
+  variant = "cyan",
 }: {
   label: string;
   value: string | null;
@@ -498,30 +499,41 @@ function KpiCard({
   context: string;
   tooltip: string;
   accent?: boolean;
+  variant?: "cyan" | "amber" | "red" | "emerald" | "blue";
 }) {
+  const topBorderClass = {
+    cyan: "after:bg-[#22D3EE]",
+    blue: "after:bg-[#3978FF]",
+    amber: "after:bg-[#FFB547]",
+    red: "after:bg-[#FF5577]",
+    emerald: "after:bg-[#18D69B]",
+  }[variant];
+
   return (
-    <Card className="relative overflow-hidden border border-border bg-card p-3.5 shadow-xs transition hover:border-border/80">
+    <Card className={`relative overflow-hidden border border-border bg-card p-4 shadow-sm transition hover:border-primary/40 after:absolute after:top-0 after:left-0 after:right-0 after:h-[2px] ${topBorderClass}`}>
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-[11px] font-mono font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          {variant === "cyan" && <span className="h-1.5 w-1.5 rounded-full bg-[#22D3EE] animate-pulse" />}
+          {variant === "red" && <span className="h-1.5 w-1.5 rounded-full bg-[#FF5577]" />}
           {label}
         </p>
         <div className="group relative cursor-help">
           <Info className="h-3.5 w-3.5 text-muted-foreground/60 hover:text-foreground" />
-          <div className="pointer-events-none absolute right-0 top-5 z-50 hidden w-56 rounded-md border border-border bg-popover p-2 text-[11px] text-popover-foreground shadow-lg group-hover:block">
+          <div className="pointer-events-none absolute right-0 top-5 z-50 hidden w-60 rounded-lg border border-border bg-popover p-2.5 text-[11px] text-popover-foreground shadow-xl group-hover:block backdrop-blur-md">
             {tooltip}
           </div>
         </div>
       </div>
 
-      <div className="mt-1.5 flex items-baseline gap-2">
+      <div className="mt-2 flex items-baseline gap-2">
         {value == null ? (
-          <Skeleton className="h-7 w-20" />
+          <Skeleton className="h-8 w-24" />
         ) : (
           <div className="flex items-center gap-2">
             {flag && <span className="text-xl">{flag}</span>}
             <span
-              className={`text-2xl font-bold tracking-tight ${
-                accent ? "text-rose-500" : "text-foreground"
+              className={`text-2xl sm:text-3xl font-extrabold tracking-tight font-mono ${
+                accent ? "text-[#FF5577]" : "text-foreground"
               }`}
             >
               {value}
@@ -529,13 +541,13 @@ function KpiCard({
           </div>
         )}
         {subValue && (
-          <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground">
+          <span className="rounded-md bg-secondary/80 px-2 py-0.5 text-[10px] font-mono font-semibold text-muted-foreground border border-border">
             {subValue}
           </span>
         )}
       </div>
 
-      <p className="mt-1 text-[11px] text-muted-foreground truncate">{context}</p>
+      <p className="mt-1 text-[11px] text-muted-foreground truncate font-mono">{context}</p>
     </Card>
   );
 }

@@ -18,7 +18,7 @@ export interface TrackedVessel {
 }
 
 interface ShipCourseVectorsProps {
-  activeScene: number; // 0 to 9
+  activeScene: number;
   onSelectVessel?: (vessel: TrackedVessel | null) => void;
   selectedVesselId?: string | null;
 }
@@ -79,11 +79,11 @@ function TrackedVesselVector({
     const line = new THREE.Line(
       geo,
       new THREE.LineDashedMaterial({
-        color: 0x38bdf8,
+        color: 0x22d3ee,
         dashSize: 0.1,
         gapSize: 0.08,
         transparent: true,
-        opacity: isFocus ? 0.85 : 0.4,
+        opacity: isFocus ? 0.9 : 0.45,
       })
     );
     line.computeLineDistances();
@@ -99,80 +99,75 @@ function TrackedVesselVector({
     return new THREE.Line(
       geo,
       new THREE.LineBasicMaterial({
-        color: 0x0284c7,
+        color: 0x3978ff,
         transparent: true,
-        opacity: isFocus ? 0.9 : 0.45,
+        opacity: isFocus ? 0.75 : 0.35,
       })
     );
   }, [v.history, isFocus]);
 
-  // 4. Destination arc
-  const destLineObj = useMemo(() => {
-    if (!v.destination) return null;
-    const destEnd = new THREE.Vector3(v.pos[0] + dirX * 3.5, v.pos[1] + 0.3, v.pos[2] - 2.8);
-    const start = new THREE.Vector3(...v.pos);
-    const mid = start.clone().lerp(destEnd, 0.5).add(new THREE.Vector3(0, 0.6, 0));
-    const points = new THREE.QuadraticBezierCurve3(start, mid, destEnd).getPoints(32);
-    const geo = new THREE.BufferGeometry().setFromPoints(points);
-    return new THREE.Line(
-      geo,
-      new THREE.LineBasicMaterial({
-        color: 0xfacc15,
-        transparent: true,
-        opacity: 0.75,
-      })
-    );
-  }, [v.destination, v.pos, dirX]);
+  const markerColor =
+    v.shipType === "cargo"
+      ? "#22D3EE"
+      : v.shipType === "tanker"
+      ? "#FFB547"
+      : "#A78BFA";
 
   return (
     <group>
+      {/* Historical Track */}
+      {historyLineObj && <primitive object={historyLineObj} />}
+
+      {/* Solid COG Vector Arrow */}
+      <primitive
+        object={
+          new THREE.Line(
+            cogLineGeo,
+            new THREE.LineBasicMaterial({
+              color: isFocus ? 0x22d3ee : new THREE.Color(markerColor),
+              linewidth: isFocus ? 2 : 1,
+            })
+          )
+        }
+      />
+
+      {/* Dashed Projected Vector */}
+      <primitive object={projLineObj} />
+
       {/* Vessel Position Marker */}
       <mesh
         position={v.pos}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          onHover?.(v);
-          onSelect?.(v);
-        }}
-        onPointerOut={() => {
-          onHover?.(null);
-        }}
         onClick={(e) => {
           e.stopPropagation();
           onSelect?.(v);
         }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          onHover?.(v);
+        }}
+        onPointerOut={() => onHover?.(null)}
       >
-        <sphereGeometry args={[0.08, 16, 16]} />
-        <meshStandardMaterial
-          color={isFocus ? 0x00f0ff : v.speedKnots > 0.5 ? 0x10b981 : 0xf59e0b}
-          emissive={isFocus ? 0x00f0ff : v.speedKnots > 0.5 ? 0x10b981 : 0xf59e0b}
-          emissiveIntensity={isFocus ? 1.4 : 0.8}
-        />
+        <sphereGeometry args={[isFocus ? 0.12 : 0.07, 16, 16]} />
+        <meshBasicMaterial color={isFocus ? "#FFFFFF" : markerColor} />
       </mesh>
 
-      {/* Glowing ring when focused */}
+      {/* Compact Tactical HUD Tooltip */}
       {isFocus && (
-        <mesh position={v.pos} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.12, 0.16, 24]} />
-          <meshBasicMaterial color={0x00f0ff} transparent opacity={0.8} side={THREE.DoubleSide} />
-        </mesh>
+        <Html position={[v.pos[0] + 0.3, v.pos[1] + 0.4, v.pos[2]]} center>
+          <div className="w-56 rounded-lg border border-cyan-400/40 bg-[#080F20]/90 p-2.5 shadow-xl backdrop-blur-md text-[11px] text-white pointer-events-none">
+            <div className="flex items-center justify-between border-b border-cyan-500/20 pb-1 mb-1.5">
+              <span className="font-semibold text-cyan-200 truncate">{v.name}</span>
+              <span className="text-[9px] font-mono text-cyan-400/80">{v.speedKnots} kn</span>
+            </div>
+            <div className="text-[10px] space-y-0.5 text-[#A9BAD2]">
+              <div>Type: <span className="text-white capitalize">{v.shipType}</span></div>
+              <div>Heading: <span className="text-white font-mono">{v.heading}°</span></div>
+              <div>Destination: <span className="text-amber-300 truncate">{v.destination ?? "Unknown"}</span></div>
+              <div>Status: <span className="text-emerald-400">{v.status}</span></div>
+            </div>
+          </div>
+        </Html>
       )}
-
-      {/* Heading & COG Vector Line */}
-      {v.speedKnots > 0.5 && (
-        <line geometry={cogLineGeo}>
-          <lineBasicMaterial color={isFocus ? 0x38bdf8 : 0x06b6d4} linewidth={2} />
-        </line>
-      )}
-
-      {/* Historical Track Trail */}
-      {historyLineObj && <primitive object={historyLineObj} />}
-
-      {/* Projected Dead-Reckoning Path */}
-      {v.speedKnots > 0.5 && <primitive object={projLineObj} />}
-
-      {/* Destination Arc */}
-      {isFocus && destLineObj && <primitive object={destLineObj} />}
     </group>
   );
 }
@@ -183,106 +178,78 @@ export function ShipCourseVectors({
   selectedVesselId,
 }: ShipCourseVectorsProps) {
   const [hoveredVessel, setHoveredVessel] = useState<TrackedVessel | null>(null);
-  const pulseRef = useRef<number>(0);
 
-  // Representative realistic tracked vessels around port approaches
-  const vessels: TrackedVessel[] = useMemo(() => {
-    return [
-      {
-        id: "vessel-1",
-        name: "MAERSK MC-KINNEY MOLLER",
-        mmsi: 219018271,
-        shipType: "Ultra Large Container Vessel",
-        pos: [0.65, 8.05, 6.35],
-        heading: 68,
-        speedKnots: 16.4,
-        destination: "NLRTM (Rotterdam Maasvlakte)",
-        eta: "2026-11-01 04:30 UTC",
-        status: "Underway using engine",
-        history: [
-          [0.15, 7.82, 6.12],
-          [0.28, 7.88, 6.18],
-          [0.42, 7.95, 6.25],
-          [0.54, 8.01, 6.30],
-          [0.65, 8.05, 6.35],
-        ],
-      },
-      {
-        id: "vessel-2",
-        name: "FRONT ALTAIR",
-        mmsi: 538006932,
-        shipType: "VLCC Crude Oil Tanker",
-        pos: [0.32, 8.22, 6.15],
-        heading: 142,
-        speedKnots: 11.8,
-        destination: "NLRTM (Europoort Jetty 6)",
-        eta: "2026-11-01 08:15 UTC",
-        status: "Underway using engine",
-        history: [
-          [0.18, 8.35, 6.02],
-          [0.22, 8.31, 6.06],
-          [0.27, 8.26, 6.11],
-          [0.32, 8.22, 6.15],
-        ],
-      },
-      {
-        id: "vessel-3",
-        name: "BERGE KANGCHENJUNGA",
-        mmsi: 235113942,
-        shipType: "Capesize Bulk Carrier (Ore)",
-        pos: [0.95, 7.78, 6.45],
-        heading: 215,
-        speedKnots: 0.2,
-        destination: null,
-        eta: null,
-        status: "At anchor (Outer Anchorage 4)",
-        history: [
-          [0.96, 7.77, 6.44],
-          [0.95, 7.78, 6.45],
-        ],
-      },
-      {
-        id: "vessel-4",
-        name: "MSC TESSA",
-        mmsi: 636021876,
-        shipType: "Container Ship (24,116 TEU)",
-        pos: [1.35, 8.38, 6.08],
-        heading: 85,
-        speedKnots: 18.2,
-        destination: "BEANR (Antwerp Gateway)",
-        eta: "2026-11-01 14:00 UTC",
-        status: "Underway using engine",
-        history: [
-          [0.92, 8.25, 5.92],
-          [1.06, 8.30, 5.97],
-          [1.21, 8.34, 6.02],
-          [1.35, 8.38, 6.08],
-        ],
-      },
-      {
-        id: "vessel-5",
-        name: "NORDIC PASSAT",
-        mmsi: 256819000,
-        shipType: "Chemical / Product Tanker",
-        pos: [-0.15, 8.12, 6.42],
-        heading: 320,
-        speedKnots: 0.1,
-        destination: "NLRTM (Botlek)",
-        eta: "2026-11-01 02:00 UTC",
-        status: "Awaiting pilot / bunkering",
-        history: [
-          [-0.14, 8.13, 6.41],
-          [-0.15, 8.12, 6.42],
-        ],
-      },
-    ];
-  }, []);
-
-  const activeVessel = hoveredVessel || vessels.find((v) => v.id === selectedVesselId) || vessels[0]!;
-
-  useFrame(({ clock }) => {
-    pulseRef.current = (Math.sin(clock.getElapsedTime() * 3.5) + 1.0) * 0.5;
-  });
+  // Realistic vessel positions around North Sea / Rotterdam approaches
+  const vessels: TrackedVessel[] = useMemo(() => [
+    {
+      id: "v-1",
+      name: "EVER GIVEN",
+      mmsi: 353136000,
+      shipType: "cargo",
+      pos: [0.8, 7.85, 6.2],
+      heading: 68,
+      speedKnots: 16.4,
+      destination: "NLRTM",
+      eta: "14:30 UTC",
+      status: "Underway",
+      history: [
+        [0.4, 7.7, 6.5],
+        [0.6, 7.78, 6.35],
+        [0.8, 7.85, 6.2],
+      ],
+    },
+    {
+      id: "v-2",
+      name: "FRONT ALTAIR",
+      mmsi: 538008123,
+      shipType: "tanker",
+      pos: [0.2, 7.95, 6.05],
+      heading: 110,
+      speedKnots: 11.8,
+      destination: "NLRTM ANCHORAGE",
+      eta: "18:00 UTC",
+      status: "Awaiting Berth",
+      history: [
+        [-0.1, 8.05, 5.95],
+        [0.05, 8.0, 6.0],
+        [0.2, 7.95, 6.05],
+      ],
+    },
+    {
+      id: "v-3",
+      name: "MAERSK MC-KINNEY MOLLER",
+      mmsi: 219018271,
+      shipType: "cargo",
+      pos: [1.3, 7.72, 6.38],
+      heading: 52,
+      speedKnots: 18.2,
+      destination: "DEHAM",
+      eta: "Tomorrow 06:00",
+      status: "Underway",
+      history: [
+        [0.9, 7.55, 6.6],
+        [1.1, 7.64, 6.48],
+        [1.3, 7.72, 6.38],
+      ],
+    },
+    {
+      id: "v-4",
+      name: "QUEEN MARY 2",
+      mmsi: 310627000,
+      shipType: "passenger",
+      pos: [0.6, 7.65, 6.55],
+      heading: 42,
+      speedKnots: 21.0,
+      destination: "GBSOU",
+      eta: "Today 20:00",
+      status: "Underway",
+      history: [
+        [0.2, 7.5, 6.8],
+        [0.4, 7.58, 6.68],
+        [0.6, 7.65, 6.55],
+      ],
+    },
+  ], []);
 
   return (
     <group>
@@ -292,63 +259,10 @@ export function ShipCourseVectors({
           v={v}
           isHovered={hoveredVessel?.id === v.id}
           isSelected={selectedVesselId === v.id}
-          onSelect={onSelectVessel}
+          onSelect={(sel) => onSelectVessel?.(sel)}
           onHover={setHoveredVessel}
         />
       ))}
-
-      {/* Floating HUD Card for Selected or Hovered Vessel in Scene 05 */}
-      {activeScene === 4 && activeVessel && (
-        <Html position={[activeVessel.pos[0] + 0.35, activeVessel.pos[1] + 0.3, activeVessel.pos[2]]} zIndexRange={[100, 0]}>
-          <div className="w-80 rounded-xl border border-cyan-500/40 bg-slate-950/85 p-3.5 shadow-2xl backdrop-blur-md text-xs font-mono text-slate-200 pointer-events-auto">
-            <div className="flex items-center justify-between border-b border-cyan-500/20 pb-2 mb-2">
-              <span className="font-semibold text-cyan-400 truncate max-w-[190px]">
-                {activeVessel.name}
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300">
-                MMSI {activeVessel.mmsi}
-              </span>
-            </div>
-
-            <div className="space-y-1.5 text-[11px]">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Vessel Class:</span>
-                <span className="text-slate-200 font-sans font-medium">{activeVessel.shipType}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Speed / COG:</span>
-                <span className="text-emerald-400 font-semibold">
-                  {activeVessel.speedKnots.toFixed(1)} kn / {activeVessel.heading}°
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Status:</span>
-                <span className="text-slate-300">{activeVessel.status}</span>
-              </div>
-              <div className="flex justify-between pt-1 border-t border-slate-800">
-                <span className="text-slate-400">Destination:</span>
-                <span className={activeVessel.destination ? "text-cyan-300 font-medium" : "text-amber-400/90 italic"}>
-                  {activeVessel.destination || "Destination not reported"}
-                </span>
-              </div>
-              {activeVessel.eta && (
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Reported ETA:</span>
-                  <span className="text-slate-200">{activeVessel.eta}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-2.5 pt-2 border-t border-cyan-500/20 flex items-center justify-between text-[10px] text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block w-2 h-0.5 bg-cyan-400"></span>
-                <span>Projected (dead reckoning)</span>
-              </span>
-              <span className="text-cyan-400/80">30-60m vector</span>
-            </div>
-          </div>
-        </Html>
-      )}
     </group>
   );
 }
