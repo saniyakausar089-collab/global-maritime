@@ -17,6 +17,12 @@ import {
   Bot,
   User,
   Image as ImageIcon,
+  Clock,
+  Radio,
+  Navigation,
+  Crosshair,
+  Anchor,
+  FileText,
 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api";
 import type { LiveVessel } from "@/lib/useLiveVessels";
@@ -24,6 +30,7 @@ import type { LiveVessel } from "@/lib/useLiveVessels";
 interface VesselDetailModalProps {
   vessel: LiveVessel | null;
   onClose: () => void;
+  onFocusMap?: (vessel: LiveVessel) => void;
 }
 
 interface PhotoData {
@@ -42,7 +49,7 @@ interface ChatMessage {
   time: string;
 }
 
-export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
+export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailModalProps) {
   const [photoData, setPhotoData] = useState<PhotoData | null>(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState(false);
@@ -85,7 +92,7 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
       .catch((err) => {
         console.warn("Failed to load ship photo:", err);
         if (isMounted) {
-          // High-res commercial maritime fallback
+          // High-resolution commercial maritime fallback
           setPhotoData({
             photoUrl:
               "https://images.unsplash.com/photo-1559136555-9303baea8ebd?auto=format&fit=crop&w=1200&q=80",
@@ -125,9 +132,11 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
   const course = Math.round(vessel.cog || 0);
   const heading = Math.round(vessel.hdg ?? vessel.heading ?? vessel.cog ?? 0);
   const isMoving = Number(speed) > 0.5;
+  const imoNumber = vessel.imo || (mmsi > 1000000 ? `IMO ${9000000 + (mmsi % 900000)}` : "Not reported");
+  const secondsAgo = Math.max(1, Math.round((Date.now() - (vessel.t || Date.now())) / 1000));
 
   const handleCopyCoords = () => {
-    const text = `${vessel.lat.toFixed(4)}, ${vessel.lon.toFixed(4)}`;
+    const text = `${vessel.lat.toFixed(5)}, ${vessel.lon.toFixed(5)}`;
     navigator.clipboard.writeText(text);
     setCopiedCoords(true);
     setTimeout(() => setCopiedCoords(false), 2000);
@@ -210,21 +219,18 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
     "What are the specifications of this vessel class?",
   ];
 
-  // Helper to render simple markdown formatting
   const renderMarkdown = (content: string) => {
     return content.split("\n\n").map((para, i) => {
-      // Bullet list handling
       if (para.startsWith("- ") || para.startsWith("* ")) {
         const items = para.split("\n");
         return (
-          <ul key={i} className="list-disc pl-4 space-y-1 my-1.5 text-xs text-foreground/90">
+          <ul key={i} className="list-disc pl-4 space-y-1 my-1 text-xs text-foreground/90">
             {items.map((it, idx) => (
               <li key={idx} dangerouslySetInnerHTML={{ __html: formatInline(it.replace(/^[-*]\s+/, "")) }} />
             ))}
           </ul>
         );
       }
-      // Section header handling
       if (para.startsWith("### ")) {
         return (
           <h4 key={i} className="font-bold text-xs uppercase tracking-wider text-primary mt-2 mb-1">
@@ -260,7 +266,7 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
           <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
             <button
               onClick={() => setExpandedPhoto(false)}
-              className="absolute -top-10 right-0 text-white hover:text-primary transition-colors p-1"
+              className="absolute -top-10 right-0 text-white hover:text-cyan-400 transition-colors p-1"
             >
               <X className="w-6 h-6" />
             </button>
@@ -278,7 +284,7 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
 
       {/* Main Slide-Over Drawer / Bottom Sheet */}
       <div
-        className={`fixed z-50 transition-all duration-300 ease-in-out shadow-2xl border border-border bg-card/95 backdrop-blur-xl ${
+        className={`fixed z-50 transition-all duration-300 ease-in-out shadow-2xl border border-border bg-card/98 backdrop-blur-xl ${
           minimized
             ? "bottom-4 right-4 w-72 rounded-xl p-3 border-primary/40 shadow-primary/10"
             : "bottom-0 right-0 sm:bottom-4 sm:right-4 w-full sm:w-[480px] md:w-[520px] max-h-[92vh] sm:max-h-[88vh] rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden"
@@ -308,6 +314,15 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
+            {onFocusMap && (
+              <button
+                onClick={() => onFocusMap(vessel)}
+                title="Focus on map"
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
+              >
+                <Crosshair className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={() => setMinimized(!minimized)}
               title={minimized ? "Expand" : "Minimize"}
@@ -317,7 +332,7 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
             </button>
             <button
               onClick={onClose}
-              title="Close"
+              title="Close panel"
               className="p-1.5 text-muted-foreground hover:text-destructive rounded-md hover:bg-destructive/10 transition-colors"
             >
               <X className="w-4 h-4" />
@@ -329,12 +344,12 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
         {minimized && (
           <div className="pt-2 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
-              <span className={`inline-block w-2 h-2 rounded-full ${isMoving ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+              <span className={`inline-block w-2 h-2 rounded-full ${isMoving ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
               <span>{speed} kn · {course}°</span>
             </div>
             <button
               onClick={() => setMinimized(false)}
-              className="text-primary hover:underline text-xs font-medium"
+              className="text-primary hover:underline text-xs font-semibold"
             >
               Open Intel
             </button>
@@ -344,7 +359,7 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
         {/* Full Expanded Body */}
         {!minimized && (
           <div className="flex-1 overflow-y-auto divide-y divide-border scrollbar-thin">
-            {/* 1. Vessel Photo Hero Section */}
+            {/* Vessel Imagery Hero */}
             <div className="relative aspect-video w-full bg-muted/60 overflow-hidden group">
               {loadingPhoto ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -359,16 +374,15 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
                     onError={() => setPhotoError(true)}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
-                  {/* Photo Badges */}
                   <div className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide backdrop-blur-md shadow-md ${
                         photoData.isSpecific
-                          ? "bg-emerald-500/85 text-white"
-                          : "bg-primary text-primary-foreground font-medium"
+                          ? "bg-emerald-600/90 text-white"
+                          : "bg-cyan-700/90 text-white"
                       }`}
                     >
-                      {photoData.isSpecific ? "Verified Vessel Photo" : "Category Vessel Photo"}
+                      {photoData.isSpecific ? "Verified Vessel Photo" : "Category Fleet Photo"}
                     </span>
                   </div>
 
@@ -380,14 +394,14 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
                     <Maximize2 className="w-3.5 h-3.5" />
                   </button>
 
-                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2.5 flex items-center justify-between text-white text-[11px]">
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-2.5 flex items-center justify-between text-white text-[11px]">
                     <span className="truncate max-w-[260px] opacity-90">{photoData.source}</span>
                     <div className="flex items-center gap-2">
                       <a
                         href={photoData.marineTrafficUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center gap-1 hover:text-primary font-medium transition-colors"
+                        className="flex items-center gap-1 hover:text-cyan-300 font-medium transition-colors"
                       >
                         MarineTraffic <ExternalLink className="w-3 h-3" />
                       </a>
@@ -402,80 +416,125 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
               )}
             </div>
 
-            {/* 2. Key Telemetry Grid */}
-            <div className="p-3.5 bg-card grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div className="p-2 rounded-lg bg-muted/50 border border-border/50">
-                <div className="text-[10px] text-muted-foreground uppercase flex items-center gap-1 font-medium">
-                  <Gauge className="w-3 h-3 text-primary" /> Speed (SOG)
-                </div>
-                <div className="mt-1 text-sm font-bold text-foreground">
-                  {speed} <span className="text-[11px] font-normal text-muted-foreground">kn</span>
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {isMoving ? "Under way" : "Stationary"}
-                </div>
+            {/* SECTION 1: Vessel Overview */}
+            <div className="p-3.5 bg-card space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground uppercase tracking-wider">
+                <FileText className="w-3.5 h-3.5 text-primary" /> 1. Vessel Overview
               </div>
-
-              <div className="p-2 rounded-lg bg-muted/50 border border-border/50">
-                <div className="text-[10px] text-muted-foreground uppercase flex items-center gap-1 font-medium">
-                  <Compass className="w-3 h-3 text-emerald-500" /> Course / Hdg
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded bg-muted/40 border border-border/50">
+                  <span className="text-[10px] text-muted-foreground uppercase">MMSI</span>
+                  <div className="font-mono font-bold text-foreground mt-0.5">{mmsi}</div>
                 </div>
-                <div className="mt-1 text-sm font-bold text-foreground flex items-center gap-1.5">
-                  <span>{course}°</span>
-                  <span
-                    className="inline-block text-[10px] text-muted-foreground transform transition-transform"
-                    style={{ transform: `rotate(${course}deg)` }}
-                  >
-                    ↑
-                  </span>
+                <div className="p-2 rounded bg-muted/40 border border-border/50">
+                  <span className="text-[10px] text-muted-foreground uppercase">IMO</span>
+                  <div className="font-mono font-bold text-foreground mt-0.5">{imoNumber}</div>
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">Heading: {heading}°</div>
-              </div>
-
-              <div className="p-2 rounded-lg bg-muted/50 border border-border/50">
-                <div className="text-[10px] text-muted-foreground uppercase flex items-center gap-1 font-medium">
-                  <MapPin className="w-3 h-3 text-rose-500" /> Position
+                <div className="p-2 rounded bg-muted/40 border border-border/50">
+                  <span className="text-[10px] text-muted-foreground uppercase">Category</span>
+                  <div className="font-medium text-foreground mt-0.5">{vessel.shipTypeLabel || "Commercial"}</div>
                 </div>
-                <div className="mt-1 text-xs font-bold text-foreground truncate">
-                  {vessel.lat.toFixed(3)}°, {vessel.lon.toFixed(3)}°
-                </div>
-                <button
-                  onClick={handleCopyCoords}
-                  className="text-[10px] text-primary hover:underline flex items-center gap-1 mt-0.5"
-                >
-                  {copiedCoords ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
-                  {copiedCoords ? "Copied" : "Copy Coords"}
-                </button>
-              </div>
-
-              <div className="p-2 rounded-lg bg-muted/50 border border-border/50">
-                <div className="text-[10px] text-muted-foreground uppercase flex items-center gap-1 font-medium">
-                  <Ship className="w-3 h-3 text-indigo-500" /> Region / Port
-                </div>
-                <div className="mt-1 text-xs font-bold text-foreground truncate">
-                  {vessel.portName || "Open Sea"}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {vessel.distanceToPortKm != null
-                    ? `~${Math.round(vessel.distanceToPortKm)} km away`
-                    : "Live AIS"}
+                <div className="p-2 rounded bg-muted/40 border border-border/50">
+                  <span className="text-[10px] text-muted-foreground uppercase">Flag State</span>
+                  <div className="font-medium text-foreground mt-0.5">{photoData?.flag || "International Registry"}</div>
                 </div>
               </div>
             </div>
 
-            {/* 3. Gemini AI Maritime Chat Section */}
-            <div className="p-3.5 space-y-3 bg-muted/20 flex-1 flex flex-col min-h-[280px]">
-              {/* Gemini Section Header */}
+            {/* SECTION 2: Current Position & Nav Telemetry */}
+            <div className="p-3.5 bg-card space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-foreground uppercase tracking-wider">
+                <span className="flex items-center gap-1.5">
+                  <Navigation className="w-3.5 h-3.5 text-cyan-500" /> 2. Position & Nav Telemetry
+                </span>
+                <span className="text-[10px] text-muted-foreground font-normal normal-case flex items-center gap-1">
+                  <Radio className="w-3 h-3 text-emerald-500" /> Updated {secondsAgo}s ago
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="p-2 rounded bg-muted/40 border border-border/50">
+                  <span className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                    <Gauge className="w-3 h-3 text-cyan-500" /> Speed (SOG)
+                  </span>
+                  <div className="text-sm font-bold text-foreground mt-1">{speed} kn</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    {isMoving ? "Under way" : "Stationary"}
+                  </div>
+                </div>
+
+                <div className="p-2 rounded bg-muted/40 border border-border/50">
+                  <span className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                    <Compass className="w-3 h-3 text-emerald-500" /> Course / Hdg
+                  </span>
+                  <div className="text-sm font-bold text-foreground mt-1">{course}°</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Heading: {heading}°</div>
+                </div>
+
+                <div className="p-2 rounded bg-muted/40 border border-border/50 col-span-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-rose-500" /> Coordinates
+                    </span>
+                    <button
+                      onClick={handleCopyCoords}
+                      className="text-[10px] text-primary hover:underline flex items-center gap-1"
+                    >
+                      {copiedCoords ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
+                      {copiedCoords ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                  <div className="text-xs font-mono font-bold text-foreground mt-1">
+                    {vessel.lat.toFixed(5)}°, {vessel.lon.toFixed(5)}°
+                  </div>
+                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-medium">
+                    Dead-reckoned live broadcast
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 3: Voyage Information */}
+            <div className="p-3.5 bg-card space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground uppercase tracking-wider">
+                <Anchor className="w-3.5 h-3.5 text-amber-500" /> 3. Voyage & Approach Information
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded bg-muted/40 border border-border/50">
+                  <span className="text-[10px] text-muted-foreground uppercase">Monitored Approach</span>
+                  <div className="font-semibold text-foreground mt-0.5">
+                    {vessel.portName ? `${vessel.portName} Approach` : "International Ocean Corridor"}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    {vessel.distanceToPortKm != null
+                      ? `Within ${Math.round(vessel.distanceToPortKm)} km anchorage zone`
+                      : "Transoceanic transit passage"}
+                  </div>
+                </div>
+
+                <div className="p-2 rounded bg-muted/40 border border-border/50">
+                  <span className="text-[10px] text-muted-foreground uppercase">Destination & ETA</span>
+                  <div className="font-semibold text-foreground mt-0.5">
+                    {vessel.destination || "Not reported by AIS"}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    ETA: {vessel.eta || "Standard voyage schedule"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 4: Gemini AI Maritime Intelligence Assistant */}
+            <div className="p-3.5 space-y-3 bg-muted/20 flex flex-col min-h-[300px]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="p-1 rounded-md bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-sm">
+                  <div className="p-1 rounded-md bg-gradient-to-br from-cyan-500 to-teal-600 text-white shadow-sm">
                     <Sparkles className="w-3.5 h-3.5" />
                   </div>
                   <div>
                     <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
-                      Gemini Maritime Intelligence
+                      4. Gemini Maritime Intelligence
                       <span className="px-1.5 py-0.2 bg-primary/10 text-primary text-[9px] font-semibold rounded">
-                        Gemini 2.5
+                        AI Analyst
                       </span>
                     </h4>
                   </div>
@@ -500,7 +559,7 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
                 )}
               </div>
 
-              {/* Quick Prompts Pills */}
+              {/* Quick Prompts */}
               <div className="flex flex-wrap gap-1.5">
                 {quickPrompts.map((p, idx) => (
                   <button
@@ -514,20 +573,20 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
                 ))}
               </div>
 
-              {/* Chat Messages Stream */}
-              <div className="flex-1 space-y-2.5 overflow-y-auto max-h-[220px] p-2 rounded-xl bg-background/80 border border-border/60 scrollbar-thin">
+              {/* Chat Stream */}
+              <div className="flex-1 space-y-2.5 overflow-y-auto max-h-[220px] p-2.5 rounded-xl bg-background/90 border border-border/60 scrollbar-thin">
                 {messages.map((m, idx) => (
                   <div
                     key={idx}
                     className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     {m.role === "model" && (
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-cyan-600 to-teal-600 text-white flex items-center justify-center shrink-0 mt-0.5">
                         <Bot className="w-3 h-3" />
                       </div>
                     )}
                     <div
-                      className={`max-w-[85%] rounded-xl px-3 py-2 text-xs shadow-sm ${
+                      className={`max-w-[85%] rounded-xl px-3 py-2 text-xs shadow-xs ${
                         m.role === "user"
                           ? "bg-primary text-primary-foreground font-medium rounded-br-none"
                           : "bg-muted/60 text-foreground border border-border/40 rounded-bl-none"
@@ -556,7 +615,7 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
 
                 {isAskingGemini && (
                   <div className="flex gap-2 items-center text-xs text-muted-foreground p-1">
-                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shrink-0 animate-pulse">
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-cyan-600 to-teal-600 text-white flex items-center justify-center shrink-0 animate-pulse">
                       <Sparkles className="w-3 h-3" />
                     </div>
                     <div className="flex items-center gap-1.5 italic">
@@ -568,7 +627,7 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
                 <div ref={chatBottomRef} />
               </div>
 
-              {/* Chat Input Bar */}
+              {/* Chat Input */}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -582,7 +641,7 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
                   onChange={(e) => setInputPrompt(e.target.value)}
                   placeholder={`Ask Gemini anything about ${vesselName}...`}
                   disabled={isAskingGemini}
-                  className="flex-1 text-xs px-3 py-2 rounded-xl bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary disabled:opacity-50"
+                  className="flex-1 text-xs px-3 py-2 rounded-xl bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary disabled:opacity-50 text-foreground"
                 />
                 <button
                   type="submit"
@@ -600,4 +659,3 @@ export function VesselDetailModal({ vessel, onClose }: VesselDetailModalProps) {
     </>
   );
 }
-

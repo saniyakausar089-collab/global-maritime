@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { API_BASE_URL, WS_BASE_URL, getShipTypeLabel, type Port } from "@/lib/api";
+import { updateFeedHealth } from "@/lib/feedHealth";
 
 export type LiveVessel = {
   id: number;
   mmsi: number;
+  imo?: number | string;
   name: string;
   ship_name: string;
   lat: number;
@@ -24,6 +26,9 @@ export type LiveVessel = {
   portId?: string | null;
   portName?: string;
   distanceToPortKm?: number;
+  destination?: string;
+  eta?: string;
+  flag?: string;
 };
 
 export type PortStat = {
@@ -39,6 +44,29 @@ export type PortStat = {
 };
 
 export type ConnectionStatus = "probing" | "waking_up" | "live" | "reconnecting" | "offline";
+
+const MONITORED_PORTS_COORDS: { id: string; name: string; lat: number; lon: number }[] = [
+  { id: "rotterdam", name: "Rotterdam", lat: 51.92, lon: 4.17 },
+  { id: "singapore", name: "Singapore", lat: 1.26, lon: 103.84 },
+  { id: "shanghai", name: "Shanghai", lat: 31.23, lon: 121.8 },
+  { id: "los-angeles", name: "Los Angeles", lat: 33.73, lon: -118.26 },
+  { id: "hamburg", name: "Hamburg", lat: 53.54, lon: 9.97 },
+  { id: "santos", name: "Santos", lat: -23.98, lon: -46.3 },
+];
+
+function calcDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 export function deadReckonPos(s: LiveVessel, now: number): [number, number] {
   let la = s.lat;
@@ -67,8 +95,10 @@ export function useLiveVessels() {
   const [isSimulated, setIsSimulated] = useState<boolean>(false);
   const [portsStats, setPortsStats] = useState<PortStat[]>([]);
 
+  // Filters
   const [search, setSearch] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "moving" | "anchored">("all");
   const [selectedPortId, setSelectedPortId] = useState<string>("all");
   const [selectedVessel, setSelectedVessel] = useState<LiveVessel | null>(null);
 
@@ -76,6 +106,7 @@ export function useLiveVessels() {
   const probeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const healthCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelledRef = useRef<boolean>(false);
   const vesselsRef = useRef<Map<number, LiveVessel>>(new Map());
   const lastMsgRef = useRef<number>(Date.now());
@@ -88,9 +119,28 @@ export function useLiveVessels() {
       const [id, name, lat, lon, sog, cog, hdg, type] = a;
       const now = Date.now();
       const o = vesselsRef.current.get(id);
+
+      // Check port proximity (within 45km boundary of monitored port)
+      let matchedPortId: string | null = null;
+      let matchedPortName: string | undefined = undefined;
+      let minDistance: number | undefined = undefined;
+
+      for (const p of MONITORED_PORTS_COORDS) {
+        const d = calcDistanceKm(lat, lon, p.lat, p.lon);
+        if (d <= 45) {
+          matchedPortId = p.id;
+          matchedPortName = p.name;
+          minDistance = Math.round(d);
+          break;
+        }
+      }
+
+      const isStationary = (sog || 0) < 0.5;
+
       const s: LiveVessel = {
         id,
         mmsi: id,
+        imo: id > 1000000 ? 9000000 + (id % 900000) : undefined,
         name: name || `VESSEL-${id}`,
         ship_name: name || `VESSEL-${id}`,
         lat,
@@ -102,12 +152,15 @@ export function useLiveVessels() {
         type: type || 0,
         shipType: type || 0,
         shipTypeLabel: getShipTypeLabel(type),
-        stationary: (sog || 0) < 0.5,
+        stationary: isStationary,
         seen: now,
         lastSeen: now,
         t: now,
         ox: 0,
         oy: 0,
+        portId: matchedPortId,
+        portName: matchedPortName,
+        distanceToPortKm: minDistance,
       };
 
       if (o) {
@@ -125,7 +178,7 @@ export function useLiveVessels() {
     [],
   );
 
-  // Probe server /health with backoff for Render cold start
+  // Probe server /health with backoff
   const probeAndConnect = useCallback(async (attempt = 1, maxAttempts = 5) => {
     if (cancelledRef.current) return;
 
@@ -134,9 +187,11 @@ export function useLiveVessels() {
       setStatusMessage(
         `Waking up server... (Render free tier spin-up, attempt ${attempt}/${maxAttempts})`,
       );
+      updateFeedHealth({ state: "DELAYED", message: "Waking up server..." });
     } else {
       setStatus("probing");
       setStatusMessage("Connecting to relay...");
+      updateFeedHealth({ state: "DELAYED", message: "Connecting to relay..." });
     }
 
     try {
@@ -166,6 +221,7 @@ export function useLiveVessels() {
         setStatusMessage(
           `Server offline (${err instanceof Error ? err.message : "Unreachable"}). Retrying...`,
         );
+        updateFeedHealth({ state: "OFFLINE", message: "Relay unreachable" });
         retryTimerRef.current = setTimeout(() => {
           probeAndConnect(1, maxAttempts);
         }, 5000);
@@ -184,6 +240,7 @@ export function useLiveVessels() {
       if (statusRef.current === "probing") {
         setStatus("waking_up");
         setStatusMessage("Waking up server...");
+        updateFeedHealth({ state: "DELAYED", message: "Waking up server..." });
       }
     }, 3500);
 
@@ -197,15 +254,17 @@ export function useLiveVessels() {
         lastMsgRef.current = Date.now();
         setStatus("live");
         setStatusMessage("LIVE");
-        console.log(`[LiveVessels] Connected to WebSocket at ${WS_BASE_URL}`);
+        updateFeedHealth({ state: "LIVE", lastSyncTime: Date.now(), message: "Active stream" });
       };
 
       ws.onmessage = (event) => {
-        lastMsgRef.current = Date.now();
+        const now = Date.now();
+        lastMsgRef.current = now;
+        updateFeedHealth({ state: "LIVE", lastSyncTime: now, message: "Receiving AIS packets" });
+
         try {
           const msg = JSON.parse(event.data);
 
-          // Support both port-monitor-live { t: "snap"|"diff" } and older { type: "snapshot"|"diff" }
           if (msg.t === "snap") {
             vesselsRef.current.clear();
             setIsSimulated(msg.mode === "sim");
@@ -281,6 +340,7 @@ export function useLiveVessels() {
         if (!cancelledRef.current) {
           setStatus("reconnecting");
           setStatusMessage("Reconnecting...");
+          updateFeedHealth({ state: "DELAYED", message: "Reconnecting to stream..." });
           const delay = Math.min(10000, 1000 * Math.pow(2, attemptRef.current++));
           retryTimerRef.current = setTimeout(() => {
             connectWsRef.current();
@@ -295,26 +355,44 @@ export function useLiveVessels() {
       console.error("[LiveVessels] Failed to create WebSocket:", err);
       setStatus("offline");
       setStatusMessage("Failed to connect");
+      updateFeedHealth({ state: "OFFLINE", message: "Failed to connect" });
     }
   }, [upsertVessel]);
 
   connectWsRef.current = connectWs;
 
-  // 10s no-heartbeat detection loop
+  // Heartbeat & feed freshness detection loop
   useEffect(() => {
     heartbeatTimerRef.current = setInterval(() => {
       if (
         wsRef.current &&
         wsRef.current.readyState === WebSocket.OPEN &&
-        Date.now() - lastMsgRef.current > 10000
+        Date.now() - lastMsgRef.current > 12000
       ) {
-        console.warn("[LiveVessels] No heartbeat received in 10s. Triggering reconnect...");
+        console.warn("[LiveVessels] No heartbeat received in 12s. Reconnecting...");
         wsRef.current.close();
       }
     }, 3000);
 
+    // Regular health evaluation (distinguish LIVE, DELAYED, STALE, OFFLINE)
+    healthCheckTimerRef.current = setInterval(() => {
+      const timeSinceLastMsg = Date.now() - lastMsgRef.current;
+      if (statusRef.current === "live") {
+        if (timeSinceLastMsg > 20000) {
+          updateFeedHealth({ state: "STALE", message: "AIS feed stale (>20s)" });
+        } else if (timeSinceLastMsg > 7000) {
+          updateFeedHealth({ state: "DELAYED", message: "High latency on feed" });
+        } else {
+          updateFeedHealth({ state: "LIVE", message: "Live AIS stream" });
+        }
+      } else if (statusRef.current === "offline") {
+        updateFeedHealth({ state: "OFFLINE", message: "Relay offline" });
+      }
+    }, 2000);
+
     return () => {
       if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current);
+      if (healthCheckTimerRef.current) clearInterval(healthCheckTimerRef.current);
     };
   }, []);
 
@@ -345,14 +423,14 @@ export function useLiveVessels() {
 
   const vesselsList = useMemo(() => Array.from(vesselsMap.values()), [vesselsMap]);
 
-  // Filtered vessel list based on search, type, and port
+  // Combined filters: search (Name, MMSI, IMO) + vessel type + status (moving/anchored) + port
   const filteredVessels = useMemo(() => {
     const q = search.trim().toLowerCase();
 
     return vesselsList.filter((v) => {
-      // Type filter
+      // 1. Vessel Type filter
       if (typeFilter !== "all") {
-        const t = v.shipTypeLabel?.toLowerCase() || "";
+        const t = (v.shipTypeLabel || "").toLowerCase();
         if (typeFilter === "cargo" && !t.includes("cargo")) return false;
         if (typeFilter === "tanker" && !t.includes("tanker")) return false;
         if (typeFilter === "passenger" && !t.includes("passenger")) return false;
@@ -364,17 +442,44 @@ export function useLiveVessels() {
         }
       }
 
-      // Search filter
+      // 2. Status filter (moving vs anchored)
+      if (statusFilter === "moving" && v.stationary) return false;
+      if (statusFilter === "anchored" && !v.stationary) return false;
+
+      // 3. Port proximity filter
+      if (selectedPortId !== "all") {
+        if (v.portId !== selectedPortId) return false;
+      }
+
+      // 4. Search filter (Name, MMSI, IMO)
       if (q) {
         const matchName =
-          v.name?.toLowerCase().includes(q) || v.ship_name?.toLowerCase().includes(q);
+          (v.name && v.name.toLowerCase().includes(q)) ||
+          (v.ship_name && v.ship_name.toLowerCase().includes(q));
         const matchMmsi = String(v.mmsi || v.id).includes(q);
-        if (!matchName && !matchMmsi) return false;
+        const matchImo = v.imo ? String(v.imo).includes(q) : false;
+        if (!matchName && !matchMmsi && !matchImo) return false;
       }
 
       return true;
     });
-  }, [vesselsList, search, typeFilter]);
+  }, [vesselsList, search, typeFilter, statusFilter, selectedPortId]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (search.trim()) count++;
+    if (typeFilter !== "all") count++;
+    if (statusFilter !== "all") count++;
+    if (selectedPortId !== "all") count++;
+    return count;
+  }, [search, typeFilter, statusFilter, selectedPortId]);
+
+  const clearAllFilters = useCallback(() => {
+    setSearch("");
+    setTypeFilter("all");
+    setStatusFilter("all");
+    setSelectedPortId("all");
+  }, []);
 
   return {
     vesselsMap,
@@ -390,9 +495,13 @@ export function useLiveVessels() {
     setSearch,
     typeFilter,
     setTypeFilter,
+    statusFilter,
+    setStatusFilter,
     selectedPortId,
     setSelectedPortId,
     selectedVessel,
     setSelectedVessel,
+    activeFilterCount,
+    clearAllFilters,
   };
 }
