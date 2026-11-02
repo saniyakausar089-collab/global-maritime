@@ -10,7 +10,7 @@ import {
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { Anchor, Moon, Sun, RefreshCw, Radio, CheckCircle2, AlertCircle, WifiOff, History } from "lucide-react";
+import { Anchor, Moon, Sun, RefreshCw, Radio, CheckCircle2, AlertCircle, WifiOff, History, Compass, Sparkles } from "lucide-react";
 import { useFeedHealth, type FeedHealthState } from "@/lib/feedHealth";
 import { useLiveTime, formatUtcClock, formatTimeAgo } from "@/lib/time";
 
@@ -25,12 +25,18 @@ function NotFoundComponent() {
         <p className="mt-2 text-sm text-muted-foreground">
           The page you're looking for doesn't exist or has been moved.
         </p>
-        <div className="mt-6">
+        <div className="mt-6 flex justify-center gap-3">
           <Link
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Go home
+            3D Story
+          </Link>
+          <Link
+            to="/overview"
+            className="inline-flex items-center justify-center rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            Live Overview
           </Link>
         </div>
       </div>
@@ -62,12 +68,12 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
           >
             Try again
           </button>
-          <a
-            href="/"
+          <Link
+            to="/overview"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Go home
-          </a>
+            Go to Overview
+          </Link>
         </div>
       </div>
     </div>
@@ -120,12 +126,12 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const routerState = useRouterState();
-  const isLanding = routerState.location.pathname === "/";
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isLanding = pathname === "/";
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background text-foreground">
         {!isLanding && <Header />}
         {isLanding ? (
           <Outlet />
@@ -248,6 +254,10 @@ function Header() {
 
           {/* Navigation Items */}
           <nav className="hidden md:flex items-center gap-1">
+            <Link to="/" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps} activeOptions={{ exact: true }}>
+              <Compass className="h-3.5 w-3.5 text-cyan-400" />
+              3D Story
+            </Link>
             <Link to="/overview" className={navLinkClass} activeProps={activeNavProps}>
               Overview
             </Link>

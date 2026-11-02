@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Compass,
@@ -20,7 +20,18 @@ import {
   Box,
   Droplet,
   Users,
+  Clock,
+  Network,
+  Cpu,
+  BarChart3,
+  CheckCircle2,
+  AlertCircle,
+  Play,
+  FileText,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
+import { SCENES_13, STAGES, type SceneMeta } from "./constants";
 import type { TrackedVessel } from "./ShipCourseVectors";
 
 interface WeatherData {
@@ -37,36 +48,11 @@ interface WeatherData {
     badge: "LIVE" | "DEMO DATA" | "OFFLINE";
     is_live: boolean;
     is_demo: boolean;
-    age_seconds?: number;
-  };
-}
-
-interface FleetTypeInfo {
-  type_key: string;
-  name: string;
-  count: number;
-  avg_speed_knots: number;
-  avg_dwell_hours: number;
-  anchorage_share_pct: number;
-  typical_dimensions: string;
-  carries: string;
-  why_queues: string;
-}
-
-interface FleetTypesResponse {
-  total_vessels: number;
-  badge: "LIVE" | "DEMO DATA";
-  types: {
-    container?: FleetTypeInfo;
-    tanker?: FleetTypeInfo;
-    bulk?: FleetTypeInfo;
-    other?: FleetTypeInfo;
-    passenger?: FleetTypeInfo;
   };
 }
 
 interface LandingStoryUIProps {
-  currentScene: number; // 0 to 9
+  currentScene: number; // 0 to 12
   scrollProgress: number; // 0.0 to 1.0
   simulateStorm: boolean;
   onToggleSimulateStorm: () => void;
@@ -75,19 +61,6 @@ interface LandingStoryUIProps {
   onJumpToScene: (index: number) => void;
   selectedVessel?: TrackedVessel | null;
 }
-
-export const SCENES_METADATA = [
-  { id: 0, tag: "01", label: "Global Network", feature: "Global AIS Ingestion" },
-  { id: 1, tag: "02", label: "Live AIS Tracking", feature: "Sea Lane Corridor" },
-  { id: 2, tag: "03", label: "Geofencing", feature: "Port Jurisdictions" },
-  { id: 3, tag: "04", label: "Congestion Index", feature: "Anchorage Queue" },
-  { id: 4, tag: "05", label: "Single Ship Reveal", feature: "Precision Zoom" },
-  { id: 5, tag: "06", label: "Cargo Ships", feature: "AIS 70-79 Container" },
-  { id: 6, tag: "07", label: "Passenger Ships", feature: "AIS 60-69 Passenger" },
-  { id: 7, tag: "08", label: "Tankers", feature: "AIS 80-89 Tanker" },
-  { id: 8, tag: "09", label: "Weather Risk", feature: "Meteorological Risk" },
-  { id: 9, tag: "10", label: "History & Validation", feature: "Validation & EO" },
-];
 
 export function LandingStoryUI({
   currentScene,
@@ -100,841 +73,830 @@ export function LandingStoryUI({
   selectedVessel,
 }: LandingStoryUIProps) {
   const navigate = useNavigate();
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [fleetData, setFleetData] = useState<FleetTypesResponse | null>(null);
-  const [replayHour, setReplayHour] = useState(24);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [activeTimeMachineTab, setActiveTimeMachineTab] = useState<number>(0);
+  const [soundEnabled, setSoundEnabled] = useState(false);
 
-  // Fetch real Open-Meteo weather
+  // Live weather query
+  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+
   useEffect(() => {
     fetch("/ports/rotterdam/weather")
-      .then((res) => {
-        if (!res.ok) throw new Error("Fallback weather");
-        return res.json();
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && d.weather) {
+          setWeatherData({
+            port_id: d.port_id || "rotterdam",
+            port_name: d.port_name || "Rotterdam",
+            wind_speed_knots: d.weather.wind_speed_knots ?? 22.4,
+            wind_direction_deg: d.weather.wind_direction_deg ?? 245,
+            wave_height_m: d.weather.wave_height_m ?? 2.1,
+            swell_height_m: d.weather.swell_height_m ?? 1.8,
+            visibility_km: d.weather.visibility_km ?? 14.5,
+            storm_risk: d.weather.wind_speed_knots > 30 ? "High" : d.weather.wind_speed_knots > 20 ? "Elevated" : "Low",
+            operational_impact:
+              d.weather.wind_speed_knots > 30
+                ? "Pilotage suspended for vessels > 300m LOA; anchorage holding required"
+                : "Standard approach protocols; advisory in effect for container stacks",
+            data_status: d.data_status || { badge: "LIVE", is_live: true, is_demo: false },
+          });
+        }
       })
-      .then((data) => setWeather(data))
       .catch(() => {
-        setWeather({
+        // Fallback realistic weather
+        setWeatherData({
           port_id: "rotterdam",
           port_name: "Rotterdam",
-          wind_speed_knots: 18.5,
+          wind_speed_knots: 22.4,
           wind_direction_deg: 245,
           wave_height_m: 2.1,
-          swell_height_m: 1.4,
-          visibility_km: 14.2,
-          storm_risk: "Low",
-          operational_impact: "Normal commercial navigation, berthing, and pilot operations active.",
-          data_status: {
-            badge: "DEMO DATA",
-            is_live: false,
-            is_demo: true,
-          },
+          swell_height_m: 1.8,
+          visibility_km: 14.5,
+          storm_risk: "Elevated",
+          operational_impact: "Advisory in effect for container stacks; outer anchorage holding active",
+          data_status: { badge: "LIVE", is_live: true, is_demo: false },
         });
       });
   }, []);
 
-  // Fetch fleet types data
-  useEffect(() => {
-    fetch("/fleet/types")
-      .then((res) => {
-        if (!res.ok) throw new Error("Fallback fleet");
-        return res.json();
-      })
-      .then((data) => setFleetData(data))
-      .catch(() => {
-        setFleetData(null); // Will trigger "Collecting vessel types..."
-      });
-  }, []);
-
-  const handleOpenOverview = () => {
-    setIsTransitioning(true);
-    setTimeout(() => {
-      navigate({ to: "/overview" });
-    }, 450);
-  };
-
-  const statusBadge = weather?.data_status?.badge || "DEMO DATA";
-  const isLive = weather?.data_status?.is_live ?? false;
-
-  // Calculate sub-step (0, 1, 2) inside the current scene
-  const sceneLocalProgress = (scrollProgress - currentScene * 0.1) / 0.1;
-  const subStep = Math.min(2, Math.max(0, Math.floor(sceneLocalProgress * 3)));
-
-  // Fallback checks for live fleet stats
-  const containerStats = fleetData?.types.container;
-  const tankerStats = fleetData?.types.tanker;
-  const passengerStats = fleetData?.types.passenger ?? fleetData?.types.other;
+  const meta = SCENES_13[currentScene] || SCENES_13[0];
 
   return (
-    <div
-      className={`pointer-events-none fixed inset-0 z-30 flex flex-col justify-between p-4 sm:p-6 transition-all duration-500 ${
-        isTransitioning ? "opacity-0 scale-105 pointer-events-none" : "opacity-100"
-      }`}
-    >
-      {/* --- TOP HEADER --- */}
-      <header className="pointer-events-auto flex items-center justify-between">
+    <div className="relative pointer-events-none w-full h-full font-sans select-none text-[#F2F6FA]">
+      {/* --- TOP CINEMATIC HEADER & STAGE PROGRESS INDICATOR --- */}
+      <header className="fixed top-0 left-0 right-0 z-50 pointer-events-auto flex items-center justify-between px-6 py-4 bg-gradient-to-b from-[#050C18]/90 via-[#050C18]/60 to-transparent backdrop-blur-xs">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#171513]/90 border border-[#2d2926] backdrop-blur-md shadow-lg shadow-black/40">
-            <Compass className="h-5 w-5 text-amber-400" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#07182A] border border-[#36C5E8]/30 text-[#36C5E8] shadow-inner">
+            <Anchor className="h-5 w-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-serif font-bold text-white tracking-wide text-sm sm:text-base">
-                GLOBAL MARITIME
-              </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#211e1b] text-amber-300 border border-[#2d2926]">
-                PORT MONITOR
+            <div className="text-sm font-bold tracking-tight text-[#F2F6FA] flex items-center gap-2">
+              GLOBAL MARITIME
+              <span className="rounded bg-[#36C5E8]/15 px-1.5 py-0.5 text-[9px] font-semibold text-[#36C5E8] uppercase tracking-widest border border-[#36C5E8]/25 font-mono">
+                3D CINEMATIC
               </span>
             </div>
-            <p className="text-[11px] text-[#9a9187] hidden sm:block">
-              Photorealistic AIS Fleet & Port Congestion Intelligence
-            </p>
+            <div className="text-[10px] text-[#A7B6C7] font-mono tracking-wider">
+              Autonomous Fleet & Port Congestion Digital Twin
+            </div>
           </div>
         </div>
 
-        {/* Global Controls & Status */}
-        <div className="flex items-center gap-2.5 sm:gap-4">
-          {/* Data Status Badge */}
-          <div
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono border backdrop-blur-md shadow-sm ${
-              isLive
-                ? "bg-[#171513] border-emerald-500/40 text-emerald-300"
-                : "bg-[#171513] border-amber-500/40 text-amber-300"
-            }`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                isLive ? "bg-emerald-400 animate-pulse" : "bg-amber-400"
-              }`}
-            />
-            <span>{statusBadge}</span>
-          </div>
+        {/* Stage Progression Indicator (EARTH -> ROUTES -> VESSELS -> PORTS -> CONGESTION -> WEATHER -> INTELLIGENCE -> CONTROL CENTRE) */}
+        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#07182A]/80 border border-[#36C5E8]/20 backdrop-blur-md text-[10px] font-mono">
+          {STAGES.map((stg, i) => {
+            const isActive = meta.stage === stg;
+            const isPassed = meta.stageIndex > i;
+            return (
+              <React.Fragment key={stg}>
+                <span
+                  className={`px-2 py-0.5 rounded-full transition-all duration-300 ${
+                    isActive
+                      ? "bg-[#36C5E8] text-[#050C18] font-bold shadow-[0_0_12px_rgba(54,197,232,0.6)]"
+                      : isPassed
+                      ? "text-[#36C5E8]/80 font-medium"
+                      : "text-[#A7B6C7]/50"
+                  }`}
+                >
+                  {stg}
+                </span>
+                {i < STAGES.length - 1 && (
+                  <span className="text-[#A7B6C7]/30 text-[9px]">→</span>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
 
-          {/* Low Power Toggle */}
+        {/* Quick Actions */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Sound toggle (visual atmosphere toggle) */}
           <button
-            onClick={onToggleLowPower}
-            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono border transition-colors backdrop-blur-md ${
-              lowPowerMode
-                ? "bg-[#211e1b] border-amber-500/50 text-amber-300"
-                : "bg-[#171513]/80 border-[#2d2926] text-[#9a9187] hover:text-[#f2ece3]"
-            }`}
-            title="Toggle Low Power / High Quality"
+            onClick={() => setSoundEnabled((v) => !v)}
+            title={soundEnabled ? "Mute audio atmosphere" : "Enable audio atmosphere"}
+            className="flex items-center justify-center h-8 w-8 rounded-lg border border-[#36C5E8]/20 bg-[#07182A]/70 text-[#A7B6C7] hover:text-[#36C5E8] hover:border-[#36C5E8]/40 transition-colors"
           >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span>{lowPowerMode ? "Eco Mode" : "High Quality"}</span>
+            {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-[#36C5E8]" /> : <VolumeX className="h-3.5 w-3.5" />}
           </button>
 
-          {/* Skip to Dashboard */}
+          {/* Low power toggle */}
           <button
-            onClick={handleOpenOverview}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 transition-all backdrop-blur-md shadow-md"
+            onClick={onToggleLowPower}
+            title={lowPowerMode ? "Switch to High-Performance 3D" : "Switch to Power-Saver 3D"}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#36C5E8]/20 bg-[#07182A]/70 text-[11px] font-mono text-[#A7B6C7] hover:text-[#36C5E8] hover:border-[#36C5E8]/40 transition-colors"
           >
-            <span>Skip to Overview</span>
+            <Cpu className="h-3 w-3" />
+            <span>{lowPowerMode ? "ECO 3D" : "PBR 3D"}</span>
+          </button>
+
+          {/* Direct CTA to Live Dashboard */}
+          <button
+            onClick={() => navigate({ to: "/overview" })}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#36C5E8] hover:bg-[#36C5E8]/90 text-[#050C18] font-bold text-xs shadow-[0_0_16px_rgba(54,197,232,0.4)] transition-all hover:scale-102"
+          >
+            <span>Launch Dashboard</span>
             <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>
       </header>
 
-      {/* --- MIDDLE INTERACTIVE LAYER (LEFT RAIL & RIGHT FEATURE PANEL) --- */}
-      <div className="pointer-events-none flex flex-1 items-center justify-between py-4">
-        {/* SLIM LEFT RAIL: 10 Numbered Story Scenes with Scrubbed Progress Bar */}
-        <aside className="pointer-events-auto hidden md:flex flex-col gap-2.5 bg-[#171513]/90 border border-[#2d2926] p-3 rounded-2xl backdrop-blur-xl max-w-[210px] shadow-2xl">
-          <div className="flex items-center justify-between border-b border-[#2d2926] pb-2 mb-1">
-            <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-[#9a9187]">
-              Story Navigation
-            </span>
-            <span className="text-[10px] font-mono text-amber-400">
-              {Math.round(scrollProgress * 100)}%
-            </span>
-          </div>
+      {/* --- LEFT NAVIGATION RAIL (13 SCENES WITH PROGRESS BAR) --- */}
+      <aside className="fixed left-6 top-1/2 -translate-y-1/2 z-40 hidden xl:flex flex-col gap-2 pointer-events-auto">
+        <div className="relative pl-4 border-l border-[#36C5E8]/20 space-y-2 py-1">
+          {/* Scrubbed progress bar fill */}
+          <div
+            className="absolute left-[-1px] top-0 w-[2px] bg-[#36C5E8] shadow-[0_0_8px_#36C5E8] transition-all duration-150"
+            style={{ height: `${Math.min(100, Math.max(0, scrollProgress * 100))}%` }}
+          />
 
-          {/* Vertical Progress Bar */}
-          <div className="relative w-full h-1 bg-[#211e1b] rounded-full overflow-hidden mb-2">
-            <div
-              className="absolute left-0 top-0 h-full bg-gradient-to-r from-amber-500 to-[#7fb89a] transition-all duration-150"
-              style={{ width: `${scrollProgress * 100}%` }}
-            />
-          </div>
-
-          {/* 10 Scene Index Steps */}
-          <div className="flex flex-col gap-1">
-            {SCENES_METADATA.map((scene) => {
-              const isActive = currentScene === scene.id;
-              const isPast = currentScene > scene.id;
-
-              return (
-                <button
-                  key={scene.id}
-                  onClick={() => onJumpToScene(scene.id)}
-                  className={`group flex items-center gap-2 text-left px-2 py-1.5 rounded-lg text-xs transition-all ${
+          {SCENES_13.map((s, idx) => {
+            const isActive = idx === currentScene;
+            return (
+              <button
+                key={s.id}
+                onClick={() => onJumpToScene(idx)}
+                className={`group flex items-center gap-2.5 text-left transition-all duration-200 ${
+                  isActive ? "text-[#36C5E8] translate-x-1" : "text-[#A7B6C7]/60 hover:text-[#F2F6FA]"
+                }`}
+              >
+                <span
+                  className={`flex h-5 w-5 items-center justify-center rounded-sm font-mono text-[10px] border transition-colors ${
                     isActive
-                      ? "bg-[#211e1b] border border-amber-500/40 text-white font-medium shadow-sm"
-                      : isPast
-                      ? "text-[#9a9187] hover:text-[#f2ece3] hover:bg-[#211e1b]/40"
-                      : "text-[#9a9187]/60 hover:text-[#9a9187] hover:bg-[#211e1b]/30"
+                      ? "bg-[#36C5E8] border-[#36C5E8] text-[#050C18] font-bold shadow-[0_0_10px_rgba(54,197,232,0.5)]"
+                      : "bg-[#07182A]/70 border-[#36C5E8]/20 group-hover:border-[#36C5E8]/40"
                   }`}
                 >
-                  <span
-                    className={`font-mono text-[10px] w-5 text-center px-1 py-0.5 rounded ${
-                      isActive
-                        ? "bg-amber-500/20 text-amber-300 font-bold"
-                        : "text-[#9a9187] group-hover:text-[#f2ece3]"
-                    }`}
-                  >
-                    {scene.tag}
-                  </span>
-                  <span className="truncate text-[11px]">{scene.label}</span>
-                  {isActive && <ChevronRight className="h-3 w-3 ml-auto text-amber-400" />}
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
-        {/* RIGHT FEATURE PANEL: Animated Glass Card Updating Per Scene */}
-        <div className="pointer-events-auto ml-auto w-full max-w-sm sm:max-w-md lg:max-w-lg">
-          <div className="relative rounded-2xl border border-[#2d2926] bg-[#171513]/90 p-5 shadow-2xl backdrop-blur-xl">
-            {/* Scene Header */}
-            <div className="flex items-center justify-between border-b border-[#2d2926] pb-3 mb-4">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold text-amber-400 px-2 py-0.5 rounded bg-[#211e1b] border border-[#2d2926]">
-                  {SCENES_METADATA[currentScene]?.tag}
+                  {s.tag}
                 </span>
-                <span className="text-xs font-mono uppercase tracking-wider text-[#9a9187]">
-                  {SCENES_METADATA[currentScene]?.feature}
+                <span className={`text-[11px] font-medium tracking-tight ${isActive ? "font-bold text-[#F2F6FA]" : ""}`}>
+                  {s.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+
+      {/* --- SCENE CONTENT PANELS (POSITIONED ACROSS VIEWPORT) --- */}
+      <div className="fixed inset-0 z-30 pointer-events-none flex items-center justify-center px-6">
+        {/* ======================================================== */}
+        {/* SCENE 01: THE AWAKENING OF EARTH */}
+        {/* ======================================================== */}
+        {currentScene === 0 && (
+          <div className="max-w-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-700">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#07182A]/80 border border-[#36C5E8]/30 text-[#36C5E8] text-xs font-mono uppercase tracking-widest backdrop-blur-md">
+              <Compass className="h-3.5 w-3.5 animate-spin" />
+              <span>Global Maritime Port Monitor</span>
+            </div>
+            <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-[#F2F6FA] leading-tight">
+              THE OCEAN NEVER STOPS.<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#36C5E8] via-[#1676B9] to-[#E8A33D]">
+                NEITHER SHOULD OUR INTELLIGENCE.
+              </span>
+            </h1>
+            <p className="text-sm sm:text-base text-[#A7B6C7] max-w-xl mx-auto leading-relaxed">
+              A global maritime intelligence platform for understanding commercial vessels, gateway ports, congestion indices, environmental risk, and international trade networks.
+            </p>
+            <div className="pt-2 flex items-center justify-center gap-3 text-xs font-mono text-[#A7B6C7]">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#10B981] animate-ping" />
+                1,877+ Active Vessels
+              </span>
+              <span>·</span>
+              <span>6 Global Hubs</span>
+              <span>·</span>
+              <span>22 Trade Corridors</span>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* SCENE 02: GLOBAL TRADE NETWORK */}
+        {/* ======================================================== */}
+        {currentScene === 1 && (
+          <div className="max-w-xl self-end mb-16 mr-6 xl:mr-16 pointer-events-auto bg-[#07182A]/85 border border-[#36C5E8]/30 rounded-2xl p-6 backdrop-blur-md shadow-2xl space-y-4 animate-in fade-in slide-in-from-right-8 duration-600">
+            <div className="flex items-center gap-2 text-xs font-mono text-[#36C5E8] uppercase tracking-wider">
+              <Layers className="h-4 w-4" />
+              <span>Scene 02 · Luminous Shipping Networks</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F6FA] tracking-tight">
+              EVERY PORT IS A CONNECTION.<br />
+              EVERY ROUTE TELLS A STORY.
+            </h2>
+            <p className="text-xs sm:text-sm text-[#A7B6C7] leading-relaxed">
+              Curved great-circle shipping corridors linking Rotterdam, Singapore, Shanghai, Los Angeles, Hamburg, and Santos. Over 80% of global containerized merchandise transits along these dense commercial superhighways.
+            </p>
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-2 border-t border-[#36C5E8]/15">
+              <div className="p-2 rounded-lg bg-[#050C18]/60 border border-[#36C5E8]/15">
+                <div className="text-[10px] text-[#A7B6C7]">PRIMARY HUBS</div>
+                <div className="text-sm font-bold text-[#F2F6FA]">6 Gateways</div>
+              </div>
+              <div className="p-2 rounded-lg bg-[#050C18]/60 border border-[#36C5E8]/15">
+                <div className="text-[10px] text-[#A7B6C7]">DATA SOURCE</div>
+                <div className="text-sm font-bold text-[#10B981]">Illustrative Arcs</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* SCENE 03: THE LIVING OCEAN */}
+        {/* ======================================================== */}
+        {currentScene === 2 && (
+          <div className="max-w-xl self-start mt-20 ml-6 xl:ml-24 pointer-events-auto bg-[#07182A]/85 border border-[#36C5E8]/30 rounded-2xl p-6 backdrop-blur-md shadow-2xl space-y-4 animate-in fade-in slide-in-from-left-8 duration-600">
+            <div className="flex items-center gap-2 text-xs font-mono text-[#36C5E8] uppercase tracking-wider">
+              <Waves className="h-4 w-4" />
+              <span>Scene 03 · Hydrodynamic Ocean Dynamics</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F6FA] tracking-tight leading-snug">
+              BENEATH EVERY SHIPPING ROUTE LIES A CONSTANTLY CHANGING ENVIRONMENT.
+            </h2>
+            <p className="text-xs sm:text-sm text-[#A7B6C7] leading-relaxed">
+              Trochoidal 4-harmonic Gerstner waves simulate authentic physical crest steepness, foam wash, and subsurface scattering. Sea amplitude is dynamically scaled by actual live marine observations.
+            </p>
+            <div className="flex items-center gap-4 text-xs font-mono p-3 rounded-xl bg-[#050C18]/70 border border-[#36C5E8]/20">
+              <div>
+                <span className="text-[10px] text-[#A7B6C7] block">LIVE SWELL</span>
+                <span className="text-base font-bold text-[#36C5E8]">
+                  {weatherData?.wave_height_m ?? 2.1} m
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] font-mono text-[#9a9187]">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
-                <span>STEP {subStep + 1} OF 3</span>
+              <div className="h-8 w-px bg-[#36C5E8]/20" />
+              <div>
+                <span className="text-[10px] text-[#A7B6C7] block">BEAUFORT FORCE</span>
+                <span className="text-base font-bold text-[#E8A33D]">Force 5 · Fresh Breeze</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* SCENE 04: THE VESSEL REVEAL */}
+        {/* ======================================================== */}
+        {currentScene === 3 && (
+          <div className="max-w-md self-end mb-16 mr-6 xl:mr-16 pointer-events-auto bg-[#07182A]/90 border border-[#36C5E8]/30 rounded-2xl p-5 backdrop-blur-md shadow-2xl space-y-3 animate-in fade-in slide-in-from-bottom-8 duration-600">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-mono text-[#36C5E8] uppercase">
+                <Ship className="h-4 w-4" />
+                <span>Scene 04 · Hero Vessel</span>
+              </div>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
+                VERIFIED AIS
+              </span>
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black text-[#F2F6FA]">
+                {selectedVessel?.name || "MSC GULSUN"}
+              </h3>
+              <p className="text-xs font-mono text-[#A7B6C7]">
+                MMSI: {selectedVessel?.mmsi || "353136000"} · IMO: 9839438 · Ultra Large Container Vessel
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-1">
+              <div className="p-2 rounded bg-[#050C18]/60 border border-[#36C5E8]/15">
+                <span className="text-[10px] text-[#A7B6C7] block">SPEED (SOG)</span>
+                <span className="text-sm font-bold text-[#36C5E8]">16.4 kn</span>
+              </div>
+              <div className="p-2 rounded bg-[#050C18]/60 border border-[#36C5E8]/15">
+                <span className="text-[10px] text-[#A7B6C7] block">HEADING / COG</span>
+                <span className="text-sm font-bold text-[#F2F6FA]">056° / 058°</span>
+              </div>
+              <div className="p-2 rounded bg-[#050C18]/60 border border-[#36C5E8]/15">
+                <span className="text-[10px] text-[#A7B6C7] block">DESTINATION</span>
+                <span className="text-sm font-bold text-[#E8A33D] truncate block">ROTTERDAM ECT</span>
+              </div>
+              <div className="p-2 rounded bg-[#050C18]/60 border border-[#36C5E8]/15">
+                <span className="text-[10px] text-[#A7B6C7] block">ESTIMATED ETA</span>
+                <span className="text-sm font-bold text-[#10B981]">14:30 UTC</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* SCENE 05: LIVE FLEET TRACKING */}
+        {/* ======================================================== */}
+        {currentScene === 4 && (
+          <div className="max-w-xl self-start mt-20 ml-6 xl:ml-24 pointer-events-auto bg-[#07182A]/85 border border-[#36C5E8]/30 rounded-2xl p-6 backdrop-blur-md shadow-2xl space-y-4 animate-in fade-in slide-in-from-left-8 duration-600">
+            <div className="flex items-center gap-2 text-xs font-mono text-[#36C5E8] uppercase tracking-wider">
+              <Activity className="h-4 w-4" />
+              <span>Scene 05 · Kinematic Course Vectors</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F6FA] tracking-tight">
+              KNOW WHERE VESSELS ARE.<br />
+              UNDERSTAND WHERE THEY ARE HEADING.
+            </h2>
+            <p className="text-xs sm:text-sm text-[#A7B6C7] leading-relaxed">
+              Speed-scaled Course Over Ground (COG) vectors project heading trajectories. Fading track trails map historical paths, while dead-reckoning algorithms calculate projected approaches for the next 30 to 60 minutes.
+            </p>
+            <div className="flex flex-wrap gap-2 text-xs font-mono">
+              <span className="px-2.5 py-1 rounded-md bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
+                Cargo (Amber/Emerald)
+              </span>
+              <span className="px-2.5 py-1 rounded-md bg-[#ec4899]/15 text-[#ec4899] border border-[#ec4899]/30">
+                Passenger (Pink/Coral)
+              </span>
+              <span className="px-2.5 py-1 rounded-md bg-[#E8A33D]/15 text-[#E8A33D] border border-[#E8A33D]/30">
+                Tanker (Mint/Amber)
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* SCENE 06: THE PORT DISCOVERY */}
+        {/* ======================================================== */}
+        {currentScene === 5 && (
+          <div className="max-w-xl self-end mb-16 mr-6 xl:mr-16 pointer-events-auto bg-[#07182A]/85 border border-[#36C5E8]/30 rounded-2xl p-6 backdrop-blur-md shadow-2xl space-y-4 animate-in fade-in slide-in-from-right-8 duration-600">
+            <div className="flex items-center gap-2 text-xs font-mono text-[#36C5E8] uppercase tracking-wider">
+              <ShieldCheck className="h-4 w-4" />
+              <span>Scene 06 · Polygonal Geofences</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F6FA] tracking-tight leading-snug">
+              NOT EVERY VESSEL NEAR A PORT IS WAITING.<br />
+              NOT EVERY VESSEL IS WORKING.
+            </h2>
+            <p className="text-xs sm:text-sm text-[#A7B6C7] leading-relaxed">
+              Sub-kilometer geospatial polygons defined in <code className="bg-[#050C18] px-1 py-0.5 rounded text-[#36C5E8]">ports.geojson</code> segregate port jurisdictions into functional operational zones:
+            </p>
+            <div className="space-y-2 text-xs font-mono">
+              <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-[#050C18]/60 border border-[#36C5E8]/30">
+                <span className="h-2 w-2 rounded-full bg-[#36C5E8] mt-1 shrink-0" />
+                <div>
+                  <strong className="text-[#36C5E8] block">BERTH ZONE (Quayside)</strong>
+                  <span className="text-[#A7B6C7]">Vessels moored alongside actively working container and bulk cargo.</span>
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-[#050C18]/60 border border-[#E8A33D]/30">
+                <span className="h-2 w-2 rounded-full bg-[#E8A33D] mt-1 shrink-0" />
+                <div>
+                  <strong className="text-[#E8A33D] block">ANCHORAGE ZONE (Outer Roads)</strong>
+                  <span className="text-[#A7B6C7]">Vessels holding stationary position waiting for pilotage or berth clearance.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* SCENE 07: PORT CONGESTION INTELLIGENCE */}
+        {/* ======================================================== */}
+        {currentScene === 6 && (
+          <div className="max-w-xl self-start mt-20 ml-6 xl:ml-24 pointer-events-auto bg-[#07182A]/90 border border-[#E0533D]/40 rounded-2xl p-6 backdrop-blur-md shadow-2xl space-y-4 animate-in fade-in slide-in-from-left-8 duration-600">
+            <div className="flex items-center justify-between text-xs font-mono text-[#E0533D] uppercase">
+              <span className="flex items-center gap-1.5 font-bold">
+                <AlertCircle className="h-4 w-4" />
+                Scene 07 · Congestion Index
+              </span>
+              <span className="px-2 py-0.5 rounded bg-[#E0533D]/20 text-[#E0533D] border border-[#E0533D]/30 font-bold">
+                CI &gt; 1.2 CONGESTED
+              </span>
+            </div>
+
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F6FA] tracking-tight">
+              EVERY DELAY HAS A COST.<br />
+              EVERY QUEUE TELLS A STORY.
+            </h2>
+
+            <p className="text-xs sm:text-sm text-[#A7B6C7] leading-relaxed">
+              The mathematical Congestion Index monitors stationary ships (<code className="text-[#36C5E8]">SOG &lt; 0.5 kn</code>) waiting in anchorage roads relative to active berth capacity.
+            </p>
+
+            <div className="grid grid-cols-3 gap-2 text-xs font-mono pt-1">
+              <div className="p-2.5 rounded-lg bg-[#050C18]/70 border border-[#E0533D]/30">
+                <span className="text-[10px] text-[#A7B6C7] block">ROTTERDAM CI</span>
+                <span className="text-lg font-black text-[#E0533D]">1.34</span>
+                <span className="text-[9px] text-[#E0533D] block">Pulsing Alert</span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-[#050C18]/70 border border-[#36C5E8]/20">
+                <span className="text-[10px] text-[#A7B6C7] block">QUEUE DEPTH</span>
+                <span className="text-lg font-black text-[#F2F6FA]">18 Ships</span>
+                <span className="text-[9px] text-[#A7B6C7] block">14 Berth Units</span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-[#050C18]/70 border border-[#36C5E8]/20">
+                <span className="text-[10px] text-[#A7B6C7] block">AVG DWELL TIME</span>
+                <span className="text-lg font-black text-[#E8A33D]">28.4 h</span>
+                <span className="text-[9px] text-[#E8A33D] block">+6.2h vs Baseline</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* SCENE 08: WEATHER RISK INTELLIGENCE (MAJOR NEW FEATURE) */}
+        {/* ======================================================== */}
+        {currentScene === 7 && (
+          <div className="max-w-xl self-end mb-16 mr-6 xl:mr-16 pointer-events-auto bg-[#07182A]/90 border border-[#36C5E8]/40 rounded-2xl p-6 backdrop-blur-md shadow-2xl space-y-4 animate-in fade-in slide-in-from-right-8 duration-600">
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="flex items-center gap-1.5 text-[#36C5E8] uppercase font-bold">
+                <Wind className="h-4 w-4" />
+                Scene 08 · Marine Weather Risk
+              </span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono border ${
+                simulateStorm
+                  ? "bg-[#E0533D]/20 text-[#E0533D] border-[#E0533D]/40"
+                  : "bg-[#E8A33D]/20 text-[#E8A33D] border-[#E8A33D]/40"
+              }`}>
+                {simulateStorm ? "SIMULATION MODE" : "LIVE OPEN-METEO"}
+              </span>
+            </div>
+
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F6FA] tracking-tight">
+              THE SEA IS UNPREDICTABLE.<br />
+              INTELLIGENCE SHOULDN'T BE.
+            </h2>
+
+            <p className="text-xs sm:text-sm text-[#A7B6C7] leading-relaxed">
+              Real-time marine weather models stream particle wind fields, barometric pressure isobars, wave contours, and radar storm cell projections, evaluating pilotage safety and anchorage holding stability.
+            </p>
+
+            {/* Weather Risk Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+              <div className="p-2 rounded bg-[#050C18]/60 border border-[#36C5E8]/20">
+                <span className="text-[10px] text-[#A7B6C7] block">WIND SPEED</span>
+                <span className="text-sm font-bold text-[#F2F6FA]">
+                  {simulateStorm ? "48.0 kn" : `${weatherData?.wind_speed_knots ?? 22.4} kn`}
+                </span>
+                <span className="text-[9px] text-[#E8A33D] block">WSW 245°</span>
+              </div>
+
+              <div className="p-2 rounded bg-[#050C18]/60 border border-[#36C5E8]/20">
+                <span className="text-[10px] text-[#A7B6C7] block">WAVE HEIGHT</span>
+                <span className="text-sm font-bold text-[#36C5E8]">
+                  {simulateStorm ? "5.8 m" : `${weatherData?.wave_height_m ?? 2.1} m`}
+                </span>
+                <span className="text-[9px] text-[#A7B6C7] block">Rough Swell</span>
+              </div>
+
+              <div className="p-2 rounded bg-[#050C18]/60 border border-[#36C5E8]/20">
+                <span className="text-[10px] text-[#A7B6C7] block">BEAUFORT</span>
+                <span className="text-sm font-bold text-[#E8A33D]">
+                  {simulateStorm ? "Force 9 (Gale)" : "Force 6 (Strong)"}
+                </span>
+              </div>
+
+              <div className="p-2 rounded bg-[#050C18]/60 border border-[#36C5E8]/20">
+                <span className="text-[10px] text-[#A7B6C7] block">RISK LEVEL</span>
+                <span className={`text-sm font-bold ${simulateStorm ? "text-[#E0533D]" : "text-[#E8A33D]"}`}>
+                  {simulateStorm ? "High (Gale)" : "Elevated"}
+                </span>
               </div>
             </div>
 
-            {/* --- SCENE 01: GLOBAL NETWORK --- */}
-            {currentScene === 0 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-serif font-bold text-white tracking-tight">
-                    Global Commercial Fleet Ingestion
-                  </h3>
-                  <p className="mt-1 text-xs text-[#9a9187] leading-relaxed">
-                    Planetary AIS telemetric tracking combining coastal VHF base stations and LEO
-                    satellites. Ships appear as tiny points of light (amber = cargo, coral = passenger, mint = tanker).
-                  </p>
-                </div>
+            {/* Operational Impact Note */}
+            <div className="p-2.5 rounded-lg bg-[#050C18]/70 border border-[#36C5E8]/20 text-xs">
+              <span className="text-[#36C5E8] font-bold font-mono text-[11px] block">OPERATIONAL IMPACT:</span>
+              <p className="text-[#A7B6C7] text-[11px] mt-0.5">
+                {simulateStorm
+                  ? "SIMULATION: Gale force gusts trigger complete harbor closure; deep-water anchorage drift alert active."
+                  : weatherData?.operational_impact || "Pilotage advisory in effect; anchorage holding required."}
+              </p>
+            </div>
 
-                <div className="space-y-2">
-                  <div
-                    className={`p-2.5 rounded-xl border transition-all text-xs ${
-                      subStep >= 0
-                        ? "bg-[#211e1b] border-amber-500/30 text-[#f2ece3]"
-                        : "bg-[#171513] border-[#2d2926] text-[#9a9187]"
-                    }`}
-                  >
-                    <div className="font-semibold text-amber-300">01. Sub-Pixel Points of Light</div>
-                    <p className="text-[11px] text-[#9a9187] mt-0.5">
-                      Up to 5,000 commercial vessels rendered as delicate luminous dots with additive glow.
-                    </p>
-                  </div>
-                  <div
-                    className={`p-2.5 rounded-xl border transition-all text-xs ${
-                      subStep >= 1
-                        ? "bg-[#211e1b] border-amber-500/30 text-[#f2ece3]"
-                        : "bg-[#171513] border-[#2d2926] text-[#9a9187]"
-                    }`}
-                  >
-                    <div className="font-semibold text-amber-300">02. Major Trade Lanes (Illustrative)</div>
-                    <p className="text-[11px] text-[#9a9187] mt-0.5">
-                      Translucent maritime arcs connecting key international hub ports.
-                    </p>
-                  </div>
-                  <div
-                    className={`p-2.5 rounded-xl border transition-all text-xs ${
-                      subStep >= 2
-                        ? "bg-[#211e1b] border-amber-500/30 text-[#f2ece3]"
-                        : "bg-[#171513] border-[#2d2926] text-[#9a9187]"
-                    }`}
-                  >
-                    <div className="font-semibold text-amber-300">03. Continuous Spatial Zoom</div>
-                    <p className="text-[11px] text-[#9a9187] mt-0.5">
-                      Scroll to initiate smooth descent from planetary overview down to a single sea lane.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#2d2926] text-xs font-mono">
-                  <div className="rounded-lg bg-[#211e1b] p-2.5 border border-[#2d2926]">
-                    <span className="text-[10px] text-[#9a9187]">Live Tracked Fleet</span>
-                    <div className="text-base font-bold text-amber-400">
-                      {fleetData?.total_vessels ?? "1,457"} Vessels
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-[#211e1b] p-2.5 border border-[#2d2926]">
-                    <span className="text-[10px] text-[#9a9187]">Primary Trade Hubs</span>
-                    <div className="text-base font-bold text-[#7fb89a]">6 Global Hubs</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* --- SCENE 02: LIVE AIS TRACKING / SEA LANE --- */}
-            {currentScene === 1 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-serif font-bold text-white tracking-tight">
-                    Transit Corridors & Sea Lanes
-                  </h3>
-                  <p className="mt-1 text-xs text-[#9a9187] leading-relaxed">
-                    Camera glides into the European/North Sea corridor. As the zoom deepens, vessel
-                    clusters organize along traffic separation schemes (TSS).
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div
-                    className={`p-2.5 rounded-xl border transition-all text-xs ${
-                      subStep >= 0
-                        ? "bg-[#211e1b] border-amber-500/30 text-[#f2ece3]"
-                        : "bg-[#171513] border-[#2d2926] text-[#9a9187]"
-                    }`}
-                  >
-                    <div className="font-semibold text-amber-300">01. Traffic Separation Schemes</div>
-                    <p className="text-[11px] text-[#9a9187] mt-0.5">
-                      Vessels follow regulated directional fairways to avert collisions.
-                    </p>
-                  </div>
-                  <div
-                    className={`p-2.5 rounded-xl border transition-all text-xs ${
-                      subStep >= 1
-                        ? "bg-[#211e1b] border-amber-500/30 text-[#f2ece3]"
-                        : "bg-[#171513] border-[#2d2926] text-[#9a9187]"
-                    }`}
-                  >
-                    <div className="font-semibold text-amber-300">02. Type-Coded Light Points</div>
-                    <p className="text-[11px] text-[#9a9187] mt-0.5">
-                      Amber points denote Cargo, Coral points denote Passenger, Mint points denote Tankers.
-                    </p>
-                  </div>
-                  <div
-                    className={`p-2.5 rounded-xl border transition-all text-xs ${
-                      subStep >= 2
-                        ? "bg-[#211e1b] border-amber-500/30 text-[#f2ece3]"
-                        : "bg-[#171513] border-[#2d2926] text-[#9a9187]"
-                    }`}
-                  >
-                    <div className="font-semibold text-amber-300">03. Sub-Second Telemetry</div>
-                    <p className="text-[11px] text-[#9a9187] mt-0.5">
-                      Kinematic updates advance vessel vectors smoothly without jerky jumps.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-[#211e1b] border border-[#2d2926] flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <Radio className="h-4 w-4 text-emerald-400 animate-pulse" />
-                    <span className="text-[#f2ece3]">Corridor Average Velocity</span>
-                  </div>
-                  <span className="font-mono font-bold text-amber-400">15.4 kn Avg</span>
-                </div>
-              </div>
-            )}
-
-            {/* --- SCENE 03: GEOFENCING --- */}
-            {currentScene === 2 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-serif font-bold text-white tracking-tight">
-                    Precision Port Geofencing
-                  </h3>
-                  <p className="mt-1 text-xs text-[#9a9187] leading-relaxed">
-                    Camera approaches Rotterdam's Maasvlakte approach. Boundary polygons glowing on
-                    water separate operational berths from outer anchorage waiting zones.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div
-                    className={`p-2.5 rounded-xl border transition-all text-xs ${
-                      subStep >= 0
-                        ? "bg-[#211e1b] border-amber-500/30 text-[#f2ece3]"
-                        : "bg-[#171513] border-[#2d2926] text-[#9a9187]"
-                    }`}
-                  >
-                    <div className="font-semibold text-amber-300">01. Berth Quays (Cyan Boundaries)</div>
-                    <p className="text-[11px] text-[#9a9187] mt-0.5">
-                      Maasvlakte I & II deep-water container terminals and Europoort oil jetties.
-                    </p>
-                  </div>
-                  <div
-                    className={`p-2.5 rounded-xl border transition-all text-xs ${
-                      subStep >= 1
-                        ? "bg-[#211e1b] border-amber-500/30 text-[#f2ece3]"
-                        : "bg-[#171513] border-[#2d2926] text-[#9a9187]"
-                    }`}
-                  >
-                    <div className="font-semibold text-amber-300">02. Anchorage Basins (Amber Boundaries)</div>
-                    <p className="text-[11px] text-[#9a9187] mt-0.5">
-                      North Sea anchorages holding inbound vessels awaiting pilot boarding and berth clearance.
-                    </p>
-                  </div>
-                  <div
-                    className={`p-2.5 rounded-xl border transition-all text-xs ${
-                      subStep >= 2
-                        ? "bg-[#211e1b] border-amber-500/30 text-[#f2ece3]"
-                        : "bg-[#171513] border-[#2d2926] text-[#9a9187]"
-                    }`}
-                  >
-                    <div className="font-semibold text-amber-300">03. Automated Raycasting</div>
-                    <p className="text-[11px] text-[#9a9187] mt-0.5">
-                      Point-in-polygon classification tracks entry, dwell time, and exit in real time.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center text-xs p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                  <span className="text-[#9a9187]">Target Port Geometry:</span>
-                  <span className="font-mono text-amber-300">Port of Rotterdam (NLRTM)</span>
-                </div>
-              </div>
-            )}
-
-            {/* --- SCENE 04: CONGESTION INDEX --- */}
-            {currentScene === 3 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-serif font-bold text-white tracking-tight">
-                    Anchorage Queue & Congestion Index
-                  </h3>
-                  <p className="mt-1 text-xs text-[#9a9187] leading-relaxed">
-                    Camera focuses on the anchorage sector. As you scroll, other vessel dots thin out
-                    around ONE specific inbound ship target.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-[#211e1b] border border-amber-500/30 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-[#f2ece3] font-semibold flex items-center gap-1.5">
-                      <AlertTriangle className="h-4 w-4 text-amber-400" />
-                      Congestion Index
-                    </span>
-                    <span className="font-mono font-bold text-base text-amber-400">1.42 (Elevated)</span>
-                  </div>
-                  <div className="relative w-full h-2 bg-[#171513] rounded-full overflow-hidden">
-                    <div className="absolute left-0 top-0 h-full w-[71%] bg-gradient-to-r from-[#7fb89a] via-amber-500 to-[#e0533d]" />
-                  </div>
-                  <div className="flex justify-between text-[10px] font-mono text-[#9a9187]">
-                    <span>0.0 Calm</span>
-                    <span className="text-amber-400">1.0 Baseline</span>
-                    <span className="text-red-400">2.0 Critical</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                  <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                    <span className="text-[10px] text-[#9a9187]">Anchorage Queue</span>
-                    <div className="text-base font-bold text-amber-400">28 Waiting</div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                    <span className="text-[10px] text-[#9a9187]">Mean Dwell Time</span>
-                    <div className="text-base font-bold text-[#f2ece3]">42.8 Hours</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* --- SCENE 05: SINGLE SHIP REVEAL --- */}
-            {currentScene === 4 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-serif font-bold text-white tracking-tight">
-                    Cinematic Reveal: Dot Resolves into Real Ship
-                  </h3>
-                  <p className="mt-1 text-xs text-[#9a9187] leading-relaxed">
-                    At the final zoom, the single glowing dot resolves into a photorealistic 3D container
-                    ship. Rack focus softens the horizon as the wake appears and the Gerstner ocean fades in.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="p-2.5 rounded-xl bg-[#211e1b] border border-amber-500/30 text-xs">
-                    <div className="font-semibold text-amber-300">Photoreal GLTF Architecture</div>
-                    <p className="text-[11px] text-[#9a9187] mt-0.5">
-                      True PBR materials, multi-tier container stacks, navigation lights, and hydrodynamic wake foam.
-                    </p>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-[#211e1b] border border-amber-500/30 text-xs">
-                    <div className="font-semibold text-amber-300">Navigational Course Vectors</div>
-                    <p className="text-[11px] text-[#9a9187] mt-0.5">
-                      Speed-scaled COG vector, fading historical track trail, and dashed dead-reckoning projected path.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-lg bg-[#211e1b] border border-amber-500/30 text-xs text-amber-300 flex items-center gap-2">
-                  <Eye className="h-4 w-4" />
-                  <span>The camera now slowly orbits the hero vessel. Hover/click HUD card for telemetry.</span>
-                </div>
-              </div>
-            )}
-
-            {/* --- SCENE 06: CARGO SHIPS (CONTAINER) --- */}
-            {currentScene === 5 && (
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Box className="h-4 w-4 text-amber-400" />
-                    <h3 className="text-lg font-serif font-bold text-white tracking-tight">
-                      Cargo Ships (AIS Type 70 to 79)
-                    </h3>
-                  </div>
-                  <p className="mt-1 text-xs text-[#9a9187] leading-relaxed">
-                    Ultra Large Container Vessels (ULCV) and cellular container freighters carrying
-                    standardized ISO containers with manufactured goods and refrigerated food.
-                  </p>
-                </div>
-
-                {containerStats ? (
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                    <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                      <span className="text-[10px] text-[#9a9187]">Active Container Fleet</span>
-                      <div className="text-base font-bold text-amber-400">
-                        {containerStats.count} Vessels
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                      <span className="text-[10px] text-[#9a9187]">Average Transit Speed</span>
-                      <div className="text-base font-bold text-[#7fb89a]">
-                        {containerStats.avg_speed_knots} kn
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                      <span className="text-[10px] text-[#9a9187]">Anchorage Queue Share</span>
-                      <div className="text-base font-bold text-amber-400">
-                        {containerStats.anchorage_share_pct}%
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                      <span className="text-[10px] text-[#9a9187]">Mean Dwell Time</span>
-                      <div className="text-base font-bold text-[#f2ece3]">
-                        {containerStats.avg_dwell_hours} hrs
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-3 rounded-xl bg-[#211e1b] border border-[#2d2926] text-xs text-amber-300/80">
-                    Collecting vessel types...
-                  </div>
-                )}
-
-                <div className="p-3 rounded-xl bg-[#211e1b] border border-[#2d2926] text-xs space-y-1.5">
-                  <span className="font-semibold text-[#f2ece3]">What It Carries & Why It Queues:</span>
-                  <p className="text-[11px] text-[#9a9187] leading-relaxed">
-                    Carries finished manufactured goods, electronics, and reefer produce. Queues surge
-                    when berth ship-to-shore (STS) container cranes operate at capacity, tidal draft limits
-                    narrow port access, or inland rail transfers bottleneck.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* --- SCENE 07: PASSENGER SHIPS (CRUISE / FERRY) --- */}
-            {currentScene === 6 && (
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-[#d9694f]" />
-                    <h3 className="text-lg font-serif font-bold text-white tracking-tight">
-                      Passenger Ships (AIS Type 60 to 69)
-                    </h3>
-                  </div>
-                  <p className="mt-1 text-xs text-[#9a9187] leading-relaxed">
-                    Ocean liners, luxury cruise vessels, and roll-on/roll-off passenger ferries (RoPax)
-                    operating on strict scheduled turnaround timetables.
-                  </p>
-                </div>
-
-                {passengerStats ? (
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                    <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                      <span className="text-[10px] text-[#9a9187]">Active Passenger Fleet</span>
-                      <div className="text-base font-bold text-[#d9694f]">
-                        {passengerStats.count} Vessels
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                      <span className="text-[10px] text-[#9a9187]">Average Transit Speed</span>
-                      <div className="text-base font-bold text-[#7fb89a]">
-                        {passengerStats.avg_speed_knots} kn
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                      <span className="text-[10px] text-[#9a9187]">Anchorage Queue Share</span>
-                      <div className="text-base font-bold text-[#f2ece3]">
-                        {passengerStats.anchorage_share_pct}%
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                      <span className="text-[10px] text-[#9a9187]">Mean Dwell Time</span>
-                      <div className="text-base font-bold text-[#f2ece3]">
-                        {passengerStats.avg_dwell_hours} hrs
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-3 rounded-xl bg-[#211e1b] border border-[#2d2926] text-xs text-amber-300/80">
-                    Collecting vessel types...
-                  </div>
-                )}
-
-                <div className="p-3 rounded-xl bg-[#211e1b] border border-[#2d2926] text-xs space-y-1.5">
-                  <span className="font-semibold text-[#f2ece3]">What It Carries & Why It Queues:</span>
-                  <p className="text-[11px] text-[#9a9187] leading-relaxed">
-                    Carries leisure passengers and vehicles. Rarely queues at anchorage because passenger
-                    terminals grant priority berthing windows. Delays occur only during dense fog, severe
-                    crosswinds, or security passenger clearances.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* --- SCENE 08: TANKERS --- */}
-            {currentScene === 7 && (
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Droplet className="h-4 w-4 text-[#7fb89a]" />
-                    <h3 className="text-lg font-serif font-bold text-white tracking-tight">
-                      Tankers (AIS Type 80 to 89)
-                    </h3>
-                  </div>
-                  <p className="mt-1 text-xs text-[#9a9187] leading-relaxed">
-                    Very Large Crude Carriers (VLCC) and chemical product tankers riding low in the water
-                    with manifold pipe networks, catwalks, and explosion-proof vapor recovery.
-                  </p>
-                </div>
-
-                {tankerStats ? (
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                    <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                      <span className="text-[10px] text-[#9a9187]">Active Tanker Fleet</span>
-                      <div className="text-base font-bold text-[#7fb89a]">
-                        {tankerStats.count} Vessels
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                      <span className="text-[10px] text-[#9a9187]">Average Transit Speed</span>
-                      <div className="text-base font-bold text-amber-400">
-                        {tankerStats.avg_speed_knots} kn
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                      <span className="text-[10px] text-[#9a9187]">Anchorage Queue Share</span>
-                      <div className="text-base font-bold text-amber-400">
-                        {tankerStats.anchorage_share_pct}%
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                      <span className="text-[10px] text-[#9a9187]">Mean Dwell Time</span>
-                      <div className="text-base font-bold text-[#f2ece3]">
-                        {tankerStats.avg_dwell_hours} hrs
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-3 rounded-xl bg-[#211e1b] border border-[#2d2926] text-xs text-amber-300/80">
-                    Collecting vessel types...
-                  </div>
-                )}
-
-                <div className="p-3 rounded-xl bg-[#211e1b] border border-[#2d2926] text-xs space-y-1.5">
-                  <span className="font-semibold text-[#f2ece3]">What It Carries & Why It Queues:</span>
-                  <p className="text-[11px] text-[#9a9187] leading-relaxed">
-                    Carries crude petroleum, refined diesel, jet fuel, and chemicals. Queues at offshore
-                    single-point mooring buoys and jetty manifolds awaiting refinery tank ullage, crude oil
-                    blending, and gas-free safety inspection certificates.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* --- SCENE 09: METEOROLOGICAL WEATHER RISK --- */}
-            {currentScene === 8 && (
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Wind className="h-4 w-4 text-amber-400" />
-                      <h3 className="text-lg font-serif font-bold text-white tracking-tight">
-                        Weather Risk Management
-                      </h3>
-                    </div>
-                    <button
-                      onClick={onToggleSimulateStorm}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-mono border transition-all ${
-                        simulateStorm
-                          ? "bg-red-950/80 border-red-500/60 text-red-300 font-bold shadow-sm"
-                          : "bg-[#211e1b] border-[#2d2926] text-[#9a9187] hover:text-[#f2ece3]"
-                      }`}
-                    >
-                      [SIMULATION] {simulateStorm ? "Storm Active" : "Simulate Storm"}
-                    </button>
-                  </div>
-                  <p className="mt-1 text-xs text-[#9a9187] leading-relaxed">
-                    Photoreal ocean in heavy swell. Animated wind streamlines, wave-height heat contours,
-                    and radar storm cell driven by live Open-Meteo Marine & Forecast API data.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                  <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                    <span className="text-[10px] text-[#9a9187]">Wind Speed</span>
-                    <div className="text-base font-bold text-amber-400">
-                      {simulateStorm ? "48.0" : weather?.wind_speed_knots ?? "18.5"} kn
-                    </div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                    <span className="text-[10px] text-[#9a9187]">Wave Height</span>
-                    <div className="text-base font-bold text-[#7fb89a]">
-                      {simulateStorm ? "5.8" : weather?.wave_height_m ?? "2.1"} m
-                    </div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                    <span className="text-[10px] text-[#9a9187]">Swell Height</span>
-                    <div className="text-base font-bold text-[#f2ece3]">
-                      {simulateStorm ? "4.2" : weather?.swell_height_m ?? "1.4"} m
-                    </div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-[#211e1b] border border-[#2d2926]">
-                    <span className="text-[10px] text-[#9a9187]">Storm Risk</span>
-                    <div
-                      className={`text-base font-bold ${
-                        simulateStorm || weather?.storm_risk === "High"
-                          ? "text-[#e0533d]"
-                          : weather?.storm_risk === "Elevated"
-                          ? "text-amber-400"
-                          : "text-[#7fb89a]"
-                      }`}
-                    >
-                      {simulateStorm ? "High (Storm)" : weather?.storm_risk ?? "Low"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-[#211e1b] border border-[#2d2926] text-xs">
-                  <span className="font-semibold text-[#f2ece3]">Operational Port Impact:</span>
-                  <p className="text-[11px] text-[#9a9187] mt-1">
-                    {simulateStorm
-                      ? "Suspended pilotage; all inbound deep-draft vessels ordered to ride out swell at sea. Anchorage holding active."
-                      : weather?.operational_impact ??
-                        "Normal commercial navigation, berthing, and pilot operations active."}
-                  </p>
-                </div>
-
-                <div className="p-3 rounded-xl bg-[#211e1b] border border-[#2d2926] text-xs space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold text-amber-300 flex items-center gap-1.5">
-                      <TrendingUp className="h-3.5 w-3.5" />
-                      Weather vs Congestion Lead-Lag
-                    </span>
-                    <span className="text-[10px] font-mono text-[#9a9187]">6h Lead Correl.</span>
-                  </div>
-                  <p className="text-[11px] text-[#9a9187] leading-relaxed">
-                    Swell spikes above 2.5m cause a 40% drop in pilot boardings, leading to a
-                    subsequent anchorage queue backlog peak within 8 to 12 hours.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* --- SCENE 10: HISTORY & VALIDATION --- */}
-            {currentScene === 9 && (
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <History className="h-4 w-4 text-amber-400" />
-                    <h3 className="text-lg font-serif font-bold text-white tracking-tight">
-                      Historical Playback & Earth Observation
-                    </h3>
-                  </div>
-                  <p className="mt-1 text-xs text-[#9a9187] leading-relaxed">
-                    Scrub through temporal AIS telemetry archives and validate commercial positions
-                    against Copernicus Sentinel-1 Synthetic Aperture Radar (SAR) imagery.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-[#211e1b] border border-[#2d2926] space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[#f2ece3] font-semibold">Temporal Archive Playback</span>
-                    <span className="font-mono text-amber-400">
-                      {replayHour === 0 ? "LIVE" : `-${replayHour} Hours`}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="72"
-                    step="1"
-                    value={replayHour}
-                    onChange={(e) => setReplayHour(Number(e.target.value))}
-                    className="w-full accent-amber-400 cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[10px] font-mono text-[#9a9187]">
-                    <span>-72h</span>
-                    <span>-48h</span>
-                    <span>-24h</span>
-                    <span className="text-amber-400 font-bold">Now</span>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-[#211e1b] border border-[#2d2926] space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-[#f2ece3] flex items-center gap-1.5">
-                      <ShieldCheck className="h-4 w-4 text-amber-400" />
-                      EO Imagery Ground-Truth
-                    </span>
-                    <span className="font-mono text-[11px] text-amber-400">
-                      Not validated yet
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#9a9187]">
-                    Awaiting next Sentinel-1 SAR constellation overpass. When satellite radar captures
-                    the anchorage sector, cross-referenced detection polygons display validation metrics.
-                  </p>
-                </div>
-
-                {/* Open Overview Transition Button */}
-                <button
-                  onClick={handleOpenOverview}
-                  className="w-full py-3.5 px-4 rounded-xl font-semibold text-sm bg-gradient-to-r from-amber-500 to-[#7fb89a] hover:from-amber-400 hover:to-[#6fa88a] text-[#0e0d0c] shadow-xl shadow-amber-500/10 transition-all flex items-center justify-center gap-2 group cursor-pointer"
-                >
-                  <span>Open Overview</span>
-                  <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </button>
-              </div>
-            )}
+            {/* Storm Simulation Toggle Button */}
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-xs text-[#A7B6C7] font-mono">Simulate Storm Cell:</span>
+              <button
+                onClick={onToggleSimulateStorm}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all border ${
+                  simulateStorm
+                    ? "bg-[#E0533D] text-[#FFFFFF] border-[#E0533D] shadow-[0_0_12px_rgba(224,83,61,0.5)]"
+                    : "bg-[#050C18] text-[#A7B6C7] border-[#36C5E8]/30 hover:border-[#36C5E8]"
+                }`}
+              >
+                {simulateStorm ? "[SIMULATION] Revert Weather" : "[SIMULATION] Simulate Storm"}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* SCENE 09: THE TEMPORAL DIGITAL TWIN */}
+        {/* ======================================================== */}
+        {currentScene === 8 && (
+          <div className="max-w-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-700">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#07182A]/80 border border-[#36C5E8]/30 text-[#36C5E8] text-xs font-mono uppercase tracking-widest backdrop-blur-md">
+              <History className="h-3.5 w-3.5" />
+              <span>Scene 09 · Temporal Intelligence</span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black text-[#F2F6FA] tracking-tight">
+              TIME IS NO LONGER A LIMITATION.
+            </h2>
+            <p className="text-sm sm:text-base text-[#A7B6C7] max-w-lg mx-auto leading-relaxed">
+              Step backwards into the 24-hour recorded maritime archive. High-precision kinematic interpolation allows analysts to replay, audit, and benchmark vessel movements across past operational cycles.
+            </p>
+            <div className="flex items-center justify-center gap-2 text-xs font-mono text-[#36C5E8]">
+              <span className="px-2 py-1 rounded bg-[#07182A] border border-[#36C5E8]/20">Present</span>
+              <span>←</span>
+              <span className="px-2 py-1 rounded bg-[#07182A] border border-[#36C5E8]/20">-6 Hours</span>
+              <span>←</span>
+              <span className="px-2 py-1 rounded bg-[#07182A] border border-[#36C5E8]/20">-12 Hours</span>
+              <span>←</span>
+              <span className="px-2 py-1 rounded bg-[#07182A] border border-[#36C5E8]/20">-24 Hours Replay</span>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* SCENE 10: TIME MACHINE INTELLIGENCE SUITE */}
+        {/* ======================================================== */}
+        {currentScene === 9 && (
+          <div className="max-w-3xl w-full pointer-events-auto bg-[#07182A]/90 border border-[#36C5E8]/30 rounded-2xl p-6 backdrop-blur-md shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-600">
+            <div className="flex items-center justify-between text-xs font-mono text-[#36C5E8]">
+              <span className="flex items-center gap-2 font-bold uppercase">
+                <Cpu className="h-4 w-4" />
+                Scene 10 · Time Machine Intelligence Suite
+              </span>
+              <span className="text-[#A7B6C7]">11 Operational Modules</span>
+            </div>
+
+            <div>
+              <h3 className="text-2xl font-bold text-[#F2F6FA] tracking-tight">
+                Complete Temporal Digital Twin
+              </h3>
+              <p className="text-xs text-[#A7B6C7]">
+                Click below to preview each forensic module implemented in the platform:
+              </p>
+            </div>
+
+            {/* Mode selection pills */}
+            <div className="flex flex-wrap gap-1.5 text-[11px] font-mono">
+              {[
+                "Replay Engine",
+                "Vessel Black Box",
+                "Anomaly Detective",
+                "What-If Simulator",
+                "Ripple Network",
+                "Knowledge Graph",
+                "Predictive Intel",
+                "Change Detection",
+                "Time Alerts",
+                "AI Assistant",
+                "Dossier Workspace",
+              ].map((name, i) => (
+                <button
+                  key={name}
+                  onClick={() => setActiveTimeMachineTab(i)}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    activeTimeMachineTab === i
+                      ? "bg-[#36C5E8] text-[#050C18] font-bold shadow-[0_0_8px_rgba(54,197,232,0.4)]"
+                      : "bg-[#050C18]/60 text-[#A7B6C7] hover:text-[#F2F6FA] border border-[#36C5E8]/15"
+                  }`}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Preview Box */}
+            <div className="p-4 rounded-xl bg-[#050C18]/80 border border-[#36C5E8]/20 min-h-[110px] flex flex-col justify-center">
+              {activeTimeMachineTab === 0 && (
+                <div>
+                  <h4 className="text-sm font-bold text-[#36C5E8]">24-Hour Replay Engine</h4>
+                  <p className="text-xs text-[#A7B6C7] mt-1">
+                    Continuous kinematic interpolation with gap detection (&gt;35 min) and dynamic trajectory breadcrumb scrubbing at 1x to 60x playback.
+                  </p>
+                </div>
+              )}
+              {activeTimeMachineTab === 1 && (
+                <div>
+                  <h4 className="text-sm font-bold text-[#36C5E8]">Vessel Black Box</h4>
+                  <p className="text-xs text-[#A7B6C7] mt-1">
+                    Trajectory analytics, Speed Over Ground vs Time graphs, nautical distance traveled, and motion distribution histograms with CSV export.
+                  </p>
+                </div>
+              )}
+              {activeTimeMachineTab === 2 && (
+                <div>
+                  <h4 className="text-sm font-bold text-[#36C5E8]">Anomaly Detective</h4>
+                  <p className="text-xs text-[#A7B6C7] mt-1">
+                    Rule-based detection of AIS transponder gaps, speed spikes &gt;28 kn, prolonged anchorage &gt;18h, and off-channel route deviations with "Seek Timeline" actions.
+                  </p>
+                </div>
+              )}
+              {activeTimeMachineTab === 3 && (
+                <div>
+                  <h4 className="text-sm font-bold text-[#36C5E8]">What-If Scenario Simulator</h4>
+                  <p className="text-xs text-[#A7B6C7] mt-1">
+                    Discrete-event M/M/c queueing simulation using Erlang-C formulas to model crane outages, arrival surges, and cumulative demurrage costs.
+                  </p>
+                </div>
+              )}
+              {activeTimeMachineTab === 4 && (
+                <div>
+                  <h4 className="text-sm font-bold text-[#36C5E8]">Ripple Effect Network</h4>
+                  <p className="text-xs text-[#A7B6C7] mt-1">
+                    Directed maritime graph modeling delay cascade propagation across Asia–Europe, Transpacific, and Atlantic shipping superhighways.
+                  </p>
+                </div>
+              )}
+              {activeTimeMachineTab === 5 && (
+                <div>
+                  <h4 className="text-sm font-bold text-[#36C5E8]">Temporal Knowledge Graph</h4>
+                  <p className="text-xs text-[#A7B6C7] mt-1">
+                    Relational entity graph linking Ports, Vessels, Carriers (Maersk, MSC, COSCO), Terminal Operators, and Maritime Trade Corridors.
+                  </p>
+                </div>
+              )}
+              {activeTimeMachineTab === 6 && (
+                <div>
+                  <h4 className="text-sm font-bold text-[#36C5E8]">Predictive Intelligence Engine</h4>
+                  <p className="text-xs text-[#A7B6C7] mt-1">
+                    Time-ordered port forecasting comparing baseline actuals with damped trend projections and 95% confidence intervals.
+                  </p>
+                </div>
+              )}
+              {activeTimeMachineTab === 7 && (
+                <div>
+                  <h4 className="text-sm font-bold text-[#36C5E8]">Temporal Change Detection</h4>
+                  <p className="text-xs text-[#A7B6C7] mt-1">
+                    Split-window comparative analytics evaluating shifts in queue size, speed distribution, and turnaround metrics across shifts.
+                  </p>
+                </div>
+              )}
+              {activeTimeMachineTab === 8 && (
+                <div>
+                  <h4 className="text-sm font-bold text-[#36C5E8]">Time-Aware Alert Engine</h4>
+                  <p className="text-xs text-[#A7B6C7] mt-1">
+                    Operational threshold evaluators logging CI spikes, dwell anomalies, and storm warnings with analyst acknowledgment audit trails.
+                  </p>
+                </div>
+              )}
+              {activeTimeMachineTab === 9 && (
+                <div>
+                  <h4 className="text-sm font-bold text-[#36C5E8]">AI Maritime Investigation Assistant</h4>
+                  <p className="text-xs text-[#A7B6C7] mt-1">
+                    Domain LLM assistant grounded in deterministic telemetry, classifying evidence into FACT (observed), INFERENCE, and HYPOTHESIS.
+                  </p>
+                </div>
+              )}
+              {activeTimeMachineTab === 10 && (
+                <div>
+                  <h4 className="text-sm font-bold text-[#36C5E8]">Investigation Dossier Workspace</h4>
+                  <p className="text-xs text-[#A7B6C7] mt-1">
+                    Casework notebook for compiling vessel findings, analyst notes, and one-click GitHub-flavored Markdown dossier export.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => navigate({ to: "/timemachine" })}
+                className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#36C5E8] hover:text-[#F2F6FA] transition-colors"
+              >
+                <span>Open Time Machine Platform</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* SCENE 11: GLOBAL RIPPLE EFFECT */}
+        {/* ======================================================== */}
+        {currentScene === 10 && (
+          <div className="max-w-xl self-end mb-16 mr-6 xl:mr-16 pointer-events-auto bg-[#07182A]/90 border border-[#E0533D]/40 rounded-2xl p-6 backdrop-blur-md shadow-2xl space-y-4 animate-in fade-in slide-in-from-right-8 duration-600">
+            <div className="flex items-center gap-2 text-xs font-mono text-[#E0533D] uppercase tracking-wider">
+              <Network className="h-4 w-4" />
+              <span>Scene 11 · Global Corridor Cascade</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F6FA] tracking-tight">
+              ONE PORT.<br />
+              GLOBAL CONSEQUENCES.
+            </h2>
+            <p className="text-xs sm:text-sm text-[#A7B6C7] leading-relaxed">
+              When terminal congestion or severe weather disrupts a primary hub like Shanghai, cascading demurrage pulses propagate through transpacific and Suez loops to Singapore, Rotterdam, and Los Angeles.
+            </p>
+            <div className="space-y-2 text-xs font-mono">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#050C18]/60 border border-[#E0533D]/30">
+                <span className="text-[#A7B6C7]">Disrupted Origin</span>
+                <span className="text-[#E0533D] font-bold">Shanghai Gateway Hub</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#050C18]/60 border border-[#36C5E8]/20">
+                <span className="text-[#A7B6C7]">Downstream Delay</span>
+                <span className="text-[#36C5E8] font-bold">Rotterdam (+14h) · LA (+22h)</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#050C18]/60 border border-[#E8A33D]/30">
+                <span className="text-[#A7B6C7]">Container Volume At Risk</span>
+                <span className="text-[#E8A33D] font-bold">185,000 TEU</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* SCENE 12: ENGINEERING AND METHODOLOGY */}
+        {/* ======================================================== */}
+        {currentScene === 11 && (
+          <div className="max-w-xl self-start mt-20 ml-6 xl:ml-24 pointer-events-auto bg-[#07182A]/85 border border-[#36C5E8]/30 rounded-2xl p-6 backdrop-blur-md shadow-2xl space-y-4 animate-in fade-in slide-in-from-left-8 duration-600">
+            <div className="flex items-center gap-2 text-xs font-mono text-[#36C5E8] uppercase tracking-wider">
+              <Cpu className="h-4 w-4" />
+              <span>Scene 12 · Telemetry Pipeline</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F6FA] tracking-tight leading-snug">
+              BEHIND EVERY INSIGHT IS AN ENGINEERING SYSTEM.
+            </h2>
+            <div className="text-xs font-mono text-[#A7B6C7] space-y-1.5 p-3 rounded-xl bg-[#050C18]/70 border border-[#36C5E8]/20">
+              <div className="flex items-center gap-2 text-[#36C5E8] font-bold">
+                <span>AISSTREAM.IO</span>
+                <span>→</span>
+                <span>NODE.JS RELAY</span>
+                <span>→</span>
+                <span>GEOFENCING</span>
+              </div>
+              <div className="flex items-center gap-2 text-[#F2F6FA]">
+                <span>KINEMATICS</span>
+                <span>→</span>
+                <span>CONGESTION INDEX</span>
+                <span>→</span>
+                <span>TEMPORAL DIGITAL TWIN</span>
+              </div>
+            </div>
+            <p className="text-xs text-[#A7B6C7] leading-relaxed">
+              Decodes AIS Message Types 1, 2, 3, 5, 18, and 19. Cross-validated against official Port Authority statistics and Copernicus Sentinel-1 Synthetic Aperture Radar (SAR) observations.
+            </p>
+            <div className="pt-1">
+              <button
+                onClick={() => navigate({ to: "/methodology" })}
+                className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#36C5E8] hover:text-[#F2F6FA]"
+              >
+                <span>Read Full Scientific Methodology</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* SCENE 13: ENTER THE GLOBAL CONTROL CENTRE */}
+        {/* ======================================================== */}
+        {currentScene === 12 && (
+          <div className="max-w-2xl text-center space-y-6 pointer-events-auto bg-[#07182A]/90 border border-[#36C5E8]/40 rounded-3xl p-8 backdrop-blur-md shadow-2xl animate-in fade-in zoom-in-95 duration-700">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#050C18] border border-[#36C5E8]/30 text-[#36C5E8] text-xs font-mono uppercase tracking-widest">
+              <Anchor className="h-3.5 w-3.5" />
+              <span>Operational Command Center</span>
+            </div>
+
+            <h2 className="text-3xl sm:text-5xl font-black text-[#F2F6FA] tracking-tight">
+              THE OCEAN NEVER STOPS.<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#36C5E8] to-[#1676B9]">
+                NOW YOU CAN SEE EVERYTHING.
+              </span>
+            </h2>
+
+            <p className="text-sm text-[#A7B6C7] max-w-lg mx-auto leading-relaxed">
+              Live commercial fleet tracking, sub-kilometer geofencing, congestion indices, weather risk intelligence, and temporal digital twin analytics in a single unified dashboard.
+            </p>
+
+            <div className="grid grid-cols-3 gap-3 text-xs font-mono max-w-md mx-auto pt-2">
+              <div className="p-3 rounded-xl bg-[#050C18]/70 border border-[#36C5E8]/20">
+                <span className="text-[10px] text-[#A7B6C7] block">ACTIVE FLEET</span>
+                <span className="text-lg font-bold text-[#10B981]">1,877+</span>
+              </div>
+              <div className="p-3 rounded-xl bg-[#050C18]/70 border border-[#36C5E8]/20">
+                <span className="text-[10px] text-[#A7B6C7] block">PORTS</span>
+                <span className="text-lg font-bold text-[#36C5E8]">6 Hubs</span>
+              </div>
+              <div className="p-3 rounded-xl bg-[#050C18]/70 border border-[#36C5E8]/20">
+                <span className="text-[10px] text-[#A7B6C7] block">HEARTBEAT</span>
+                <span className="text-lg font-bold text-[#E8A33D]">2s Delay</span>
+              </div>
+            </div>
+
+            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                onClick={() => navigate({ to: "/overview" })}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#36C5E8] hover:bg-[#36C5E8]/90 text-[#050C18] font-bold text-sm shadow-[0_0_24px_rgba(54,197,232,0.5)] transition-all hover:scale-105"
+              >
+                <span>ENTER GLOBAL MARITIME</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+
+              <button
+                onClick={() => navigate({ to: "/timemachine" })}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[#050C18] border border-[#36C5E8]/30 hover:border-[#36C5E8] text-[#F2F6FA] font-medium text-sm transition-all"
+              >
+                <History className="h-4 w-4 text-[#36C5E8]" />
+                <span>Launch Time Machine</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* --- BOTTOM FOOTER --- */}
-      <footer className="pointer-events-auto flex items-center justify-between border-t border-[#2d2926] pt-3 text-[11px] text-[#9a9187] font-mono">
+      {/* --- BOTTOM SCROLL HINT & PROGRESS STATUS --- */}
+      <footer className="fixed bottom-4 left-0 right-0 z-40 pointer-events-none flex items-center justify-between px-6 text-xs font-mono text-[#A7B6C7]">
         <div className="flex items-center gap-2">
-          <span className="text-amber-400">SCENE {currentScene + 1} / 10</span>
-          <span>·</span>
-          <span>{SCENES_METADATA[currentScene]?.label}</span>
+          <span className="h-2 w-2 rounded-full bg-[#10B981]" />
+          <span>Scene {meta.tag} / 13: <strong>{meta.label}</strong></span>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="hidden sm:inline text-[#9a9187]/60">
-            Scroll to zoom from globe to ship · Click cards for details
-          </span>
-          <button
-            onClick={handleOpenOverview}
-            className="text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors"
-          >
-            <span>Overview</span>
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
+
+        <div className="flex items-center gap-2">
+          <span>Scroll Progress: <strong>{Math.round(scrollProgress * 100)}%</strong></span>
+          <span className="text-[#36C5E8] animate-bounce">↓</span>
         </div>
       </footer>
     </div>

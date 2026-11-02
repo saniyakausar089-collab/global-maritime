@@ -109,3 +109,41 @@ export function createArcPoints(
 
   return points;
 }
+
+
+export interface SceneMeta {
+  id: number;
+  tag: string;
+  label: string;
+  stage: string;
+  stageIndex: number;
+  feature: string;
+}
+
+export const STAGES = [
+  "EARTH",
+  "ROUTES",
+  "OCEAN",
+  "VESSELS",
+  "PORTS",
+  "CONGESTION",
+  "WEATHER",
+  "INTELLIGENCE",
+  "CONTROL CENTRE",
+] as const;
+
+export const SCENES_13: SceneMeta[] = [
+  { id: 0, tag: "01", label: "The Awakening of Earth", stage: "EARTH", stageIndex: 0, feature: "Global Planetary AIS" },
+  { id: 1, tag: "02", label: "Global Trade Network", stage: "ROUTES", stageIndex: 1, feature: "Luminous Corridors" },
+  { id: 2, tag: "03", label: "The Living Ocean", stage: "OCEAN", stageIndex: 2, feature: "Gerstner Ocean Waves" },
+  { id: 3, tag: "04", label: "The Vessel Reveal", stage: "VESSELS", stageIndex: 3, feature: "Photoreal 3D Ship & HUD" },
+  { id: 4, tag: "05", label: "Live Fleet Tracking", stage: "VESSELS", stageIndex: 3, feature: "Kinematic Course Vectors" },
+  { id: 5, tag: "06", label: "The Port Discovery", stage: "PORTS", stageIndex: 4, feature: "Polygonal Geofencing" },
+  { id: 6, tag: "07", label: "Port Congestion Intel", stage: "CONGESTION", stageIndex: 5, feature: "Anchorage Queuing & CI" },
+  { id: 7, tag: "08", label: "Weather Risk Intelligence", stage: "WEATHER", stageIndex: 6, feature: "Marine Wind & Wave Risk" },
+  { id: 8, tag: "09", label: "The Temporal Digital Twin", stage: "INTELLIGENCE", stageIndex: 7, feature: "24h Historical Archive" },
+  { id: 9, tag: "10", label: "Time Machine Suite", stage: "INTELLIGENCE", stageIndex: 7, feature: "11 Forensics Engines" },
+  { id: 10, tag: "11", label: "Global Ripple Effect", stage: "INTELLIGENCE", stageIndex: 7, feature: "Corridor Delay Propagation" },
+  { id: 11, tag: "12", label: "Engineering & Pipeline", stage: "INTELLIGENCE", stageIndex: 7, feature: "Telemetry Architecture" },
+  { id: 12, tag: "13", label: "Global Control Centre", stage: "CONTROL CENTRE", stageIndex: 8, feature: "Live Operational Command" },
+];

@@ -12,10 +12,11 @@ import { RealVessel3D, type RealVesselType } from "./RealVessel3D";
 import { GerstnerOceanSurface } from "./GerstnerOceanSurface";
 import { MeteorologicalWeather } from "./MeteorologicalWeather";
 import { ShipCourseVectors, type TrackedVessel } from "./ShipCourseVectors";
+import { CongestionRings } from "./CongestionRings";
 
-interface LandingCanvasProps {
-  scrollProgress: number; // 0.0 to 1.0 from lerp loop
-  activeScene: number; // 0 to 9
+export interface LandingCanvasProps {
+  scrollProgress: number; // 0.0 to 1.0 from GSAP ScrollTrigger
+  activeScene: number; // 0 to 12
   simulateStorm: boolean;
   lowPowerMode: boolean;
   waveHeightMeters?: number;
@@ -55,9 +56,10 @@ class CanvasErrorBoundary extends Component<CanvasErrorBoundaryProps, CanvasErro
 }
 
 /**
- * Continuous Zoom Camera Rig:
- * Zoom continuously from whole globe -> region -> sea lane -> ONE specific dot ->
- * resolves into the photoreal 3D ship with rack focus, bloom, and wake reveal!
+ * Continuous 13-Scene Cinematic Camera Rig:
+ * Coordinates smooth camera trajectory, orbital easing, and cinematic transitions
+ * from Space -> Corridors -> Living Ocean -> Vessel Reveal -> Fleet -> Port ->
+ * Congestion -> Weather Risk -> Digital Twin -> Suite -> Ripple -> Methodology -> Control Centre.
  */
 function ZoomCameraRig({
   scrollProgress,
@@ -75,69 +77,85 @@ function ZoomCameraRig({
     const targetCamPos = new THREE.Vector3(0, 8, 30);
     const targetLookAt = new THREE.Vector3(0, 0, 0);
 
-    if (p < 0.1) {
-      // Scene 01: Whole Globe (0.00 - 0.10)
-      const tScene = p / 0.1;
-      targetCamPos.lerpVectors(new THREE.Vector3(0, 8, 30), new THREE.Vector3(0, 6.8, 25), tScene);
+    if (p < 0.077) {
+      // Scene 01: Awakening of Earth (0.00 - 0.077)
+      const u = p / 0.077;
+      targetCamPos.lerpVectors(new THREE.Vector3(0, 11, 35), new THREE.Vector3(0, 7.8, 28), u);
       targetLookAt.set(0, 0, 0);
-    } else if (p < 0.2) {
-      // Scene 02: Zoom to European/North Sea Region (0.10 - 0.20)
-      const tScene = (p - 0.1) / 0.1;
-      targetCamPos.lerpVectors(new THREE.Vector3(0, 6.8, 25), new THREE.Vector3(2.2, 8.8, 16.0), tScene);
-      targetLookAt.lerpVectors(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.8, 4.5, 4.0), tScene);
-    } else if (p < 0.3) {
-      // Scene 03: Zoom to Sea Lane / Rotterdam Approach (0.20 - 0.30)
-      const tScene = (p - 0.2) / 0.1;
-      targetCamPos.lerpVectors(new THREE.Vector3(2.2, 8.8, 16.0), new THREE.Vector3(1.6, 9.2, 10.5), tScene);
-      targetLookAt.lerpVectors(new THREE.Vector3(0.8, 4.5, 4.0), new THREE.Vector3(0.45, 7.87, 6.15), tScene);
-    } else if (p < 0.4) {
-      // Scene 04: Anchorage & Thinning Dots around the ONE Hero Vessel (0.30 - 0.40)
-      const tScene = (p - 0.3) / 0.1;
-      targetCamPos.lerpVectors(new THREE.Vector3(1.6, 9.2, 10.5), new THREE.Vector3(1.0, 8.5, 7.8), tScene);
-      targetLookAt.set(0.45, 7.87, 6.15);
-    } else if (p < 0.5) {
-      // Scene 05: Cinematic Reveal - Dot resolves into Photoreal 3D Ship & Ocean (0.40 - 0.50)
-      const tScene = (p - 0.4) / 0.1;
-      const orbitAngle = tScene * Math.PI * 0.4 + t * 0.08;
-      const camDist = 6.2 - tScene * 1.4;
+    } else if (p < 0.154) {
+      // Scene 02: Global Trade Network (0.077 - 0.154)
+      const u = (p - 0.077) / 0.077;
+      targetCamPos.lerpVectors(new THREE.Vector3(0, 7.8, 28), new THREE.Vector3(4.5, 7.2, 22.0), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.6, 1.2, 0), u);
+    } else if (p < 0.231) {
+      // Scene 03: The Living Ocean (0.154 - 0.231)
+      const u = (p - 0.154) / 0.077;
+      targetCamPos.lerpVectors(new THREE.Vector3(4.5, 7.2, 22.0), new THREE.Vector3(2.0, 5.2, 10.5), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(0.6, 1.2, 0), new THREE.Vector3(0, 1.0, 0), u);
+    } else if (p < 0.308) {
+      // Scene 04: The Vessel Reveal (0.231 - 0.308)
+      const u = (p - 0.231) / 0.077;
+      const orbitAngle = u * Math.PI * 0.4 + t * 0.08;
+      const camDist = 6.0 - u * 0.8;
       targetCamPos.set(
-        Math.sin(orbitAngle) * camDist + 1.2,
-        2.2 + Math.cos(orbitAngle) * 0.6,
-        Math.cos(orbitAngle) * camDist + 1.5
+        Math.sin(orbitAngle) * camDist + 0.8,
+        2.2 + Math.cos(orbitAngle) * 0.4,
+        Math.cos(orbitAngle) * camDist + 1.2
       );
-      targetLookAt.set(0, 0.9, 0);
-    } else if (p < 0.6) {
-      // Scene 06: Cargo Ship (Container) - Slow Orbit
-      const orbitAngle = (p - 0.5) * Math.PI * 1.5 + t * 0.12;
-      targetCamPos.set(Math.sin(orbitAngle) * 5.4, 2.0, Math.cos(orbitAngle) * 5.4);
       targetLookAt.set(0, 1.0, 0);
-    } else if (p < 0.7) {
-      // Scene 07: Passenger Ship (Cruise / Ferry) - Slow Tracking Shot
-      const orbitAngle = (p - 0.6) * Math.PI * 1.5 + t * 0.12;
-      targetCamPos.set(Math.sin(orbitAngle) * 5.8, 2.4, Math.cos(orbitAngle) * 5.8);
-      targetLookAt.set(0, 1.2, 0);
-    } else if (p < 0.8) {
-      // Scene 08: Tanker - Midships Low Angle
-      const orbitAngle = (p - 0.7) * Math.PI * 1.5 + t * 0.1;
-      targetCamPos.set(Math.sin(orbitAngle) * 5.5, 1.8, Math.cos(orbitAngle) * 5.5);
-      targetLookAt.set(0, 0.8, 0);
-    } else if (p < 0.9) {
-      // Scene 09: Meteorological Weather Risk - Cinematic Elevation Shot
-      const tScene = (p - 0.8) / 0.1;
-      targetCamPos.lerpVectors(new THREE.Vector3(4.8, 3.2, 6.2), new THREE.Vector3(5.5, 4.6, 8.5), tScene);
-      targetLookAt.lerpVectors(new THREE.Vector3(0, 1.0, 0), new THREE.Vector3(1.2, 0.4, -0.5), tScene);
+    } else if (p < 0.385) {
+      // Scene 05: Live Fleet Tracking (0.308 - 0.385)
+      const u = (p - 0.308) / 0.077;
+      targetCamPos.lerpVectors(new THREE.Vector3(2.5, 3.2, 6.2), new THREE.Vector3(4.8, 4.0, 7.5), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(0, 1.0, 0), new THREE.Vector3(0.5, 1.0, 0), u);
+    } else if (p < 0.462) {
+      // Scene 06: The Port Discovery & Geofencing (0.385 - 0.462)
+      const u = (p - 0.385) / 0.077;
+      targetCamPos.lerpVectors(new THREE.Vector3(3.2, 7.2, 9.8), new THREE.Vector3(1.8, 6.2, 8.5), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(0.5, 0.8, 0), new THREE.Vector3(0.2, 0.8, 0), u);
+    } else if (p < 0.538) {
+      // Scene 07: Port Congestion Intelligence (0.462 - 0.538)
+      const u = (p - 0.462) / 0.077;
+      targetCamPos.lerpVectors(new THREE.Vector3(1.8, 6.2, 8.5), new THREE.Vector3(1.2, 5.6, 7.5), u);
+      targetLookAt.set(0.2, 0.8, 0);
+    } else if (p < 0.615) {
+      // Scene 08: Weather Risk Intelligence (0.538 - 0.615)
+      const u = (p - 0.538) / 0.077;
+      targetCamPos.lerpVectors(new THREE.Vector3(1.2, 5.6, 7.5), new THREE.Vector3(4.8, 3.4, 8.2), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(0.2, 0.8, 0), new THREE.Vector3(1.0, 0.5, -0.6), u);
+    } else if (p < 0.692) {
+      // Scene 09: The Temporal Digital Twin (0.615 - 0.692)
+      const u = (p - 0.615) / 0.077;
+      targetCamPos.lerpVectors(new THREE.Vector3(4.8, 3.4, 8.2), new THREE.Vector3(3.8, 6.8, 23.0), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(1.0, 0.5, -0.6), new THREE.Vector3(0, 0, 0), u);
+    } else if (p < 0.769) {
+      // Scene 10: Time Machine Intelligence Suite (0.692 - 0.769)
+      const u = (p - 0.692) / 0.077;
+      const angle = u * Math.PI * 0.3 + t * 0.05;
+      targetCamPos.set(Math.sin(angle) * 23.0, 6.8, Math.cos(angle) * 23.0);
+      targetLookAt.set(0, 0, 0);
+    } else if (p < 0.846) {
+      // Scene 11: Global Ripple Effect (0.769 - 0.846)
+      const u = (p - 0.769) / 0.077;
+      targetCamPos.lerpVectors(new THREE.Vector3(3.8, 6.8, 23.0), new THREE.Vector3(5.2, 8.2, 26.0), u);
+      targetLookAt.set(0, 0, 0);
+    } else if (p < 0.923) {
+      // Scene 12: Engineering & Pipeline (0.846 - 0.923)
+      const u = (p - 0.846) / 0.077;
+      targetCamPos.lerpVectors(new THREE.Vector3(5.2, 8.2, 26.0), new THREE.Vector3(2.5, 7.5, 27.0), u);
+      targetLookAt.set(0, 0, 0);
     } else {
-      // Scene 10: History & Validation - Overview Angle
-      const tScene = (p - 0.9) / 0.1;
-      targetCamPos.lerpVectors(new THREE.Vector3(5.5, 4.6, 8.5), new THREE.Vector3(3.8, 3.2, 7.2), tScene);
-      targetLookAt.set(0, 0.8, 0);
+      // Scene 13: Enter the Global Control Centre (0.923 - 1.000)
+      const u = (p - 0.923) / 0.077;
+      targetCamPos.lerpVectors(new THREE.Vector3(2.5, 7.5, 27.0), new THREE.Vector3(0, 8.0, 28.0), u);
+      targetLookAt.set(0, 0, 0);
     }
 
     cameraRef.current.position.lerp(targetCamPos, 0.08);
     cameraRef.current.lookAt(targetLookAt);
   });
 
-  return <PerspectiveCamera ref={cameraRef} makeDefault fov={38} position={[0, 8, 30]} />;
+  return <PerspectiveCamera ref={cameraRef} makeDefault fov={38} position={[0, 11, 35]} />;
 }
 
 export function LandingCanvas({
@@ -150,23 +168,30 @@ export function LandingCanvas({
   onSelectVessel,
   selectedVesselId,
 }: LandingCanvasProps) {
-  // Globe is visible in Scenes 01 to 04 (0.00 to 0.45)
-  const isGlobeVisible = scrollProgress < 0.45;
-  // Geofence polygons visible in Scenes 03, 04 (0.18 to 0.45)
-  const isGeofenceVisible = scrollProgress >= 0.18 && scrollProgress < 0.45;
+  // Globe is visible in orbital scenes (Scenes 01-02, and Scenes 09-13)
+  const isGlobeVisible = scrollProgress < 0.20 || scrollProgress >= 0.61;
 
-  // Ocean surface & 3D real ships visible in Scenes 05 to 10 (0.38 to 1.0)
-  const isOceanScene = scrollProgress >= 0.38;
+  // Ocean surface & 3D real ships visible during sea-level scenes (Scenes 03-08)
+  const isOceanScene = scrollProgress >= 0.15 && scrollProgress < 0.65;
 
-  // Determine current vessel type based on active scene
+  // Geofence polygons visible in Scenes 06 & 07 (Port approach & congestion)
+  const isGeofenceVisible = scrollProgress >= 0.35 && scrollProgress < 0.54;
+
+  // Congestion rings active in Scene 07
+  const isCongestionRingsVisible = scrollProgress >= 0.44 && scrollProgress < 0.54;
+
+  // Meteorological weather layer active in Scene 08 or if simulateStorm is toggled
+  const isWeatherLayerActive = activeScene === 7 || simulateStorm;
+
+  // Ripple effect corridor glow active in Scene 11
+  const isRipplePulse = activeScene === 10;
+
+  // Real ship type representation across vessel scenes
   const currentVesselType: RealVesselType = useMemo(() => {
-    if (activeScene === 6) return "passenger";
-    if (activeScene === 7) return "tanker";
+    if (activeScene === 4) return "passenger";
+    if (activeScene === 5) return "tanker";
     return "cargo";
   }, [activeScene]);
-
-  // Is meteorological weather layer active in Scene 09 or if simulateStorm is toggled
-  const isWeatherLayerActive = activeScene === 8 || simulateStorm;
 
   return (
     <div className="absolute inset-0 h-full w-full pointer-events-auto">
@@ -183,59 +208,53 @@ export function LandingCanvas({
           <ZoomCameraRig scrollProgress={scrollProgress} activeScene={activeScene} />
 
           {/* Ambient & Directional Sun/Moon Lighting */}
-          <ambientLight intensity={0.4} color="#0c1726" />
-          <directionalLight position={[25, 30, 20]} intensity={1.9} color="#fff8e7" castShadow />
-          <directionalLight position={[-20, 15, -20]} intensity={0.5} color="#e8a33d" />
+          <ambientLight intensity={0.45} color="#07182A" />
+          <directionalLight position={[25, 30, 20]} intensity={1.9} color="#F2F6FA" castShadow />
+          <directionalLight position={[-20, 15, -20]} intensity={0.6} color="#36C5E8" />
 
           {/* Top-Level Suspense Boundary preventing unhandled suspension */}
           <React.Suspense fallback={null}>
-            {/* --- SCENES 01 to 04: GLOBE & TINY INSTANCED VESSELS --- */}
+            {/* --- ORBITAL SCENES: GLOBE, TRADE CORRIDORS, INSTANCED VESSELS --- */}
             {isGlobeVisible && (
               <group>
-                {/* Dark Earth with NASA Black Marble & specular oceans */}
+                {/* NASA Black Marble night Earth with thin cyan atmosphere */}
                 <GlobeMesh radius={10} rotationSpeed={0.0006} />
 
-                {/* Glowing Trade Corridors */}
-                <TradeRoutes globeRadius={10} />
+                {/* Luminous Great-Circle Trade Routes */}
+                <TradeRoutes
+                  globeRadius={10}
+                  highlightCorridors={isRipplePulse}
+                />
 
-                {/* Tiny Points of Light (1-2px, amber/coral/mint) */}
+                {/* 1-2px Luminous Vessel Points */}
                 <InstancedVessels
                   globeRadius={10}
                   lowPowerMode={lowPowerMode}
-                  zoomProgress={Math.max(0, (scrollProgress - 0.2) / 0.22)}
+                  zoomProgress={scrollProgress < 0.18 ? scrollProgress / 0.18 : 0}
                 />
-
-                {/* Geofence Polygons on Water in Rotterdam Approach */}
-                {isGeofenceVisible && (
-                  <GeofencePolygons
-                    globeRadius={10}
-                    activePortId="rotterdam"
-                    opacity={Math.min(1, (scrollProgress - 0.18) * 8)}
-                  />
-                )}
               </group>
             )}
 
-            {/* --- SCENES 05 to 10: GERSTNER OCEAN SURFACE & REAL 3D SHIP REVEAL --- */}
+            {/* --- SEA-LEVEL SCENES: TROCHOIDAL GERSTNER OCEAN & 3D VESSEL --- */}
             {isOceanScene && (
               <group>
-                {/* True Trochoidal Gerstner Wave Ocean */}
+                {/* True Trochoidal Gerstner Wave Water Shader */}
                 <GerstnerOceanSurface
                   waveHeight={waveHeightMeters}
-                  simulateStorm={simulateStorm}
+                  simulateStorm={simulateStorm || activeScene === 7}
                 />
 
-                {/* Real GLTF 3D Vessel with PBR materials, wake foam, and navigation lights */}
+                {/* Authentic 3D Ship Model (Container / Passenger / Tanker) */}
                 <RealVessel3D
                   vesselType={currentVesselType}
                   position={[0, 0, 0]}
                   waveHeight={waveHeightMeters}
-                  showHud={activeScene >= 4 && activeScene <= 7}
                   speedKnots={currentVesselType === "cargo" ? 17.6 : currentVesselType === "passenger" ? 21.0 : 13.8}
+                  showHud={activeScene >= 3 && activeScene <= 6}
                 />
 
-                {/* Scene 05: Course vectors, COG, fading historical tracks, and dead-reckoning projected paths */}
-                {activeScene === 4 && (
+                {/* Kinematic Course Vectors & Track Trails */}
+                {(activeScene === 3 || activeScene === 4) && (
                   <ShipCourseVectors
                     activeScene={activeScene}
                     onSelectVessel={onSelectVessel}
@@ -243,28 +262,47 @@ export function LandingCanvas({
                   />
                 )}
 
-                {/* Scene 09: Meteorological Weather Visualization */}
+                {/* Polygonal Geofences in Port Approach (Berth = Cyan, Anchorage = Amber) */}
+                {isGeofenceVisible && (
+                  <GeofencePolygons
+                    globeRadius={10}
+                    activePortId="rotterdam"
+                    opacity={Math.min(1, (scrollProgress - 0.35) * 8)}
+                  />
+                )}
+
+                {/* Pulsing Congestion Rings when CI > 1.2 */}
+                {isCongestionRingsVisible && (
+                  <CongestionRings
+                    lat={51.92}
+                    lon={4.17}
+                    congestionIndex={1.34}
+                    visible={true}
+                  />
+                )}
+
+                {/* Serious Meteorological Weather Layer */}
                 {isWeatherLayerActive && (
                   <MeteorologicalWeather
                     windSpeedKnots={windSpeedKnots}
                     waveHeightMeters={waveHeightMeters}
-                    simulateStorm={simulateStorm}
+                    simulateStorm={simulateStorm || activeScene === 7}
                   />
                 )}
               </group>
             )}
           </React.Suspense>
 
-          {/* Filmic ACES Post-Processing & Bloom (disabled in low-power mode for stability) */}
+          {/* Cinematic Post-Processing Pipeline */}
           {!lowPowerMode && (
-            <EffectComposer multisampling={4}>
+            <EffectComposer multisampling={0}>
               <Bloom
-                intensity={0.5}
-                luminanceThreshold={0.4}
-                luminanceSmoothing={0.85}
+                intensity={0.65}
+                luminanceThreshold={0.55}
+                luminanceSmoothing={0.35}
                 mipmapBlur
               />
-              <Vignette eskil={false} offset={0.12} darkness={0.88} />
+              <Vignette eskil={false} offset={0.12} darkness={0.65} />
             </EffectComposer>
           )}
         </Canvas>

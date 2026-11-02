@@ -9,9 +9,10 @@ import {
 
 interface TradeRoutesProps {
   globeRadius?: number;
+  highlightCorridors?: boolean;
 }
 
-export function TradeRoutes({ globeRadius = 10 }: TradeRoutesProps) {
+export function TradeRoutes({ globeRadius = 10, highlightCorridors = false }: TradeRoutesProps) {
   const pulsesRef = useRef<THREE.Points>(null);
 
   // Generate dense bundles of great circle arcs
@@ -21,8 +22,8 @@ export function TradeRoutes({ globeRadius = 10 }: TradeRoutesProps) {
     const colors: number[] = [];
     const curves: { curve: THREE.QuadraticBezierCurve3; length: number }[] = [];
 
-    const cyanColor = new THREE.Color("#00e5ff");
-    const tealColor = new THREE.Color("#0077b6");
+    const cyanColor = highlightCorridors ? new THREE.Color("#ef4444") : new THREE.Color("#00e5ff");
+    const tealColor = highlightCorridors ? new THREE.Color("#f59e0b") : new THREE.Color("#0077b6");
 
     TRADE_LANE_PAIRS.forEach(([p1Name, p2Name]) => {
       const h1 = hubMap.get(p1Name);
@@ -51,8 +52,8 @@ export function TradeRoutes({ globeRadius = 10 }: TradeRoutesProps) {
 
           const factor = Math.sin((i / (points.length - 1)) * Math.PI);
           const c = cyanColor.clone().lerp(tealColor, (i % 2) * 0.4);
-          colors.push(c.r * factor * 0.7, c.g * factor * 0.9, c.b * factor * 1.0);
-          colors.push(c.r * factor * 0.7, c.g * factor * 0.9, c.b * factor * 1.0);
+          colors.push(c.r * factor * 0.8, c.g * factor * 0.9, c.b * factor * 1.0);
+          colors.push(c.r * factor * 0.8, c.g * factor * 0.9, c.b * factor * 1.0);
         }
       });
     });
@@ -62,7 +63,7 @@ export function TradeRoutes({ globeRadius = 10 }: TradeRoutesProps) {
     geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
 
     return { lineGeometry: geo, pulseCurves: curves };
-  }, [globeRadius]);
+  }, [globeRadius, highlightCorridors]);
 
   const pulseCount = 180;
   const { pulseGeometry, pulseData } = useMemo(() => {
@@ -114,7 +115,7 @@ export function TradeRoutes({ globeRadius = 10 }: TradeRoutesProps) {
         <lineBasicMaterial
           vertexColors
           transparent
-          opacity={0.65}
+          opacity={highlightCorridors ? 0.85 : 0.65}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
@@ -122,10 +123,10 @@ export function TradeRoutes({ globeRadius = 10 }: TradeRoutesProps) {
 
       <points ref={pulsesRef} geometry={pulseGeometry}>
         <pointsMaterial
-          color="#a5f3fc"
-          size={0.22}
+          color={highlightCorridors ? "#f87171" : "#a5f3fc"}
+          size={highlightCorridors ? 0.32 : 0.22}
           transparent
-          opacity={0.9}
+          opacity={0.95}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
