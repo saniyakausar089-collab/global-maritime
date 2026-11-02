@@ -32,8 +32,6 @@ export function InstancedVessels({
     const positions = new Float32Array(actualCount * 3);
     const colors = new Float32Array(actualCount * 3);
 
-    // Exact required colors:
-    // Cargo = Amber (#e8a33d), Passenger = Coral (#d9694f), Tanker = Mint (#7fb89a)
     const typeColors = [
       new THREE.Color("#e8a33d"), // Cargo (Amber)
       new THREE.Color("#e8a33d"), // Cargo (Amber)
@@ -109,6 +107,7 @@ export function InstancedVessels({
   useFrame((_, delta) => {
     if (!pointsRef.current) return;
     const pos = geometry.getAttribute("position") as THREE.BufferAttribute;
+    if (!pos || !pos.array) return;
 
     // Advance vessels along headings
     for (let i = 0; i < actualCount; i += 3) {
@@ -132,7 +131,7 @@ export function InstancedVessels({
   return (
     <points ref={pointsRef} geometry={geometry}>
       <pointsMaterial
-        size={0.065} // Tiny, subtle light point (1-2px in perspective)
+        size={0.065}
         vertexColors
         transparent
         opacity={opacity}

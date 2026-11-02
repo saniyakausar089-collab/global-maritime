@@ -23,6 +23,160 @@ interface ShipCourseVectorsProps {
   selectedVesselId?: string | null;
 }
 
+interface TrackedVesselVectorProps {
+  v: TrackedVessel;
+  isHovered: boolean;
+  isSelected: boolean;
+  onSelect?: (v: TrackedVessel) => void;
+  onHover?: (v: TrackedVessel | null) => void;
+}
+
+function TrackedVesselVector({
+  v,
+  isHovered,
+  isSelected,
+  onSelect,
+  onHover,
+}: TrackedVesselVectorProps) {
+  const isFocus = isHovered || isSelected;
+  const rad = (v.heading * Math.PI) / 180;
+  const dirX = Math.sin(rad);
+  const dirY = Math.cos(rad) * 0.5;
+  const dirZ = Math.cos(rad) * 0.8;
+
+  const cogLength = Math.max(0.15, (v.speedKnots / 20) * 0.65);
+  const cogEnd = useMemo<[number, number, number]>(() => {
+    return [
+      v.pos[0] + dirX * cogLength,
+      v.pos[1] + dirY * cogLength,
+      v.pos[2] + dirZ * cogLength,
+    ];
+  }, [v.pos, dirX, dirY, dirZ, cogLength]);
+
+  const projLength = Math.max(0.3, (v.speedKnots / 20) * 1.6);
+  const projEnd = useMemo<[number, number, number]>(() => {
+    return [
+      v.pos[0] + dirX * projLength,
+      v.pos[1] + dirY * projLength,
+      v.pos[2] + dirZ * projLength,
+    ];
+  }, [v.pos, dirX, dirY, dirZ, projLength]);
+
+  // 1. Heading COG line geometry
+  const cogLineGeo = useMemo(() => {
+    return new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(...v.pos),
+      new THREE.Vector3(...cogEnd),
+    ]);
+  }, [v.pos, cogEnd]);
+
+  // 2. Projected dead-reckoning dashed line geometry
+  const projLineObj = useMemo(() => {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(...cogEnd),
+      new THREE.Vector3(...projEnd),
+    ]);
+    const line = new THREE.Line(
+      geo,
+      new THREE.LineDashedMaterial({
+        color: 0x38bdf8,
+        dashSize: 0.1,
+        gapSize: 0.08,
+        transparent: true,
+        opacity: isFocus ? 0.85 : 0.4,
+      })
+    );
+    line.computeLineDistances();
+    return line;
+  }, [cogEnd, projEnd, isFocus]);
+
+  // 3. Historical spline trail
+  const historyLineObj = useMemo(() => {
+    if (v.history.length < 2) return null;
+    const curve = new THREE.CatmullRomCurve3(v.history.map((pt) => new THREE.Vector3(...pt)));
+    const points = curve.getPoints(24);
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    return new THREE.Line(
+      geo,
+      new THREE.LineBasicMaterial({
+        color: 0x0284c7,
+        transparent: true,
+        opacity: isFocus ? 0.9 : 0.45,
+      })
+    );
+  }, [v.history, isFocus]);
+
+  // 4. Destination arc
+  const destLineObj = useMemo(() => {
+    if (!v.destination) return null;
+    const destEnd = new THREE.Vector3(v.pos[0] + dirX * 3.5, v.pos[1] + 0.3, v.pos[2] - 2.8);
+    const start = new THREE.Vector3(...v.pos);
+    const mid = start.clone().lerp(destEnd, 0.5).add(new THREE.Vector3(0, 0.6, 0));
+    const points = new THREE.QuadraticBezierCurve3(start, mid, destEnd).getPoints(32);
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    return new THREE.Line(
+      geo,
+      new THREE.LineBasicMaterial({
+        color: 0xfacc15,
+        transparent: true,
+        opacity: 0.75,
+      })
+    );
+  }, [v.destination, v.pos, dirX]);
+
+  return (
+    <group>
+      {/* Vessel Position Marker */}
+      <mesh
+        position={v.pos}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          onHover?.(v);
+          onSelect?.(v);
+        }}
+        onPointerOut={() => {
+          onHover?.(null);
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect?.(v);
+        }}
+      >
+        <sphereGeometry args={[0.08, 16, 16]} />
+        <meshStandardMaterial
+          color={isFocus ? 0x00f0ff : v.speedKnots > 0.5 ? 0x10b981 : 0xf59e0b}
+          emissive={isFocus ? 0x00f0ff : v.speedKnots > 0.5 ? 0x10b981 : 0xf59e0b}
+          emissiveIntensity={isFocus ? 1.4 : 0.8}
+        />
+      </mesh>
+
+      {/* Glowing ring when focused */}
+      {isFocus && (
+        <mesh position={v.pos} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.12, 0.16, 24]} />
+          <meshBasicMaterial color={0x00f0ff} transparent opacity={0.8} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+
+      {/* Heading & COG Vector Line */}
+      {v.speedKnots > 0.5 && (
+        <line geometry={cogLineGeo}>
+          <lineBasicMaterial color={isFocus ? 0x38bdf8 : 0x06b6d4} linewidth={2} />
+        </line>
+      )}
+
+      {/* Historical Track Trail */}
+      {historyLineObj && <primitive object={historyLineObj} />}
+
+      {/* Projected Dead-Reckoning Path */}
+      {v.speedKnots > 0.5 && <primitive object={projLineObj} />}
+
+      {/* Destination Arc */}
+      {isFocus && destLineObj && <primitive object={destLineObj} />}
+    </group>
+  );
+}
+
 export function ShipCourseVectors({
   activeScene,
   onSelectVessel,
@@ -79,7 +233,7 @@ export function ShipCourseVectors({
         pos: [0.95, 7.78, 6.45],
         heading: 215,
         speedKnots: 0.2,
-        destination: null, // "Destination not reported"
+        destination: null,
         eta: null,
         status: "At anchor (Outer Anchorage 4)",
         history: [
@@ -130,161 +284,18 @@ export function ShipCourseVectors({
     pulseRef.current = (Math.sin(clock.getElapsedTime() * 3.5) + 1.0) * 0.5;
   });
 
-  // Build 3D geometries for tracks, COG vectors, projected lines, and destination arcs
   return (
     <group>
-      {vessels.map((v) => {
-        const rad = (v.heading * Math.PI) / 180;
-        // Direction vector along heading
-        const dirX = Math.sin(rad);
-        const dirY = Math.cos(rad) * 0.5;
-        const dirZ = Math.cos(rad) * 0.8;
-
-        const isHovered = hoveredVessel?.id === v.id;
-        const isSelected = selectedVesselId === v.id;
-        const isFocus = isHovered || isSelected;
-
-        // 1. Heading & Course Over Ground (COG) Vector
-        // Length scaled by speed (e.g. 18 kn = ~0.65 units in local space)
-        const cogLength = Math.max(0.15, (v.speedKnots / 20) * 0.65);
-        const cogEnd: [number, number, number] = [
-          v.pos[0] + dirX * cogLength,
-          v.pos[1] + dirY * cogLength,
-          v.pos[2] + dirZ * cogLength,
-        ];
-
-        // 2. Projected Dead-Reckoning Path (Dashed forward projection for next 30-60 mins)
-        const projLength = Math.max(0.3, (v.speedKnots / 20) * 1.6);
-        const projEnd: [number, number, number] = [
-          v.pos[0] + dirX * projLength,
-          v.pos[1] + dirY * projLength,
-          v.pos[2] + dirZ * projLength,
-        ];
-
-        // 3. Historical Spline Trail
-        const historyCurve =
-          v.history.length >= 2
-            ? new THREE.CatmullRomCurve3(v.history.map((pt) => new THREE.Vector3(...pt)))
-            : null;
-        const historyPoints = historyCurve ? historyCurve.getPoints(24) : [];
-
-        // 4. Destination Arc (Great circle curve if destination exists)
-        const destCurve = useMemo(() => {
-          if (!v.destination) return null;
-          // Destination anchor point
-          const destEnd = new THREE.Vector3(v.pos[0] + dirX * 3.5, v.pos[1] + 0.3, v.pos[2] - 2.8);
-          const start = new THREE.Vector3(...v.pos);
-          const mid = start.clone().lerp(destEnd, 0.5).add(new THREE.Vector3(0, 0.6, 0));
-          return new THREE.QuadraticBezierCurve3(start, mid, destEnd).getPoints(32);
-        }, [v, dirX, dirZ]);
-
-        return (
-          <group key={v.id}>
-            {/* Vessel Position Marker (Interactive) */}
-            <mesh
-              position={v.pos}
-              onPointerOver={(e) => {
-                e.stopPropagation();
-                setHoveredVessel(v);
-                onSelectVessel?.(v);
-              }}
-              onPointerOut={() => {
-                setHoveredVessel(null);
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectVessel?.(v);
-              }}
-            >
-              <sphereGeometry args={[0.08, 16, 16]} />
-              <meshStandardMaterial
-                color={isFocus ? 0x00f0ff : v.speedKnots > 0.5 ? 0x10b981 : 0xf59e0b}
-                emissive={isFocus ? 0x00f0ff : v.speedKnots > 0.5 ? 0x10b981 : 0xf59e0b}
-                emissiveIntensity={isFocus ? 1.4 : 0.8}
-              />
-            </mesh>
-
-            {/* Glowing Ring around active/focused vessel */}
-            {isFocus && (
-              <mesh position={v.pos} rotation={[-Math.PI / 2, 0, 0]}>
-                <ringGeometry args={[0.12, 0.16, 24]} />
-                <meshBasicMaterial color={0x00f0ff} transparent opacity={0.8} side={THREE.DoubleSide} />
-              </mesh>
-            )}
-
-            {/* Heading & COG Vector Line */}
-            {v.speedKnots > 0.5 && (
-              <primitive
-                object={
-                  new THREE.Line(
-                    new THREE.BufferGeometry().setFromPoints([
-                      new THREE.Vector3(...v.pos),
-                      new THREE.Vector3(...cogEnd),
-                    ]),
-                    new THREE.LineBasicMaterial({
-                      color: isFocus ? 0x38bdf8 : 0x06b6d4,
-                      linewidth: 2,
-                    })
-                  )
-                }
-              />
-            )}
-
-            {/* Historical Track Trail (Fading with age) */}
-            {historyPoints.length > 0 && (
-              <primitive
-                object={
-                  new THREE.Line(
-                    new THREE.BufferGeometry().setFromPoints(historyPoints),
-                    new THREE.LineBasicMaterial({
-                      color: 0x0284c7,
-                      transparent: true,
-                      opacity: isFocus ? 0.9 : 0.45,
-                    })
-                  )
-                }
-              />
-            )}
-
-            {/* Projected Dead-Reckoning Path (Dashed) */}
-            {v.speedKnots > 0.5 && (
-              <primitive
-                object={
-                  new THREE.Line(
-                    new THREE.BufferGeometry().setFromPoints([
-                      new THREE.Vector3(...cogEnd),
-                      new THREE.Vector3(...projEnd),
-                    ]),
-                    new THREE.LineDashedMaterial({
-                      color: 0x38bdf8,
-                      dashSize: 0.1,
-                      gapSize: 0.08,
-                      transparent: true,
-                      opacity: isFocus ? 0.85 : 0.4,
-                    })
-                  )
-                }
-              />
-            )}
-
-            {/* Destination Arc (When reported) */}
-            {isFocus && destCurve && (
-              <primitive
-                object={
-                  new THREE.Line(
-                    new THREE.BufferGeometry().setFromPoints(destCurve),
-                    new THREE.LineBasicMaterial({
-                      color: 0xfacc15,
-                      transparent: true,
-                      opacity: 0.75,
-                    })
-                  )
-                }
-              />
-            )}
-          </group>
-        );
-      })}
+      {vessels.map((v) => (
+        <TrackedVesselVector
+          key={v.id}
+          v={v}
+          isHovered={hoveredVessel?.id === v.id}
+          isSelected={selectedVesselId === v.id}
+          onSelect={onSelectVessel}
+          onHover={setHoveredVessel}
+        />
+      ))}
 
       {/* Floating HUD Card for Selected or Hovered Vessel in Scene 05 */}
       {activeScene === 4 && activeVessel && (

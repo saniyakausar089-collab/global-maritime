@@ -89,6 +89,7 @@ export function TradeRoutes({ globeRadius = 10 }: TradeRoutesProps) {
   useFrame((_, delta) => {
     if (!pulsesRef.current) return;
     const posAttr = pulseGeometry.getAttribute("position") as THREE.BufferAttribute;
+    if (!posAttr || !posAttr.array) return;
 
     for (let i = 0; i < pulseCount; i++) {
       const p = pulseData[i];
@@ -99,7 +100,9 @@ export function TradeRoutes({ globeRadius = 10 }: TradeRoutesProps) {
       const curve = pulseCurves[p.curveIndex]?.curve;
       if (curve) {
         const point = curve.getPoint(p.progress);
-        posAttr.setXYZ(i, point.x, point.y, point.z);
+        if (point) {
+          posAttr.setXYZ(i, point.x, point.y, point.z);
+        }
       }
     }
     posAttr.needsUpdate = true;

@@ -1,7 +1,11 @@
-import React, { useRef, useMemo, useEffect } from "react";
+import React, { Component, useRef, useMemo, type ErrorInfo, type ReactNode } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF, Html } from "@react-three/drei";
+
+import { ContainerShipModel } from "./models/ContainerShipModel";
+import { TankerShipModel } from "./models/TankerShipModel";
+import { BulkCarrierModel } from "./models/BulkCarrierModel";
 
 export type RealVesselType = "cargo" | "passenger" | "tanker";
 
@@ -29,22 +33,116 @@ interface RealVessel3DProps {
   };
 }
 
-// Preload the GLTF models
-useGLTF.preload("/models/container_ship.glb");
-useGLTF.preload("/models/passenger_ship.glb");
-useGLTF.preload("/models/tanker_ship.glb");
+interface ErrorBoundaryProps {
+  fallback: ReactNode;
+  children: ReactNode;
+}
 
-/**
- * Photorealistic 3D Vessel utilizing authentic CC-licensed GLTF models.
- * Completely eliminates all primitive boxes and toy-like geometry.
- * Features:
- * - Real GLB model with PBR materials
- * - Marine navigation lanterns (port red, starboard green, masthead white) with night bloom
- * - Realistic wake foam trailing behind, scaled by speedKnots
- * - Dynamic bow spray wave and propeller wash
- * - Sea-state pitch, roll and heave derived from waveHeight
- * - Floating Tactical Telemetry HUD with verified AIS data
- */
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class RealVesselErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.warn("[RealVessel3D] GLTF model failed to load, switching to procedural fallback:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
+// Procedural Fallback Component when GLTF is loading or fails
+function ProceduralShipFallback({
+  vesselType,
+  speedKnots,
+  waveHeight,
+}: {
+  vesselType: RealVesselType;
+  speedKnots: number;
+  waveHeight: number;
+}) {
+  if (vesselType === "tanker") {
+    return <TankerShipModel scale={0.88} speedKnots={speedKnots} waveHeight={waveHeight} />;
+  }
+  if (vesselType === "passenger") {
+    return <BulkCarrierModel scale={0.88} speedKnots={speedKnots} waveHeight={waveHeight} />;
+  }
+  return <ContainerShipModel scale={0.88} speedKnots={speedKnots} waveHeight={waveHeight} />;
+}
+
+// Inner GLTF loader component that triggers Suspense
+function InnerGLTFModel({
+  modelPath,
+  vesselType,
+}: {
+  modelPath: string;
+  vesselType: RealVesselType;
+}) {
+  const { scene } = useGLTF(modelPath);
+
+  // Clone scene so multiple instances don't collide, and configure PBR materials
+  const clonedScene = useMemo(() => {
+    if (!scene) return null;
+    const clone = scene.clone(true);
+    clone.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material = mesh.material.map((m) => {
+              if (m && typeof (m as THREE.Material).clone === "function") {
+                const mat = (m as THREE.MeshStandardMaterial).clone();
+                mat.roughness = Math.max(0.25, Math.min(0.7, mat.roughness ?? 0.4));
+                mat.metalness = Math.max(0.15, Math.min(0.65, mat.metalness ?? 0.3));
+                mat.envMapIntensity = 1.2;
+                return mat;
+              }
+              return m;
+            });
+          } else if (typeof (mesh.material as THREE.Material).clone === "function") {
+            const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
+            mat.roughness = Math.max(0.25, Math.min(0.7, mat.roughness ?? 0.4));
+            mat.metalness = Math.max(0.15, Math.min(0.65, mat.metalness ?? 0.3));
+            mat.envMapIntensity = 1.2;
+            mesh.material = mat;
+          }
+        }
+      }
+    });
+
+    // Auto-scale model into canonical coordinates (~8-14 units long)
+    const bbox = new THREE.Box3().setFromObject(clone);
+    const size = new THREE.Vector3();
+    bbox.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim > 0) {
+      const targetLength = vesselType === "cargo" ? 14 : vesselType === "passenger" ? 12 : 13;
+      const factor = targetLength / maxDim;
+      clone.scale.setScalar(factor);
+    }
+    return clone;
+  }, [scene, vesselType]);
+
+  if (!clonedScene) return null;
+  return <primitive object={clonedScene} />;
+}
+
 export function RealVessel3D({
   vesselType = "cargo",
   position = [0, 0, 0],
@@ -71,40 +169,6 @@ export function RealVessel3D({
         return "/models/container_ship.glb";
     }
   }, [vesselType]);
-
-  const { scene } = useGLTF(modelPath);
-
-  // Clone scene so multiple instances don't collide, and configure PBR materials
-  const clonedScene = useMemo(() => {
-    const clone = scene.clone(true);
-    clone.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        const mesh = child as THREE.Mesh;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-
-        if (mesh.material) {
-          const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
-          mat.roughness = Math.max(0.25, Math.min(0.7, mat.roughness ?? 0.4));
-          mat.metalness = Math.max(0.15, Math.min(0.65, mat.metalness ?? 0.3));
-          mat.envMapIntensity = 1.2;
-          mesh.material = mat;
-        }
-      }
-    });
-
-    // Auto-scale model into canonical coordinates (~8-12 units long)
-    const bbox = new THREE.Box3().setFromObject(clone);
-    const size = new THREE.Vector3();
-    bbox.getSize(size);
-    const maxDim = Math.max(size.x, size.y, size.z);
-    if (maxDim > 0) {
-      const targetLength = vesselType === "cargo" ? 14 : vesselType === "passenger" ? 12 : 13;
-      const factor = targetLength / maxDim;
-      clone.scale.setScalar(factor);
-    }
-    return clone;
-  }, [scene, vesselType]);
 
   // Default vessel telemetry if none provided
   const activeTelemetry = telemetry ?? {
@@ -144,17 +208,20 @@ export function RealVessel3D({
 
     if (wakeRef.current) {
       const mat = wakeRef.current.material as THREE.MeshBasicMaterial;
-      const speedFactor = Math.min(1.5, Math.max(0.2, speedKnots / 16.0));
-      mat.opacity = (0.35 + Math.sin(t * 3.0) * 0.08) * speedFactor;
+      if (mat) {
+        const speedFactor = Math.min(1.5, Math.max(0.2, speedKnots / 16.0));
+        mat.opacity = (0.35 + Math.sin(t * 3.0) * 0.08) * speedFactor;
+      }
     }
 
     if (bowWaveRef.current) {
       const bMat = bowWaveRef.current.material as THREE.MeshBasicMaterial;
-      bMat.opacity = 0.25 + Math.sin(t * 3.4) * 0.08;
+      if (bMat) {
+        bMat.opacity = 0.25 + Math.sin(t * 3.4) * 0.08;
+      }
     }
   });
 
-  // Calculate navigation lantern coordinates based on vessel bounding size
   const navOffsets = useMemo(() => {
     return {
       portX: -2.2,
@@ -165,36 +232,43 @@ export function RealVessel3D({
     };
   }, []);
 
+  const fallback = (
+    <ProceduralShipFallback
+      vesselType={vesselType}
+      speedKnots={speedKnots}
+      waveHeight={waveHeight}
+    />
+  );
+
   return (
     <group position={position} rotation={rotation} scale={scale}>
       <group ref={groupRef}>
-        {/* Real GLTF 3D Vessel Model */}
-        <primitive object={clonedScene} />
+        {/* GLTF 3D Model with safe Suspense and ErrorBoundary fallback */}
+        <RealVesselErrorBoundary fallback={fallback}>
+          <React.Suspense fallback={fallback}>
+            <InnerGLTFModel modelPath={modelPath} vesselType={vesselType} />
+          </React.Suspense>
+        </RealVesselErrorBoundary>
 
         {/* --- NAVIGATION LIGHTS (NIGHT VISIBILITY & BLOOM) --- */}
-        {/* Starboard Green */}
         <mesh position={[navOffsets.stbdX, navOffsets.bridgeY, navOffsets.sternZ + 1]}>
           <sphereGeometry args={[0.08, 12, 12]} />
           <meshBasicMaterial color="#10b981" />
         </mesh>
-        {/* Port Red */}
         <mesh position={[navOffsets.portX, navOffsets.bridgeY, navOffsets.sternZ + 1]}>
           <sphereGeometry args={[0.08, 12, 12]} />
           <meshBasicMaterial color="#ef4444" />
         </mesh>
-        {/* Forward Masthead White */}
         <mesh position={[0, navOffsets.bridgeY + 0.8, navOffsets.bowZ - 1]}>
           <sphereGeometry args={[0.09, 12, 12]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
-        {/* Main Masthead White */}
         <mesh position={[0, navOffsets.bridgeY + 1.6, navOffsets.sternZ + 1]}>
           <sphereGeometry args={[0.1, 12, 12]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
 
         {/* --- REALISTIC HYDRODYNAMIC WAKE TRAIL & BOW FOAM --- */}
-        {/* Stern Propeller Wash & Foam Trail */}
         <mesh ref={wakeRef} position={[0, -0.15, -12]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[4.5, 14.0]} />
           <meshBasicMaterial
@@ -206,7 +280,6 @@ export function RealVessel3D({
           />
         </mesh>
 
-        {/* Bow Wave Foam Displacement */}
         <mesh ref={bowWaveRef} position={[0, -0.05, 7.2]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[1.4, 3.2, 24, 1, 0, Math.PI]} />
           <meshBasicMaterial
@@ -223,7 +296,6 @@ export function RealVessel3D({
         {showHud && (
           <Html position={[3.6, 2.6, 1.8]} center zIndexRange={[100, 0]}>
             <div className="w-80 rounded-2xl border border-amber-500/40 bg-[#171513]/90 p-4 shadow-2xl backdrop-blur-xl text-xs text-[#f2ece3] pointer-events-auto font-sans">
-              {/* Header */}
               <div className="flex items-center justify-between border-b border-[#2d2926] pb-2.5 mb-2.5">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2.5 w-2.5">
@@ -239,7 +311,6 @@ export function RealVessel3D({
                 </span>
               </div>
 
-              {/* Specs */}
               <div className="space-y-1.5 text-[11px]">
                 <div className="flex justify-between">
                   <span className="text-[#9a9187]">Vessel Type:</span>
@@ -269,7 +340,6 @@ export function RealVessel3D({
                 </div>
               </div>
 
-              {/* Status Footer */}
               <div className="mt-3 pt-2 border-t border-[#2d2926] flex items-center justify-between text-[10px]">
                 <span className="text-emerald-400 font-medium flex items-center gap-1.5">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>

@@ -30,37 +30,42 @@ export function GerstnerOceanSurface({
   }, []);
 
   useFrame(({ clock }) => {
-    if (!meshRef.current) return;
-    const t = clock.getElapsedTime() * 1.2;
-    const geo = meshRef.current.geometry as THREE.PlaneGeometry;
-    const pos = geo.getAttribute("position") as THREE.BufferAttribute;
+    try {
+      if (!meshRef.current) return;
+      const geo = meshRef.current.geometry as THREE.PlaneGeometry;
+      if (!geo) return;
+      const pos = geo.getAttribute("position") as THREE.BufferAttribute;
+      if (!pos || !pos.array) return;
 
-    const count = pos.count;
-    const ampScale = Math.min(2.0, Math.max(0.3, effectiveWaveHeight * 0.25));
+      const t = clock.getElapsedTime() * 1.2;
+      const count = pos.count;
+      const ampScale = Math.min(2.0, Math.max(0.3, effectiveWaveHeight * 0.25));
 
-    for (let i = 0; i < count; i++) {
-      const x0 = pos.getX(i);
-      const y0 = pos.getY(i);
+      for (let i = 0; i < count; i++) {
+        const x0 = pos.getX(i);
+        const y0 = pos.getY(i);
 
-      let displacementZ = 0;
+        let displacementZ = 0;
 
-      // Superposition of 4 Trochoidal Gerstner Wave harmonics
-      for (let w = 0; w < waves.length; w++) {
-        const wave = waves[w]!;
-        const k = (2 * Math.PI) / wave.length;
-        const c = Math.sqrt(9.8 / k);
-        const f = k * (wave.dir.x * x0 + wave.dir.y * y0) - c * t;
-        const a = (wave.steepness / k) * ampScale;
+        // Superposition of 4 Trochoidal Gerstner Wave harmonics
+        for (let w = 0; w < waves.length; w++) {
+          const wave = waves[w]!;
+          const k = (2 * Math.PI) / wave.length;
+          const c = Math.sqrt(9.8 / k);
+          const f = k * (wave.dir.x * x0 + wave.dir.y * y0) - c * t;
+          const a = (wave.steepness / k) * ampScale;
 
-        // Vertical Trochoidal displacement
-        displacementZ += Math.sin(f) * a;
+          displacementZ += Math.sin(f) * a;
+        }
+
+        pos.setZ(i, displacementZ);
       }
 
-      pos.setZ(i, displacementZ);
+      pos.needsUpdate = true;
+      geo.computeVertexNormals();
+    } catch {
+      // Guard against WebGL context disposal
     }
-
-    pos.needsUpdate = true;
-    geo.computeVertexNormals();
   });
 
   return (

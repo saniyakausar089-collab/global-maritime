@@ -30,6 +30,7 @@ export const Route = createFileRoute("/")({
 export function LandingPage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const [mounted, setMounted] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [currentScene, setCurrentScene] = useState<number>(0);
   const [simulateStorm, setSimulateStorm] = useState(false);
@@ -41,6 +42,8 @@ export function LandingPage() {
   const animFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
+    setMounted(true);
+
     // Detect mobile or low-memory device
     if (
       typeof window !== "undefined" &&
@@ -106,14 +109,25 @@ export function LandingPage() {
     <div ref={containerRef} className="relative bg-[#020814] text-white">
       {/* Fixed 3D WebGL Three.js Canvas */}
       <div className="fixed inset-0 h-screen w-screen overflow-hidden">
-        <LandingCanvas
-          scrollProgress={scrollProgress}
-          activeScene={currentScene}
-          simulateStorm={simulateStorm}
-          lowPowerMode={lowPowerMode}
-          onSelectVessel={setSelectedVessel}
-          selectedVesselId={selectedVessel?.id}
-        />
+        {mounted ? (
+          <LandingCanvas
+            scrollProgress={scrollProgress}
+            activeScene={currentScene}
+            simulateStorm={simulateStorm}
+            lowPowerMode={lowPowerMode}
+            onSelectVessel={setSelectedVessel}
+            selectedVesselId={selectedVessel?.id}
+          />
+        ) : (
+          <div className="absolute inset-0 bg-[#020814] flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3 text-cyan-400">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+              <span className="text-xs font-mono tracking-widest uppercase text-slate-400">
+                Initializing 3D Geospatial Engine...
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Fixed Interactive Overlay Glass UI */}

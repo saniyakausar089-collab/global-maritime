@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from "react";
+import React, { Component, useRef, useMemo, type ErrorInfo, type ReactNode } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
@@ -14,7 +14,7 @@ import { MeteorologicalWeather } from "./MeteorologicalWeather";
 import { ShipCourseVectors, type TrackedVessel } from "./ShipCourseVectors";
 
 interface LandingCanvasProps {
-  scrollProgress: number; // 0.0 to 1.0 from GSAP ScrollTrigger
+  scrollProgress: number; // 0.0 to 1.0 from lerp loop
   activeScene: number; // 0 to 9
   simulateStorm: boolean;
   lowPowerMode: boolean;
@@ -24,6 +24,36 @@ interface LandingCanvasProps {
   selectedVesselId?: string | null;
 }
 
+interface CanvasErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface CanvasErrorBoundaryState {
+  hasError: boolean;
+}
+
+class CanvasErrorBoundary extends Component<CanvasErrorBoundaryProps, CanvasErrorBoundaryState> {
+  constructor(props: CanvasErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("[LandingCanvas] WebGL 3D Scene Error caught:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+    return this.props.children;
+  }
+}
+
 /**
  * Continuous Zoom Camera Rig:
  * Zoom continuously from whole globe -> region -> sea lane -> ONE specific dot ->
@@ -31,7 +61,6 @@ interface LandingCanvasProps {
  */
 function ZoomCameraRig({
   scrollProgress,
-  activeScene,
 }: {
   scrollProgress: number;
   activeScene: number;
@@ -43,33 +72,32 @@ function ZoomCameraRig({
     const t = clock.getElapsedTime();
     const p = Math.max(0, Math.min(1, scrollProgress));
 
-    let targetCamPos = new THREE.Vector3(0, 8, 30);
-    let targetLookAt = new THREE.Vector3(0, 0, 0);
+    const targetCamPos = new THREE.Vector3(0, 8, 30);
+    const targetLookAt = new THREE.Vector3(0, 0, 0);
 
-    if (p < 0.10) {
+    if (p < 0.1) {
       // Scene 01: Whole Globe (0.00 - 0.10)
-      const tScene = p / 0.10;
+      const tScene = p / 0.1;
       targetCamPos.lerpVectors(new THREE.Vector3(0, 8, 30), new THREE.Vector3(0, 6.8, 25), tScene);
       targetLookAt.set(0, 0, 0);
-    } else if (p < 0.20) {
+    } else if (p < 0.2) {
       // Scene 02: Zoom to European/North Sea Region (0.10 - 0.20)
-      const tScene = (p - 0.10) / 0.10;
+      const tScene = (p - 0.1) / 0.1;
       targetCamPos.lerpVectors(new THREE.Vector3(0, 6.8, 25), new THREE.Vector3(2.2, 8.8, 16.0), tScene);
       targetLookAt.lerpVectors(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.8, 4.5, 4.0), tScene);
-    } else if (p < 0.30) {
+    } else if (p < 0.3) {
       // Scene 03: Zoom to Sea Lane / Rotterdam Approach (0.20 - 0.30)
-      const tScene = (p - 0.20) / 0.10;
+      const tScene = (p - 0.2) / 0.1;
       targetCamPos.lerpVectors(new THREE.Vector3(2.2, 8.8, 16.0), new THREE.Vector3(1.6, 9.2, 10.5), tScene);
       targetLookAt.lerpVectors(new THREE.Vector3(0.8, 4.5, 4.0), new THREE.Vector3(0.45, 7.87, 6.15), tScene);
-    } else if (p < 0.40) {
+    } else if (p < 0.4) {
       // Scene 04: Anchorage & Thinning Dots around the ONE Hero Vessel (0.30 - 0.40)
-      const tScene = (p - 0.30) / 0.10;
+      const tScene = (p - 0.3) / 0.1;
       targetCamPos.lerpVectors(new THREE.Vector3(1.6, 9.2, 10.5), new THREE.Vector3(1.0, 8.5, 7.8), tScene);
       targetLookAt.set(0.45, 7.87, 6.15);
-    } else if (p < 0.50) {
+    } else if (p < 0.5) {
       // Scene 05: Cinematic Reveal - Dot resolves into Photoreal 3D Ship & Ocean (0.40 - 0.50)
-      const tScene = (p - 0.40) / 0.10;
-      // Rack focus & orbit transition around the ship
+      const tScene = (p - 0.4) / 0.1;
       const orbitAngle = tScene * Math.PI * 0.4 + t * 0.08;
       const camDist = 6.2 - tScene * 1.4;
       targetCamPos.set(
@@ -78,29 +106,29 @@ function ZoomCameraRig({
         Math.cos(orbitAngle) * camDist + 1.5
       );
       targetLookAt.set(0, 0.9, 0);
-    } else if (p < 0.60) {
+    } else if (p < 0.6) {
       // Scene 06: Cargo Ship (Container) - Slow Orbit
-      const orbitAngle = (p - 0.50) * Math.PI * 1.5 + t * 0.12;
+      const orbitAngle = (p - 0.5) * Math.PI * 1.5 + t * 0.12;
       targetCamPos.set(Math.sin(orbitAngle) * 5.4, 2.0, Math.cos(orbitAngle) * 5.4);
       targetLookAt.set(0, 1.0, 0);
-    } else if (p < 0.70) {
+    } else if (p < 0.7) {
       // Scene 07: Passenger Ship (Cruise / Ferry) - Slow Tracking Shot
-      const orbitAngle = (p - 0.60) * Math.PI * 1.5 + t * 0.12;
+      const orbitAngle = (p - 0.6) * Math.PI * 1.5 + t * 0.12;
       targetCamPos.set(Math.sin(orbitAngle) * 5.8, 2.4, Math.cos(orbitAngle) * 5.8);
       targetLookAt.set(0, 1.2, 0);
-    } else if (p < 0.80) {
+    } else if (p < 0.8) {
       // Scene 08: Tanker - Midships Low Angle
-      const orbitAngle = (p - 0.70) * Math.PI * 1.5 + t * 0.1;
+      const orbitAngle = (p - 0.7) * Math.PI * 1.5 + t * 0.1;
       targetCamPos.set(Math.sin(orbitAngle) * 5.5, 1.8, Math.cos(orbitAngle) * 5.5);
       targetLookAt.set(0, 0.8, 0);
-    } else if (p < 0.90) {
+    } else if (p < 0.9) {
       // Scene 09: Meteorological Weather Risk - Cinematic Elevation Shot
-      const tScene = (p - 0.80) / 0.10;
+      const tScene = (p - 0.8) / 0.1;
       targetCamPos.lerpVectors(new THREE.Vector3(4.8, 3.2, 6.2), new THREE.Vector3(5.5, 4.6, 8.5), tScene);
       targetLookAt.lerpVectors(new THREE.Vector3(0, 1.0, 0), new THREE.Vector3(1.2, 0.4, -0.5), tScene);
     } else {
       // Scene 10: History & Validation - Overview Angle
-      const tScene = (p - 0.90) / 0.10;
+      const tScene = (p - 0.9) / 0.1;
       targetCamPos.lerpVectors(new THREE.Vector3(5.5, 4.6, 8.5), new THREE.Vector3(3.8, 3.2, 7.2), tScene);
       targetLookAt.set(0, 0.8, 0);
     }
@@ -122,24 +150,15 @@ export function LandingCanvas({
   onSelectVessel,
   selectedVesselId,
 }: LandingCanvasProps) {
-  // Globe is visible in Scenes 01 to 04 (0.00 to 0.42)
+  // Globe is visible in Scenes 01 to 04 (0.00 to 0.45)
   const isGlobeVisible = scrollProgress < 0.45;
-  // Geofence polygons visible in Scenes 03, 04 (0.20 to 0.45)
+  // Geofence polygons visible in Scenes 03, 04 (0.18 to 0.45)
   const isGeofenceVisible = scrollProgress >= 0.18 && scrollProgress < 0.45;
 
-  // Ocean surface & 3D real ships visible in Scenes 05 to 10 (0.40 to 1.0)
+  // Ocean surface & 3D real ships visible in Scenes 05 to 10 (0.38 to 1.0)
   const isOceanScene = scrollProgress >= 0.38;
 
-  // Ocean surface opacity fades in smoothly during the Scene 05 reveal (0.38 - 0.46)
-  const oceanFade = Math.min(1.0, Math.max(0.0, (scrollProgress - 0.38) / 0.08));
-
-  // Determine current vessel type based on active scene:
-  // Scene 05 (hero reveal) -> cargo
-  // Scene 06 (cargo scene) -> cargo
-  // Scene 07 (passenger scene) -> passenger
-  // Scene 08 (tanker scene) -> tanker
-  // Scene 09 (weather) -> cargo
-  // Scene 10 (history) -> cargo
+  // Determine current vessel type based on active scene
   const currentVesselType: RealVesselType = useMemo(() => {
     if (activeScene === 6) return "passenger";
     if (activeScene === 7) return "tanker";
@@ -151,98 +170,105 @@ export function LandingCanvas({
 
   return (
     <div className="absolute inset-0 h-full w-full pointer-events-auto">
-      <Canvas
-        gl={{
-          antialias: true,
-          toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.15,
-          powerPreference: "high-performance",
-        }}
-        dpr={lowPowerMode ? 1 : [1, 2]}
-      >
-        <ZoomCameraRig scrollProgress={scrollProgress} activeScene={activeScene} />
+      <CanvasErrorBoundary>
+        <Canvas
+          gl={{
+            antialias: true,
+            toneMapping: THREE.ACESFilmicToneMapping,
+            toneMappingExposure: 1.15,
+            powerPreference: "high-performance",
+          }}
+          dpr={lowPowerMode ? 1 : [1, 2]}
+        >
+          <ZoomCameraRig scrollProgress={scrollProgress} activeScene={activeScene} />
 
-        {/* Ambient & Directional Sun/Moon Lighting */}
-        <ambientLight intensity={0.4} color="#0c1726" />
-        <directionalLight position={[25, 30, 20]} intensity={1.9} color="#fff8e7" castShadow />
-        <directionalLight position={[-20, 15, -20]} intensity={0.5} color="#e8a33d" />
+          {/* Ambient & Directional Sun/Moon Lighting */}
+          <ambientLight intensity={0.4} color="#0c1726" />
+          <directionalLight position={[25, 30, 20]} intensity={1.9} color="#fff8e7" castShadow />
+          <directionalLight position={[-20, 15, -20]} intensity={0.5} color="#e8a33d" />
 
-        {/* --- SCENES 01 to 04: GLOBE & TINY INSTANCED VESSELS --- */}
-        {isGlobeVisible && (
-          <group>
-            {/* Dark Earth with NASA Black Marble & specular oceans */}
-            <GlobeMesh radius={10} rotationSpeed={0.0006} />
+          {/* Top-Level Suspense Boundary preventing unhandled suspension */}
+          <React.Suspense fallback={null}>
+            {/* --- SCENES 01 to 04: GLOBE & TINY INSTANCED VESSELS --- */}
+            {isGlobeVisible && (
+              <group>
+                {/* Dark Earth with NASA Black Marble & specular oceans */}
+                <GlobeMesh radius={10} rotationSpeed={0.0006} />
 
-            {/* Glowing Trade Corridors */}
-            <TradeRoutes globeRadius={10} />
+                {/* Glowing Trade Corridors */}
+                <TradeRoutes globeRadius={10} />
 
-            {/* Tiny Points of Light (1-2px, amber/coral/mint) */}
-            <InstancedVessels
-              globeRadius={10}
-              lowPowerMode={lowPowerMode}
-              zoomProgress={Math.max(0, (scrollProgress - 0.2) / 0.22)}
-            />
+                {/* Tiny Points of Light (1-2px, amber/coral/mint) */}
+                <InstancedVessels
+                  globeRadius={10}
+                  lowPowerMode={lowPowerMode}
+                  zoomProgress={Math.max(0, (scrollProgress - 0.2) / 0.22)}
+                />
 
-            {/* Geofence Polygons on Water in Rotterdam Approach */}
-            {isGeofenceVisible && (
-              <GeofencePolygons
-                globeRadius={10}
-                activePortId="rotterdam"
-                opacity={Math.min(1, (scrollProgress - 0.18) * 8)}
-              />
-            )}
-          </group>
-        )}
-
-        {/* --- SCENES 05 to 10: GERSTNER OCEAN SURFACE & REAL 3D SHIP REVEAL --- */}
-        {isOceanScene && (
-          <group>
-            {/* True Trochoidal Gerstner Wave Ocean */}
-            <GerstnerOceanSurface
-              waveHeight={waveHeightMeters}
-              simulateStorm={simulateStorm}
-            />
-
-            {/* Real GLTF 3D Vessel with PBR materials, wake foam, and navigation lights */}
-            <RealVessel3D
-              vesselType={currentVesselType}
-              position={[0, 0, 0]}
-              waveHeight={waveHeightMeters}
-              showHud={activeScene >= 4 && activeScene <= 7}
-              speedKnots={currentVesselType === "cargo" ? 17.6 : currentVesselType === "passenger" ? 21.0 : 13.8}
-            />
-
-            {/* Scene 05: Course vectors, COG, fading historical tracks, and dead-reckoning projected paths */}
-            {activeScene === 4 && (
-              <ShipCourseVectors
-                activeScene={activeScene}
-                onSelectVessel={onSelectVessel}
-                selectedVesselId={selectedVesselId}
-              />
+                {/* Geofence Polygons on Water in Rotterdam Approach */}
+                {isGeofenceVisible && (
+                  <GeofencePolygons
+                    globeRadius={10}
+                    activePortId="rotterdam"
+                    opacity={Math.min(1, (scrollProgress - 0.18) * 8)}
+                  />
+                )}
+              </group>
             )}
 
-            {/* Scene 09: Meteorological Weather Visualization */}
-            {isWeatherLayerActive && (
-              <MeteorologicalWeather
-                windSpeedKnots={windSpeedKnots}
-                waveHeightMeters={waveHeightMeters}
-                simulateStorm={simulateStorm}
-              />
-            )}
-          </group>
-        )}
+            {/* --- SCENES 05 to 10: GERSTNER OCEAN SURFACE & REAL 3D SHIP REVEAL --- */}
+            {isOceanScene && (
+              <group>
+                {/* True Trochoidal Gerstner Wave Ocean */}
+                <GerstnerOceanSurface
+                  waveHeight={waveHeightMeters}
+                  simulateStorm={simulateStorm}
+                />
 
-        {/* Filmic ACES Post-Processing & Bloom */}
-        <EffectComposer multisampling={lowPowerMode ? 0 : 4}>
-          <Bloom
-            intensity={0.6}
-            luminanceThreshold={0.4}
-            luminanceSmoothing={0.85}
-            mipmapBlur
-          />
-          <Vignette eskil={false} offset={0.12} darkness={0.88} />
-        </EffectComposer>
-      </Canvas>
+                {/* Real GLTF 3D Vessel with PBR materials, wake foam, and navigation lights */}
+                <RealVessel3D
+                  vesselType={currentVesselType}
+                  position={[0, 0, 0]}
+                  waveHeight={waveHeightMeters}
+                  showHud={activeScene >= 4 && activeScene <= 7}
+                  speedKnots={currentVesselType === "cargo" ? 17.6 : currentVesselType === "passenger" ? 21.0 : 13.8}
+                />
+
+                {/* Scene 05: Course vectors, COG, fading historical tracks, and dead-reckoning projected paths */}
+                {activeScene === 4 && (
+                  <ShipCourseVectors
+                    activeScene={activeScene}
+                    onSelectVessel={onSelectVessel}
+                    selectedVesselId={selectedVesselId}
+                  />
+                )}
+
+                {/* Scene 09: Meteorological Weather Visualization */}
+                {isWeatherLayerActive && (
+                  <MeteorologicalWeather
+                    windSpeedKnots={windSpeedKnots}
+                    waveHeightMeters={waveHeightMeters}
+                    simulateStorm={simulateStorm}
+                  />
+                )}
+              </group>
+            )}
+          </React.Suspense>
+
+          {/* Filmic ACES Post-Processing & Bloom (disabled in low-power mode for stability) */}
+          {!lowPowerMode && (
+            <EffectComposer multisampling={4}>
+              <Bloom
+                intensity={0.5}
+                luminanceThreshold={0.4}
+                luminanceSmoothing={0.85}
+                mipmapBlur
+              />
+              <Vignette eskil={false} offset={0.12} darkness={0.88} />
+            </EffectComposer>
+          )}
+        </Canvas>
+      </CanvasErrorBoundary>
     </div>
   );
 }

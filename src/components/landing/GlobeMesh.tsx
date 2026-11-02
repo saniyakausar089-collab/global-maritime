@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { Component, useMemo, useRef, type ErrorInfo, type ReactNode } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
@@ -9,7 +9,72 @@ interface GlobeMeshProps {
   isAngledView?: boolean;
 }
 
-export function GlobeMesh({ radius = 10, rotationSpeed = 0.001, isAngledView = false }: GlobeMeshProps) {
+interface ErrorBoundaryProps {
+  fallback: ReactNode;
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class GlobeErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.warn("[GlobeMesh] Texture/Asset error, using fallback procedural globe:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
+function GlobeFallback({ radius = 10, rotationSpeed = 0.001 }: GlobeMeshProps) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (ref.current) {
+      ref.current.rotation.y += delta * rotationSpeed;
+    }
+  });
+
+  return (
+    <group ref={ref}>
+      <mesh receiveShadow castShadow>
+        <sphereGeometry args={[radius, 64, 64]} />
+        <meshStandardMaterial
+          color="#061830"
+          roughness={0.65}
+          metalness={0.4}
+          emissive="#00e5ff"
+          emissiveIntensity={0.08}
+        />
+      </mesh>
+      {/* Specular ocean layer */}
+      <mesh>
+        <sphereGeometry args={[radius + 0.02, 48, 48]} />
+        <meshBasicMaterial
+          color="#00e5ff"
+          wireframe
+          transparent
+          opacity={0.07}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+function InnerGlobeMesh({ radius = 10, rotationSpeed = 0.001, isAngledView = false }: GlobeMeshProps) {
   const globeGroupRef = useRef<THREE.Group>(null);
   const atmosphereRef = useRef<THREE.Mesh>(null);
 
@@ -20,21 +85,27 @@ export function GlobeMesh({ radius = 10, rotationSpeed = 0.001, isAngledView = f
     "/textures/earth-specular.png",
   ]) as THREE.Texture[];
 
-  const nightTexture = textures[0]!;
-  const bumpTexture = textures[1]!;
-  const specularTexture = textures[2]!;
+  const nightTexture = textures?.[0];
+  const bumpTexture = textures?.[1];
+  const specularTexture = textures?.[2];
 
   useMemo(() => {
-    nightTexture.wrapS = THREE.RepeatWrapping;
-    nightTexture.wrapT = THREE.ClampToEdgeWrapping;
-    nightTexture.colorSpace = THREE.SRGBColorSpace;
-    nightTexture.generateMipmaps = true;
+    if (nightTexture) {
+      nightTexture.wrapS = THREE.RepeatWrapping;
+      nightTexture.wrapT = THREE.ClampToEdgeWrapping;
+      nightTexture.colorSpace = THREE.SRGBColorSpace;
+      nightTexture.generateMipmaps = true;
+    }
 
-    bumpTexture.wrapS = THREE.RepeatWrapping;
-    bumpTexture.wrapT = THREE.ClampToEdgeWrapping;
+    if (bumpTexture) {
+      bumpTexture.wrapS = THREE.RepeatWrapping;
+      bumpTexture.wrapT = THREE.ClampToEdgeWrapping;
+    }
 
-    specularTexture.wrapS = THREE.RepeatWrapping;
-    specularTexture.wrapT = THREE.ClampToEdgeWrapping;
+    if (specularTexture) {
+      specularTexture.wrapS = THREE.RepeatWrapping;
+      specularTexture.wrapT = THREE.ClampToEdgeWrapping;
+    }
   }, [nightTexture, bumpTexture, specularTexture]);
 
   // Thin teal Fresnel atmosphere shader
@@ -82,14 +153,14 @@ export function GlobeMesh({ radius = 10, rotationSpeed = 0.001, isAngledView = f
       <mesh receiveShadow castShadow>
         <sphereGeometry args={[radius, 72, 72]} />
         <meshStandardMaterial
-          map={nightTexture}
-          bumpMap={bumpTexture}
+          map={nightTexture || null}
+          bumpMap={bumpTexture || null}
           bumpScale={0.12}
-          roughnessMap={specularTexture}
+          roughnessMap={specularTexture || null}
           roughness={0.65}
           metalness={0.4}
           color="#061830"
-          emissiveMap={nightTexture}
+          emissiveMap={nightTexture || null}
           emissive="#ffffff"
           emissiveIntensity={0.6}
         />
@@ -99,7 +170,7 @@ export function GlobeMesh({ radius = 10, rotationSpeed = 0.001, isAngledView = f
       <mesh>
         <sphereGeometry args={[radius + 0.015, 64, 64]} />
         <meshPhysicalMaterial
-          roughnessMap={specularTexture}
+          roughnessMap={specularTexture || null}
           roughness={0.18}
           metalness={0.8}
           clearcoat={0.9}
@@ -117,5 +188,16 @@ export function GlobeMesh({ radius = 10, rotationSpeed = 0.001, isAngledView = f
         <primitive object={atmosphereMaterial} attach="material" />
       </mesh>
     </group>
+  );
+}
+
+export function GlobeMesh(props: GlobeMeshProps) {
+  const fallback = <GlobeFallback radius={props.radius} rotationSpeed={props.rotationSpeed} />;
+  return (
+    <GlobeErrorBoundary fallback={fallback}>
+      <React.Suspense fallback={fallback}>
+        <InnerGlobeMesh {...props} />
+      </React.Suspense>
+    </GlobeErrorBoundary>
   );
 }
