@@ -9,7 +9,7 @@ import {
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { Anchor, Moon, Sun, RefreshCw, Radio, CheckCircle2, AlertCircle, WifiOff } from "lucide-react";
+import { Anchor, Moon, Sun, RefreshCw, Radio, CheckCircle2, AlertCircle, WifiOff, History } from "lucide-react";
 import { useFeedHealth, type FeedHealthState } from "@/lib/feedHealth";
 import { useLiveTime, formatUtcClock, formatTimeAgo } from "@/lib/time";
 
@@ -221,7 +221,7 @@ function Header() {
     <header className="sticky top-0 z-[1000] h-[64px] border-b border-sidebar-border bg-sidebar shadow-md">
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-3 px-4">
         {/* Left: Brand Identity */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-5">
           <Link to="/" className="flex items-center gap-2.5 font-bold tracking-tight text-sidebar-foreground group">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-accent border border-sidebar-primary/30 text-sidebar-primary transition-transform group-hover:scale-105 shadow-inner">
               <Anchor className="h-5 w-5" />
@@ -243,6 +243,10 @@ function Header() {
           <nav className="hidden md:flex items-center gap-1">
             <Link to="/" className={navLinkClass} activeProps={activeNavProps} activeOptions={{ exact: true }}>
               Overview
+            </Link>
+            <Link to="/timemachine" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps}>
+              <History className="h-3.5 w-3.5 text-cyan-400" />
+              Time Machine
             </Link>
             <Link to="/compare" className={navLinkClass} activeProps={activeNavProps}>
               Compare

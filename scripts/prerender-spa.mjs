@@ -64,7 +64,7 @@ async function prerender() {
     },
   };
 
-  const routes = ['/', '/overview', '/compare', '/methodology'];
+  const routes = ['/', '/overview', '/compare', '/methodology', '/timemachine'];
 
   for (const route of routes) {
     console.log(`Prerendering ${route}...`);
