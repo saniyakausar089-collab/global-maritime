@@ -72,6 +72,14 @@ export default defineConfig({
     optimizeDeps: {
       exclude: ["maplibre-gl"],
     },
+    build: {
+      rolldownOptions: {
+        external: ["hls.js"],
+      },
+      rollupOptions: {
+        external: ["hls.js"],
+      },
+    },
     server: {
       proxy: {
         "/api": {

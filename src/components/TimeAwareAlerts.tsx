@@ -228,3 +228,4 @@ export function TimeAwareAlerts({ onSeekTime }: TimeAwareAlertsProps) {
     </div>
   );
 }
+

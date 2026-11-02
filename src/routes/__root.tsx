@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
@@ -119,14 +120,20 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const routerState = useRouterState();
+  const isLanding = routerState.location.pathname === "/";
 
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-background">
-        <Header />
-        <main className="mx-auto max-w-7xl px-4 py-5">
+        {!isLanding && <Header />}
+        {isLanding ? (
           <Outlet />
-        </main>
+        ) : (
+          <main className="mx-auto max-w-7xl px-4 py-5">
+            <Outlet />
+          </main>
+        )}
       </div>
     </QueryClientProvider>
   );
@@ -241,7 +248,7 @@ function Header() {
 
           {/* Navigation Items */}
           <nav className="hidden md:flex items-center gap-1">
-            <Link to="/" className={navLinkClass} activeProps={activeNavProps} activeOptions={{ exact: true }}>
+            <Link to="/overview" className={navLinkClass} activeProps={activeNavProps}>
               Overview
             </Link>
             <Link to="/timemachine" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps}>
