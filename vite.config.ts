@@ -14,6 +14,14 @@ function relayServerPlugin(): Plugin {
     name: "maritime-relay-server",
     apply: "serve", // dev mode only
     configureServer(server) {
+      if (
+        process.env.npm_lifecycle_event === "dev" ||
+        process.env.npm_lifecycle_event === "dev:client" ||
+        process.env.SKIP_RELAY_SPAWN === "1"
+      ) {
+        console.log("[Relay Dev Plugin] Relay server managed externally (dev:server).");
+        return;
+      }
       let started = false;
       const startRelay = () => {
         if (started || relayProcess) return;
