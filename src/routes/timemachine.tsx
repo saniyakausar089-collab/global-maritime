@@ -16,6 +16,10 @@ import {
   Radio,
   FileText,
   SlidersHorizontal,
+  Gauge,
+  ShieldAlert,
+  Network,
+  BookOpen,
 } from "lucide-react";
 import {
   getHistoricalArchive,
@@ -31,22 +35,35 @@ import { TimelineController } from "@/components/TimelineController";
 import { HistoricalVesselPanel } from "@/components/HistoricalVesselPanel";
 import { HistoricalPortAnalytics } from "@/components/HistoricalPortAnalytics";
 import { HistoricalEventsLog } from "@/components/HistoricalEventsLog";
+import { VesselBlackBox } from "@/components/VesselBlackBox";
+import { AnomalyDetective } from "@/components/AnomalyDetective";
+import { WhatIfSimulator } from "@/components/WhatIfSimulator";
+import { RippleEffectNetwork } from "@/components/RippleEffectNetwork";
+import { InvestigationWorkspace } from "@/components/InvestigationWorkspace";
 import { Card } from "@/components/ui-bits";
+
+type TimeMachineMode =
+  | "REPLAY"
+  | "BLACK_BOX"
+  | "ANOMALIES"
+  | "WHAT_IF"
+  | "RIPPLE"
+  | "INVESTIGATIONS";
 
 export const Route = createFileRoute("/timemachine")({
   head: () => ({
     meta: [
-      { title: "Time Machine — Historical Maritime Intelligence" },
+      { title: "Time Machine — Flagship Maritime Intelligence Platform" },
       {
         name: "description",
         content:
-          "Interactive 24-hour historical maritime replay, vessel trajectory playback, and port analytics.",
+          "Temporal maritime intelligence: 24h vessel replay, black box telemetry, rule-based anomaly detection, what-if queue simulation, and ripple corridor network.",
       },
       { property: "og:title", content: "Time Machine — Global Maritime Port Monitor" },
       {
         property: "og:description",
         content:
-          "Interactive 24-hour historical maritime replay, vessel trajectory playback, and port analytics.",
+          "Temporal maritime intelligence: 24h vessel replay, black box telemetry, rule-based anomaly detection, what-if queue simulation, and ripple corridor network.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -57,6 +74,9 @@ export const Route = createFileRoute("/timemachine")({
 
 export function TimeMachinePage() {
   const archive = useMemo(() => getHistoricalArchive(), []);
+
+  // Active Workspace Mode
+  const [activeMode, setActiveMode] = useState<TimeMachineMode>("REPLAY");
 
   // Timeline Replay State
   const [currentTime, setCurrentTime] = useState<number>(ARCHIVE_START_TIME);
@@ -71,6 +91,12 @@ export function TimeMachinePage() {
   const [selectedVessel, setSelectedVessel] = useState<HistoricalVessel | null>(null);
   const [selectedPort, setSelectedPort] = useState<PortArea | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<HistoricalEvent | null>(null);
+
+  // Ripple state passed from What-If simulation
+  const [rippleInitialData, setRippleInitialData] = useState<{ portId: string; delayHours: number }>({
+    portId: "rotterdam",
+    delayHours: 12,
+  });
 
   // Map Layer Toggles
   const [showTrails, setShowTrails] = useState<boolean>(true);
@@ -161,6 +187,19 @@ export function TimeMachinePage() {
     setIsPlaying(false);
   };
 
+  const handleSeekAnomaly = useCallback((timestamp: number, vesselId: number) => {
+    setCurrentTime(timestamp);
+    setIsPlaying(false);
+    const v = archive.vessels.find((item) => item.id === vesselId);
+    if (v) setSelectedVessel(v);
+    setActiveMode("REPLAY");
+  }, [archive.vessels]);
+
+  const handleNavigateToRipple = useCallback((portId: string, delayHours: number) => {
+    setRippleInitialData({ portId, delayHours });
+    setActiveMode("RIPPLE");
+  }, []);
+
   const eventTickTimestamps = useMemo(() => {
     return archive.events.map((e) => ({
       timestamp: e.timestamp,
@@ -177,10 +216,10 @@ export function TimeMachinePage() {
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <History className="h-4 w-4" />
             </span>
-            TIME MACHINE — Historical Maritime Intelligence
+            TIME MACHINE — Maritime Temporal Intelligence Engine
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Explore 24-hour historical vessel movements, step through recorded port approach entries, and analyze traffic shift deltas.
+            Historical reconstruction, vessel black box telemetry, rule-based anomaly detection, and operational scenario simulation.
           </p>
         </div>
 
@@ -194,80 +233,208 @@ export function TimeMachinePage() {
         </div>
       </div>
 
-      {/* 2. Honest Data Architecture Disclaimer (Section 12) */}
-      <div className="flex items-start gap-3 rounded-lg border border-border bg-card p-3.5 text-xs text-muted-foreground shadow-xs">
+      {/* 2. Honest Data Architecture Notice */}
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-card p-3.5 text-xs text-muted-foreground shadow-2xs">
         <Info className="h-4 w-4 text-cyan-500 shrink-0 mt-0.5" />
         <div className="space-y-1">
           <p className="font-medium text-foreground">
             Data Architecture & Verification Notice (Deterministic Sample Archive)
           </p>
           <p className="leading-relaxed">
-            The live upstream AIS relay maintains a rolling 15-minute in-memory window. To guarantee repeatable, scientifically verifiable historical analysis without missing data jumps, TIME MACHINE renders a <strong>deterministic 24-hour recorded maritime dataset</strong> featuring 30 verified commercial vessels, genuine waypoint trajectories, and formal port boundary entry/departure events.
+            The upstream live AIS stream maintains a 15-minute rolling buffer. TIME MACHINE computes over a <strong>verified 24-hour deterministic recorded archive</strong> featuring 30 commercial vessels, continuous kinematic tracks with &gt;35m gap detection, rule-based anomaly scoring, and scenario queue simulations.
           </p>
         </div>
       </div>
 
-      {/* 3. Centerpiece Replay Map */}
-      <HistoricalMapView
-        currentTime={currentTime}
-        vessels={visibleVessels}
-        events={archive.events}
-        selectedVessel={selectedVessel}
-        selectedPort={selectedPort}
-        onSelectVessel={setSelectedVessel}
-        onSelectPort={setSelectedPort}
-        onSelectEvent={handleSelectEvent}
-        showTrails={showTrails}
-        showRoutes={showRoutes}
-        showEvents={showEvents}
-      />
-
-      {/* 4. Interactive Timeline & Playback Controller */}
-      <TimelineController
-        currentTime={currentTime}
-        startTime={timeWindow.start}
-        endTime={timeWindow.end}
-        isPlaying={isPlaying}
-        playbackSpeed={playbackSpeed}
-        onTimeChange={(val) => {
-          setIsPlaying(false);
-          setCurrentTime(val);
-        }}
-        onTogglePlay={handleTogglePlay}
-        onReset={handleReset}
-        onSpeedChange={setPlaybackSpeed}
-        onStepBackward={handleStepBackward}
-        onStepForward={handleStepForward}
-        onSelectTimeWindow={handleSelectTimeWindow}
-        eventTimestamps={eventTickTimestamps}
-      />
-
-      {/* 5. Two-Column Intelligence Section: Port Analytics & Chronological Event Log */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Historical Port Analytics */}
-        <HistoricalPortAnalytics
-          selectedPort={selectedPort}
-          currentTime={currentTime}
-        />
-
-        {/* Historical Events Log */}
-        <HistoricalEventsLog
-          events={archive.events}
-          selectedEvent={selectedEvent}
-          onSelectEvent={handleSelectEvent}
-        />
+      {/* 3. Flagship Command Center Navigation Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-border text-xs scrollbar-none">
+        {[
+          { id: "REPLAY", label: "Replay & Map Twin", icon: History },
+          { id: "BLACK_BOX", label: "Vessel Black Box", icon: Gauge },
+          {
+            id: "ANOMALIES",
+            label: "Anomaly Detective",
+            icon: ShieldAlert,
+            badge: archive.anomalies.length,
+          },
+          { id: "WHAT_IF", label: "What-If Simulator", icon: SlidersHorizontal },
+          { id: "RIPPLE", label: "Ripple Network", icon: Network },
+          { id: "INVESTIGATIONS", label: "Incident Dossiers", icon: BookOpen },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeMode === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveMode(tab.id as TimeMachineMode)}
+              className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 font-medium transition-colors ${
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                  : "bg-card text-muted-foreground hover:bg-muted hover:text-foreground border border-border"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              <span>{tab.label}</span>
+              {tab.badge !== undefined && (
+                <span
+                  className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] ${
+                    isActive
+                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      : "bg-rose-500/20 text-rose-400 font-bold"
+                  }`}
+                >
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      {/* 6. Historical Vessel Detail Side Panel */}
-      <HistoricalVesselPanel
-        vessel={selectedVessel}
-        currentTime={currentTime}
-        onClose={() => setSelectedVessel(null)}
-        onFocusMap={() => {
-          // Re-trigger selection to recenter
-          if (selectedVessel) setSelectedVessel({ ...selectedVessel });
-        }}
-      />
+      {/* 4. Active Workspace Views */}
+      {activeMode === "REPLAY" && (
+        <div className="space-y-6">
+          {/* Map Layer Controls Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-3">
+              <span className="text-muted-foreground font-mono text-[11px]">Layer Toggles:</span>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showTrails}
+                  onChange={(e) => setShowTrails(e.target.checked)}
+                  className="rounded-sm accent-primary cursor-pointer"
+                />
+                <span className="text-foreground">Wake Trails</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showRoutes}
+                  onChange={(e) => setShowRoutes(e.target.checked)}
+                  className="rounded-sm accent-primary cursor-pointer"
+                />
+                <span className="text-foreground">Full Waypoints</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showEvents}
+                  onChange={(e) => setShowEvents(e.target.checked)}
+                  className="rounded-sm accent-primary cursor-pointer"
+                />
+                <span className="text-foreground">Event Markers</span>
+              </label>
+            </div>
+
+            {selectedPort && (
+              <button
+                onClick={() => setSelectedPort(null)}
+                className="text-xs text-primary hover:underline font-mono"
+              >
+                Clear Port Filter ({selectedPort.name})
+              </button>
+            )}
+          </div>
+
+          {/* Centerpiece Replay Map */}
+          <HistoricalMapView
+            currentTime={currentTime}
+            vessels={visibleVessels}
+            events={archive.events}
+            selectedVessel={selectedVessel}
+            selectedPort={selectedPort}
+            onSelectVessel={setSelectedVessel}
+            onSelectPort={setSelectedPort}
+            onSelectEvent={handleSelectEvent}
+            showTrails={showTrails}
+            showRoutes={showRoutes}
+            showEvents={showEvents}
+          />
+
+          {/* Interactive Timeline & Playback Controller */}
+          <TimelineController
+            currentTime={currentTime}
+            startTime={timeWindow.start}
+            endTime={timeWindow.end}
+            isPlaying={isPlaying}
+            playbackSpeed={playbackSpeed}
+            onTimeChange={(val) => {
+              setIsPlaying(false);
+              setCurrentTime(val);
+            }}
+            onTogglePlay={handleTogglePlay}
+            onReset={handleReset}
+            onSpeedChange={setPlaybackSpeed}
+            onStepBackward={handleStepBackward}
+            onStepForward={handleStepForward}
+            onSelectTimeWindow={handleSelectTimeWindow}
+            eventTimestamps={eventTickTimestamps}
+          />
+
+          {/* Intelligence Section: Port Analytics & Chronological Event Log */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <HistoricalPortAnalytics
+              selectedPort={selectedPort}
+              currentTime={currentTime}
+            />
+
+            <HistoricalEventsLog
+              events={archive.events}
+              selectedEvent={selectedEvent}
+              onSelectEvent={handleSelectEvent}
+            />
+          </div>
+
+          {/* Historical Vessel Detail Side Panel */}
+          <HistoricalVesselPanel
+            vessel={selectedVessel}
+            currentTime={currentTime}
+            onClose={() => setSelectedVessel(null)}
+            onFocusMap={() => {
+              if (selectedVessel) setSelectedVessel({ ...selectedVessel });
+            }}
+          />
+        </div>
+      )}
+
+      {activeMode === "BLACK_BOX" && (
+        <VesselBlackBox
+          vessels={archive.vessels}
+          selectedVessel={selectedVessel}
+          currentTime={currentTime}
+          onSelectVessel={setSelectedVessel}
+          onSeekTime={(t) => {
+            setCurrentTime(t);
+            setActiveMode("REPLAY");
+          }}
+        />
+      )}
+
+      {activeMode === "ANOMALIES" && (
+        <AnomalyDetective
+          anomalies={archive.anomalies}
+          currentTime={currentTime}
+          onSeekAnomaly={handleSeekAnomaly}
+        />
+      )}
+
+      {activeMode === "WHAT_IF" && (
+        <WhatIfSimulator
+          onNavigateToRipple={handleNavigateToRipple}
+        />
+      )}
+
+      {activeMode === "RIPPLE" && (
+        <RippleEffectNetwork
+          initialPortId={rippleInitialData.portId}
+          initialDelayHours={rippleInitialData.delayHours}
+        />
+      )}
+
+      {activeMode === "INVESTIGATIONS" && (
+        <InvestigationWorkspace />
+      )}
     </div>
   );
 }
