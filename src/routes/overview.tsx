@@ -338,6 +338,13 @@ function Overview() {
           <MapView
             center={mapCenter}
             zoom={mapZoom}
+            ports={ports}
+            vessels={live.vesselsList}
+            status={live.status}
+            statusMessage={live.statusMessage}
+            isSimulated={live.isSimulated}
+            selectedVessel={live.selectedVessel}
+            onSelectVessel={live.setSelectedVessel}
             onSelectPort={handleSelectPort}
           />
         </div>

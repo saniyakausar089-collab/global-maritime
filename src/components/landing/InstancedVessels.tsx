@@ -131,7 +131,7 @@ export function InstancedVessels({
   return (
     <points ref={pointsRef} geometry={geometry}>
       <pointsMaterial
-        size={0.065}
+        size={0.22}
         vertexColors
         transparent
         opacity={opacity}

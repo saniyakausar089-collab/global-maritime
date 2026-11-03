@@ -425,6 +425,7 @@ export function MapView({
           if (!showAnchored && s.stationary) continue;
 
           const p = deadReckonPos(s, now); // [lon, lat]
+          if (isNaN(p[0]) || isNaN(p[1])) continue;
           const iconKey = getShipIconKey(s);
           features.push({
             type: "Feature" as const,

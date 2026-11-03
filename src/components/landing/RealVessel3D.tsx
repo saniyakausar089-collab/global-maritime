@@ -135,6 +135,13 @@ function InnerGLTFModel({
       const targetLength = vesselType === "cargo" ? 14 : vesselType === "passenger" ? 12 : 13;
       const factor = targetLength / maxDim;
       clone.scale.setScalar(factor);
+
+      // Re-center around origin so model is always directly in front of the camera
+      const center = new THREE.Vector3();
+      bbox.getCenter(center);
+      clone.position.x = -center.x * factor;
+      clone.position.z = -center.z * factor;
+      clone.position.y = -bbox.min.y * factor - 0.2;
     }
     return clone;
   }, [scene, vesselType]);
@@ -176,15 +183,15 @@ export function RealVessel3D({
       vesselType === "cargo"
         ? "CMA CGM ANTOINE DE SAINT EXUPERY"
         : vesselType === "passenger"
-        ? "ROTTERDAM EXPLORER"
-        : "DHT SCANDINAVIA",
+          ? "ROTTERDAM EXPLORER"
+          : "DHT SCANDINAVIA",
     mmsi: vesselType === "cargo" ? 228339700 : vesselType === "passenger" ? 244010882 : 538007204,
     typeLabel:
       vesselType === "cargo"
         ? "Ultra Large Container Vessel (20,600 TEU)"
         : vesselType === "passenger"
-        ? "Passenger Cruise Liner (2,650 Pax)"
-        : "Very Large Crude Carrier (318,000 DWT)",
+          ? "Passenger Cruise Liner (2,650 Pax)"
+          : "Very Large Crude Carrier (318,000 DWT)",
     speed: speedKnots,
     heading: 72,
     destination: "NLRTM (Rotterdam Maasvlakte)",

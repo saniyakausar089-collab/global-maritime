@@ -482,9 +482,11 @@ export function useLiveVessels() {
   }, []);
 
   return {
+    vessels: vesselsList,
     vesselsMap,
     vesselsList,
     filteredVessels,
+    searchQuery: search,
     totalCount: vesselsMap.size,
     filteredCount: filteredVessels.length,
     status,
