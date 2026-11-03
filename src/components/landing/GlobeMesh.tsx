@@ -53,21 +53,21 @@ function GlobeFallback({ radius = 10, rotationSpeed = 0.0008 }: GlobeMeshProps) 
       <mesh receiveShadow castShadow>
         <sphereGeometry args={[radius, 64, 64]} />
         <meshStandardMaterial
-          color="#08182E"
-          roughness={0.4}
-          metalness={0.6}
+          color="#1e3a5f"
+          roughness={0.3}
+          metalness={0.2}
           emissive="#22D3EE"
-          emissiveIntensity={0.12}
+          emissiveIntensity={0.15}
         />
       </mesh>
       {/* Specular ocean layer */}
       <mesh>
-        <sphereGeometry args={[radius + 0.03, 48, 48]} />
+        <sphereGeometry args={[radius + 0.04, 48, 48]} />
         <meshBasicMaterial
-          color="#22D3EE"
+          color="#38bdf8"
           wireframe
           transparent
-          opacity={0.06}
+          opacity={0.12}
         />
       </mesh>
     </group>
@@ -78,33 +78,41 @@ function InnerGlobeMesh({ radius = 10, rotationSpeed = 0.0008, isAngledView = fa
   const globeGroupRef = useRef<THREE.Group>(null);
   const cloudsRef = useRef<THREE.Mesh>(null);
 
-  // Load NASA Black Marble textures
+  // Load NASA High-Resolution Photorealistic Earth Textures
   const textures = useTexture([
+    "/textures/earth-day.jpg",
+    "/textures/earth-clouds.png",
+    "/textures/earth-normal.jpg",
+    "/textures/earth-specular-map.jpg",
     "/textures/earth-night.jpg",
-    "/textures/earth-topology.png",
-    "/textures/earth-specular.png",
   ]) as THREE.Texture[];
 
-  const nightTexture = textures?.[0];
-  const bumpTexture = textures?.[1];
-  const specularTexture = textures?.[2];
+  const [dayTexture, cloudsTexture, normalTexture, specularTexture, nightTexture] = textures ?? [];
 
   useMemo(() => {
-    if (nightTexture) {
-      nightTexture.wrapS = THREE.RepeatWrapping;
-      nightTexture.wrapT = THREE.ClampToEdgeWrapping;
-      nightTexture.colorSpace = THREE.SRGBColorSpace;
-      nightTexture.generateMipmaps = true;
+    if (dayTexture) {
+      dayTexture.wrapS = THREE.RepeatWrapping;
+      dayTexture.wrapT = THREE.ClampToEdgeWrapping;
+      dayTexture.colorSpace = THREE.SRGBColorSpace;
+      dayTexture.generateMipmaps = true;
     }
-    if (bumpTexture) {
-      bumpTexture.wrapS = THREE.RepeatWrapping;
-      bumpTexture.wrapT = THREE.ClampToEdgeWrapping;
+    if (cloudsTexture) {
+      cloudsTexture.wrapS = THREE.RepeatWrapping;
+      cloudsTexture.wrapT = THREE.ClampToEdgeWrapping;
+    }
+    if (normalTexture) {
+      normalTexture.wrapS = THREE.RepeatWrapping;
+      normalTexture.wrapT = THREE.ClampToEdgeWrapping;
     }
     if (specularTexture) {
       specularTexture.wrapS = THREE.RepeatWrapping;
       specularTexture.wrapT = THREE.ClampToEdgeWrapping;
     }
-  }, [nightTexture, bumpTexture, specularTexture]);
+    if (nightTexture) {
+      nightTexture.wrapS = THREE.RepeatWrapping;
+      nightTexture.wrapT = THREE.ClampToEdgeWrapping;
+    }
+  }, [dayTexture, cloudsTexture, normalTexture, specularTexture, nightTexture]);
 
   // Deep Blue & Electric Cyan Atmospheric Rim Shader
   const atmosphereMaterial = useMemo(() => {
@@ -123,14 +131,14 @@ function InnerGlobeMesh({ radius = 10, rotationSpeed = 0.0008, isAngledView = fa
         varying vec3 vPosition;
         void main() {
           vec3 viewDir = normalize(-vPosition);
-          float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.2);
+          float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.8);
           
-          // Gradient from deep ocean blue (inner) to electric cyan (outer rim)
-          vec3 deepGlow = vec3(0.04, 0.22, 0.55);
-          vec3 rimCyan = vec3(0.13, 0.83, 0.93);
-          vec3 finalColor = mix(deepGlow, rimCyan, fresnel * 0.9);
+          // Realistic Rayleigh atmospheric gradient: Deep blue -> Sky cyan -> High halo
+          vec3 deepGlow = vec3(0.08, 0.32, 0.85);
+          vec3 rimCyan = vec3(0.25, 0.82, 0.98);
+          vec3 finalColor = mix(deepGlow, rimCyan, fresnel);
           
-          float alpha = smoothstep(0.05, 0.85, fresnel) * 0.92;
+          float alpha = smoothstep(0.02, 0.85, fresnel) * 0.95;
           gl_FragColor = vec4(finalColor, alpha);
         }
       `,
@@ -146,60 +154,61 @@ function InnerGlobeMesh({ radius = 10, rotationSpeed = 0.0008, isAngledView = fa
       globeGroupRef.current.rotation.y += delta * rotationSpeed;
     }
     if (cloudsRef.current) {
-      // Orbit clouds slightly faster than earth rotation
-      cloudsRef.current.rotation.y += delta * (rotationSpeed * 1.35);
+      // Orbit clouds slightly faster than earth rotation for dynamic atmospheric movement
+      cloudsRef.current.rotation.y += delta * (rotationSpeed * 1.4);
     }
   });
 
   return (
     <group ref={globeGroupRef}>
-      {/* 1. Main Earth Sphere (NASA Black Marble Night Earth with City Lights) */}
+      {/* 1. Main Earth Sphere (NASA Blue Marble with Real Continents & Specular Oceans) */}
       <mesh receiveShadow castShadow>
-        <sphereGeometry args={[radius, 80, 80]} />
+        <sphereGeometry args={[radius, 96, 96]} />
         <meshStandardMaterial
-          map={nightTexture || null}
-          bumpMap={bumpTexture || null}
-          bumpScale={0.10}
+          map={dayTexture || null}
+          normalMap={normalTexture || null}
+          normalScale={new THREE.Vector2(0.85, 0.85)}
           roughnessMap={specularTexture || null}
-          roughness={0.45}
-          metalness={0.5}
-          color="#08152B"
+          roughness={0.42}
+          metalness={0.12}
           emissiveMap={nightTexture || null}
           emissive="#FFDF9E"
-          emissiveIntensity={0.7}
+          emissiveIntensity={0.35}
         />
       </mesh>
 
-      {/* 2. Specular Ocean Water Rim Layer */}
+      {/* 2. Specular Ocean Water Sheen Layer */}
       <mesh>
-        <sphereGeometry args={[radius + 0.018, 64, 64]} />
+        <sphereGeometry args={[radius + 0.025, 80, 80]} />
         <meshPhysicalMaterial
           roughnessMap={specularTexture || null}
-          roughness={0.12}
-          metalness={0.85}
-          clearcoat={0.95}
-          clearcoatRoughness={0.08}
-          color="#041224"
+          roughness={0.08}
+          metalness={0.2}
+          clearcoat={1.0}
+          clearcoatRoughness={0.05}
+          color="#0a2a50"
           transparent
-          opacity={0.35}
+          opacity={0.28}
           blending={THREE.NormalBlending}
         />
       </mesh>
 
-      {/* 3. Subtle Cloud Layer for Earth-from-Space realism */}
+      {/* 3. Volumetric Photorealistic Cloud Layer with Realistic Shadows & Drift */}
       <mesh ref={cloudsRef}>
-        <sphereGeometry args={[radius + 0.05, 64, 64]} />
+        <sphereGeometry args={[radius + 0.09, 80, 80]} />
         <meshStandardMaterial
-          color="#7AB4DE"
+          map={cloudsTexture || null}
+          color="#FFFFFF"
           transparent
-          opacity={0.07}
-          roughness={0.9}
-          blending={THREE.AdditiveBlending}
+          opacity={0.48}
+          roughness={0.95}
+          metalness={0.05}
+          blending={THREE.NormalBlending}
           depthWrite={false}
         />
       </mesh>
 
-      {/* 4. Luminous Atmospheric Rim Shell */}
+      {/* 4. Atmospheric Haze Shell (Rayleigh scattering) */}
       <mesh scale={[1.045, 1.045, 1.045]}>
         <sphereGeometry args={[radius, 64, 64]} />
         <primitive object={atmosphereMaterial} attach="material" />

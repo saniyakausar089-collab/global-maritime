@@ -1,11 +1,11 @@
 import React, { Component, useRef, useMemo, type ErrorInfo, type ReactNode } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { useGLTF, Html } from "@react-three/drei";
+import { Html } from "@react-three/drei";
 
 import { ContainerShipModel } from "./models/ContainerShipModel";
 import { TankerShipModel } from "./models/TankerShipModel";
-import { BulkCarrierModel } from "./models/BulkCarrierModel";
+import { PassengerCruiseShipModel } from "./models/PassengerCruiseShipModel";
 
 export type RealVesselType = "cargo" | "passenger" | "tanker";
 
@@ -53,7 +53,7 @@ class RealVesselErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundar
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.warn("[RealVessel3D] GLTF model fallback engaged:", error, errorInfo);
+    console.warn("[RealVessel3D] Error caught, using visual fallback:", error, errorInfo);
   }
 
   render() {
@@ -64,8 +64,11 @@ class RealVesselErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundar
   }
 }
 
-// Procedural Fallback Component when GLTF is loading or fails
-function ProceduralShipFallback({
+/**
+ * Reliable High-Fidelity Ship Model Dispatcher.
+ * Guarantees zero blank scenes, zero 404 texture crashes, and immediate synchronous render.
+ */
+function ShipGeometryDispatcher({
   vesselType,
   speedKnots,
   waveHeight,
@@ -74,80 +77,31 @@ function ProceduralShipFallback({
   speedKnots: number;
   waveHeight: number;
 }) {
-  if (vesselType === "tanker") {
-    return <TankerShipModel scale={0.88} speedKnots={speedKnots} waveHeight={waveHeight} />;
-  }
   if (vesselType === "passenger") {
-    return <BulkCarrierModel scale={0.88} speedKnots={speedKnots} waveHeight={waveHeight} />;
+    return (
+      <PassengerCruiseShipModel
+        scale={0.92}
+        speedKnots={speedKnots}
+        waveHeight={waveHeight}
+      />
+    );
   }
-  return <ContainerShipModel scale={0.88} speedKnots={speedKnots} waveHeight={waveHeight} />;
-}
-
-// Inner GLTF loader component that triggers Suspense
-function InnerGLTFModel({
-  modelPath,
-  vesselType,
-}: {
-  modelPath: string;
-  vesselType: RealVesselType;
-}) {
-  const { scene } = useGLTF(modelPath);
-
-  // Clone scene so multiple instances don't collide, and configure PBR materials
-  const clonedScene = useMemo(() => {
-    if (!scene) return null;
-    const clone = scene.clone(true);
-    clone.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        const mesh = child as THREE.Mesh;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-
-        if (mesh.material) {
-          if (Array.isArray(mesh.material)) {
-            mesh.material = mesh.material.map((m) => {
-              if (m && typeof (m as THREE.Material).clone === "function") {
-                const mat = (m as THREE.MeshStandardMaterial).clone();
-                mat.roughness = Math.max(0.25, Math.min(0.7, mat.roughness ?? 0.4));
-                mat.metalness = Math.max(0.15, Math.min(0.65, mat.metalness ?? 0.3));
-                mat.envMapIntensity = 1.2;
-                return mat;
-              }
-              return m;
-            });
-          } else if (typeof (mesh.material as THREE.Material).clone === "function") {
-            const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
-            mat.roughness = Math.max(0.25, Math.min(0.7, mat.roughness ?? 0.4));
-            mat.metalness = Math.max(0.15, Math.min(0.65, mat.metalness ?? 0.3));
-            mat.envMapIntensity = 1.2;
-            mesh.material = mat;
-          }
-        }
-      }
-    });
-
-    // Auto-scale model into canonical coordinates (~12-14 units long)
-    const bbox = new THREE.Box3().setFromObject(clone);
-    const size = new THREE.Vector3();
-    bbox.getSize(size);
-    const maxDim = Math.max(size.x, size.y, size.z);
-    if (maxDim > 0) {
-      const targetLength = vesselType === "cargo" ? 14 : vesselType === "passenger" ? 12 : 13;
-      const factor = targetLength / maxDim;
-      clone.scale.setScalar(factor);
-
-      // Re-center around origin so model is always directly in front of the camera
-      const center = new THREE.Vector3();
-      bbox.getCenter(center);
-      clone.position.x = -center.x * factor;
-      clone.position.z = -center.z * factor;
-      clone.position.y = -bbox.min.y * factor - 0.2;
-    }
-    return clone;
-  }, [scene, vesselType]);
-
-  if (!clonedScene) return null;
-  return <primitive object={clonedScene} />;
+  if (vesselType === "tanker") {
+    return (
+      <TankerShipModel
+        scale={0.92}
+        speedKnots={speedKnots}
+        waveHeight={waveHeight}
+      />
+    );
+  }
+  return (
+    <ContainerShipModel
+      scale={0.92}
+      speedKnots={speedKnots}
+      waveHeight={waveHeight}
+    />
+  );
 }
 
 export function RealVessel3D({
@@ -163,19 +117,6 @@ export function RealVessel3D({
   const groupRef = useRef<THREE.Group>(null);
   const wakeRef = useRef<THREE.Mesh>(null);
   const bowWaveRef = useRef<THREE.Mesh>(null);
-
-  // Model file paths
-  const modelPath = useMemo(() => {
-    switch (vesselType) {
-      case "passenger":
-        return "/models/passenger_ship.glb";
-      case "tanker":
-        return "/models/tanker_ship.glb";
-      case "cargo":
-      default:
-        return "/models/container_ship.glb";
-    }
-  }, [vesselType]);
 
   // Default vessel telemetry if none provided
   const activeTelemetry = telemetry ?? {
@@ -229,18 +170,8 @@ export function RealVessel3D({
     }
   });
 
-  const navOffsets = useMemo(() => {
-    return {
-      portX: -2.2,
-      stbdX: 2.2,
-      sternZ: -6.5,
-      bowZ: 7.0,
-      bridgeY: 3.2,
-    };
-  }, []);
-
   const fallback = (
-    <ProceduralShipFallback
+    <ShipGeometryDispatcher
       vesselType={vesselType}
       speedKnots={speedKnots}
       waveHeight={waveHeight}
@@ -250,30 +181,14 @@ export function RealVessel3D({
   return (
     <group position={position} rotation={rotation} scale={scale}>
       <group ref={groupRef}>
-        {/* GLTF 3D Model with safe Suspense and ErrorBoundary fallback */}
+        {/* Safe ErrorBoundary wrapping the 3D ship */}
         <RealVesselErrorBoundary fallback={fallback}>
-          <React.Suspense fallback={fallback}>
-            <InnerGLTFModel modelPath={modelPath} vesselType={vesselType} />
-          </React.Suspense>
+          <ShipGeometryDispatcher
+            vesselType={vesselType}
+            speedKnots={speedKnots}
+            waveHeight={waveHeight}
+          />
         </RealVesselErrorBoundary>
-
-        {/* --- NAVIGATION LIGHTS (NIGHT VISIBILITY & BLOOM) --- */}
-        <mesh position={[navOffsets.stbdX, navOffsets.bridgeY, navOffsets.sternZ + 1]}>
-          <sphereGeometry args={[0.08, 12, 12]} />
-          <meshBasicMaterial color="#18D69B" />
-        </mesh>
-        <mesh position={[navOffsets.portX, navOffsets.bridgeY, navOffsets.sternZ + 1]}>
-          <sphereGeometry args={[0.08, 12, 12]} />
-          <meshBasicMaterial color="#FF5577" />
-        </mesh>
-        <mesh position={[0, navOffsets.bridgeY + 0.8, navOffsets.bowZ - 1]}>
-          <sphereGeometry args={[0.09, 12, 12]} />
-          <meshBasicMaterial color="#FFFFFF" />
-        </mesh>
-        <mesh position={[0, navOffsets.bridgeY + 1.6, navOffsets.sternZ + 1]}>
-          <sphereGeometry args={[0.1, 12, 12]} />
-          <meshBasicMaterial color="#FFFFFF" />
-        </mesh>
 
         {/* --- REALISTIC HYDRODYNAMIC WAKE TRAIL & BOW FOAM --- */}
         <mesh ref={wakeRef} position={[0, -0.05, -11]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -299,7 +214,7 @@ export function RealVessel3D({
           />
         </mesh>
 
-        {/* --- COMPACT HOLOGRAPHIC VESSEL CALLOUT (NON-BLOCKING) --- */}
+        {/* --- COMPACT HOLOGRAPHIC VESSEL CALLOUT --- */}
         {showHud && (
           <Html position={[2.6, 2.8, 0]} center zIndexRange={[50, 0]}>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-400/30 bg-[#080F20]/85 backdrop-blur-md shadow-xl text-xs text-white pointer-events-none whitespace-nowrap">

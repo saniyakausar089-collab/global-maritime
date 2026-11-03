@@ -1,10 +1,11 @@
-import React, { useRef, useMemo } from "react";
+import React, { useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
+import { Html } from "@react-three/drei";
 
 import { ContainerShipModel } from "./models/ContainerShipModel";
 import { TankerShipModel } from "./models/TankerShipModel";
-import { BulkCarrierModel } from "./models/BulkCarrierModel";
+import { PassengerCruiseShipModel } from "./models/PassengerCruiseShipModel";
 import { RealVessel3D, type RealVesselType } from "./RealVessel3D";
 
 interface MultiVesselCorridor3DProps {
@@ -12,57 +13,126 @@ interface MultiVesselCorridor3DProps {
   waveHeight?: number;
   simulateStorm?: boolean;
   showCorridorTraffic?: boolean;
+  showAllThreeVessels?: boolean;
 }
 
 /**
  * Multi-Vessel Commercial Shipping Corridor.
  * Arranges realistic commercial vessels across multiple depth planes:
- * - Foreground: Hero vessel (Container, Tanker, or Passenger)
- * - Mid-distance port: Panamax Bulk Carrier steaming parallel
- * - Mid-distance starboard: Loaded Crude Oil Tanker
- * - Horizon background: General Cargo and feeder container vessels with navigation lanterns
+ * - Scene 02: Multiple container ships, tankers, and feeders with bidirectional traffic separation
+ * - Scene 06: Cargo Ship, Passenger Ship, and Tanker Ship simultaneously in ONE FRAME with distinct silhouettes
+ * - Scenes 07-09: Focused individual deep-dives
  */
 export function MultiVesselCorridor3D({
   heroVesselType = "cargo",
   waveHeight = 1.8,
-  simulateStorm = false,
   showCorridorTraffic = true,
+  showAllThreeVessels = false,
 }: MultiVesselCorridor3DProps) {
-  const midPortRef = useRef<THREE.Group>(null);
-  const midStbdRef = useRef<THREE.Group>(null);
-  const bgFeederRef = useRef<THREE.Group>(null);
-  const bgCargoRef = useRef<THREE.Group>(null);
+  const cargoGroupRef = useRef<THREE.Group>(null);
+  const passengerGroupRef = useRef<THREE.Group>(null);
+  const tankerGroupRef = useRef<THREE.Group>(null);
+
+  const inboundVessel1Ref = useRef<THREE.Group>(null);
+  const inboundVessel2Ref = useRef<THREE.Group>(null);
+  const outboundVesselRef = useRef<THREE.Group>(null);
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
     const seaMotion = Math.min(2.0, Math.max(0.4, waveHeight * 0.4));
 
-    // Mid-distance Port Bulk Carrier: gentle surge and slow progress
-    if (midPortRef.current) {
-      midPortRef.current.position.y = Math.sin(t * 1.3 + 1.2) * (0.04 * seaMotion);
-      midPortRef.current.rotation.z = Math.sin(t * 1.1 + 0.5) * (0.015 * seaMotion);
-      midPortRef.current.rotation.x = Math.cos(t * 0.8 + 1.0) * (0.010 * seaMotion);
-    }
-
-    // Mid-distance Starboard Tanker
-    if (midStbdRef.current) {
-      midStbdRef.current.position.y = Math.sin(t * 1.2 + 2.5) * (0.035 * seaMotion);
-      midStbdRef.current.rotation.z = Math.sin(t * 0.9 + 2.0) * (0.012 * seaMotion);
-      midStbdRef.current.rotation.x = Math.cos(t * 0.7 + 0.3) * (0.008 * seaMotion);
-    }
-
-    // Background vessels: subtle pitch/heave
-    if (bgFeederRef.current) {
-      bgFeederRef.current.position.y = Math.sin(t * 1.4 + 3.0) * 0.03;
-    }
-    if (bgCargoRef.current) {
-      bgCargoRef.current.position.y = Math.sin(t * 1.1 + 4.2) * 0.03;
+    if (showAllThreeVessels) {
+      if (cargoGroupRef.current) {
+        cargoGroupRef.current.position.y = Math.sin(t * 1.3) * (0.04 * seaMotion);
+        cargoGroupRef.current.rotation.z = Math.sin(t * 1.0) * (0.012 * seaMotion);
+      }
+      if (passengerGroupRef.current) {
+        passengerGroupRef.current.position.y = Math.sin(t * 1.2 + 1.2) * (0.035 * seaMotion);
+        passengerGroupRef.current.rotation.z = Math.sin(t * 0.95 + 1.0) * (0.014 * seaMotion);
+      }
+      if (tankerGroupRef.current) {
+        tankerGroupRef.current.position.y = Math.sin(t * 1.1 + 2.4) * (0.03 * seaMotion);
+        tankerGroupRef.current.rotation.z = Math.sin(t * 0.85 + 2.0) * (0.01 * seaMotion);
+      }
+    } else {
+      // Scene 02 bidirectional traffic animation
+      if (inboundVessel1Ref.current) {
+        inboundVessel1Ref.current.position.y = Math.sin(t * 1.3 + 0.8) * 0.04;
+      }
+      if (inboundVessel2Ref.current) {
+        inboundVessel2Ref.current.position.y = Math.sin(t * 1.1 + 1.9) * 0.035;
+      }
+      if (outboundVesselRef.current) {
+        outboundVesselRef.current.position.y = Math.sin(t * 1.2 + 3.1) * 0.038;
+      }
     }
   });
 
+  if (showAllThreeVessels) {
+    return (
+      <group>
+        {/* 1. CENTER: Cargo Container Vessel */}
+        <group ref={cargoGroupRef} position={[0, 0, 0]}>
+          <ContainerShipModel scale={0.92} speedKnots={18.2} waveHeight={waveHeight} />
+          {/* Subtle cinematic spotlight */}
+          <pointLight color="#22D3EE" intensity={4} distance={12} position={[0, 6, 0]} />
+
+          {/* Glowing AIS Transponder Vector Line */}
+          <mesh position={[0, 0.15, 12]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[0.25, 14]} />
+            <meshBasicMaterial color="#38BDF8" transparent opacity={0.65} />
+          </mesh>
+
+          <Html position={[0, 4.2, 0]} center zIndexRange={[50, 0]}>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-cyan-400/50 bg-[#080F20]/90 backdrop-blur-md shadow-xl text-[10px] font-mono text-cyan-300 pointer-events-none whitespace-nowrap">
+              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
+              <span>CARGO VESSEL · 18,270 TEU CONTAINER CARRIER</span>
+            </div>
+          </Html>
+        </group>
+
+        {/* 2. PORT SIDE (LEFT): Luxury Passenger Cruise Ship */}
+        <group ref={passengerGroupRef} position={[-9.5, 0, -5.5]} rotation={[0, 0.04, 0]}>
+          <PassengerCruiseShipModel scale={0.88} speedKnots={21.4} waveHeight={waveHeight} />
+          <pointLight color="#A78BFA" intensity={3.5} distance={10} position={[0, 5, 0]} />
+
+          <mesh position={[0, 0.15, 12]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[0.25, 14]} />
+            <meshBasicMaterial color="#A78BFA" transparent opacity={0.65} />
+          </mesh>
+
+          <Html position={[0, 4.2, 0]} center zIndexRange={[50, 0]}>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-purple-400/50 bg-[#080F20]/90 backdrop-blur-md shadow-xl text-[10px] font-mono text-purple-300 pointer-events-none whitespace-nowrap">
+              <span className="h-2 w-2 rounded-full bg-purple-400 animate-ping" />
+              <span>PASSENGER SHIP · 5,400 PAX LUXURY CRUISE LINER</span>
+            </div>
+          </Html>
+        </group>
+
+        {/* 3. STARBOARD SIDE (RIGHT): Crude Oil Tanker */}
+        <group ref={tankerGroupRef} position={[9.8, 0, -5.8]} rotation={[0, -0.04, 0]}>
+          <TankerShipModel scale={0.88} speedKnots={13.6} waveHeight={waveHeight} />
+          <pointLight color="#FFB547" intensity={3.5} distance={10} position={[0, 5, 0]} />
+
+          <mesh position={[0, 0.15, 12]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[0.25, 14]} />
+            <meshBasicMaterial color="#FFB547" transparent opacity={0.65} />
+          </mesh>
+
+          <Html position={[0, 4.2, 0]} center zIndexRange={[50, 0]}>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-400/50 bg-[#080F20]/90 backdrop-blur-md shadow-xl text-[10px] font-mono text-amber-300 pointer-events-none whitespace-nowrap">
+              <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
+              <span>OIL TANKER · 318,000 DWT VLCC CRUDE CARRIER</span>
+            </div>
+          </Html>
+        </group>
+      </group>
+    );
+  }
+
   return (
     <group>
-      {/* 1. FOREGROUND: Hero Vessel (PBR Container / Tanker / Passenger) */}
+      {/* Hero Ship */}
       <RealVessel3D
         vesselType={heroVesselType}
         position={[0, 0, 0]}
@@ -71,40 +141,32 @@ export function MultiVesselCorridor3D({
         showHud={false}
       />
 
-      {/* 2. MID-DISTANCE PORT (X = -13, Z = -14): Panamax Bulk Carrier */}
+      {/* Multi-Vessel Fleet Traffic (Different sizes & directions) */}
       {showCorridorTraffic && (
-        <group ref={midPortRef} position={[-13.5, 0, -14]} rotation={[0, 0.08, 0]}>
-          <BulkCarrierModel scale={0.72} speedKnots={12.4} waveHeight={waveHeight} />
-        </group>
-      )}
+        <group>
+          {/* Inbound Container Ship (Parallel) */}
+          <group ref={inboundVessel1Ref} position={[-12.5, 0, -12.0]} rotation={[0, 0.05, 0]}>
+            <ContainerShipModel scale={0.65} speedKnots={16.2} waveHeight={waveHeight} />
+            {/* Glowing AIS Transponder Vector Line */}
+            <mesh position={[0, 0.2, 8]} rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[0.08, 12]} />
+              <meshBasicMaterial color="#22D3EE" transparent opacity={0.6} />
+            </mesh>
+          </group>
 
-      {/* 3. MID-DISTANCE STARBOARD (X = +15, Z = -18): Loaded Oil Tanker */}
-      {showCorridorTraffic && (
-        <group ref={midStbdRef} position={[15.0, 0, -18]} rotation={[0, -0.05, 0]}>
-          <TankerShipModel scale={0.75} speedKnots={13.2} waveHeight={waveHeight} />
-        </group>
-      )}
+          {/* Outbound Oil Tanker (Opposite Direction) */}
+          <group ref={outboundVesselRef} position={[13.5, 0, -16.0]} rotation={[0, Math.PI - 0.08, 0]}>
+            <TankerShipModel scale={0.72} speedKnots={14.1} waveHeight={waveHeight} />
+            <mesh position={[0, 0.2, 8]} rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[0.08, 14]} />
+              <meshBasicMaterial color="#FFB547" transparent opacity={0.6} />
+            </mesh>
+          </group>
 
-      {/* 4. BACKGROUND HORIZON (X = -20, Z = -38): Feeder Container Vessel */}
-      {showCorridorTraffic && (
-        <group ref={bgFeederRef} position={[-20.0, 0, -38]} rotation={[0, 0.12, 0]}>
-          <ContainerShipModel scale={0.42} speedKnots={16.0} waveHeight={waveHeight} />
-          {/* Masthead lantern for horizon visibility */}
-          <mesh position={[0, 1.8, 0]}>
-            <sphereGeometry args={[0.12, 8, 8]} />
-            <meshBasicMaterial color="#FFFFFF" />
-          </mesh>
-        </group>
-      )}
-
-      {/* 5. BACKGROUND HORIZON (X = +9, Z = -45): General Cargo Vessel */}
-      {showCorridorTraffic && (
-        <group ref={bgCargoRef} position={[9.0, 0, -45]} rotation={[0, -0.08, 0]}>
-          <BulkCarrierModel scale={0.38} speedKnots={11.5} waveHeight={waveHeight} />
-          <mesh position={[0, 1.5, 0]}>
-            <sphereGeometry args={[0.12, 8, 8]} />
-            <meshBasicMaterial color="#FFFFFF" />
-          </mesh>
+          {/* Background Feeder Container Ship */}
+          <group ref={inboundVessel2Ref} position={[-20.0, 0, -32.0]} rotation={[0, 0.12, 0]}>
+            <ContainerShipModel scale={0.42} speedKnots={15.0} waveHeight={waveHeight} />
+          </group>
         </group>
       )}
     </group>

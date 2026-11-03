@@ -42,9 +42,9 @@ export function TankerShipModel({
         roughness: 0.75,
       }),
       deck: new THREE.MeshStandardMaterial({
-        color: 0x242d38, // Non-skid weather deck
-        metalness: 0.4,
-        roughness: 0.6,
+        color: 0xa82820, // Characteristic maritime brick-red tanker weather deck
+        metalness: 0.35,
+        roughness: 0.55,
       }),
       manifoldPipe: new THREE.MeshStandardMaterial({
         color: 0xd97706, // Amber/yellow marine fuel & crude cargo piping

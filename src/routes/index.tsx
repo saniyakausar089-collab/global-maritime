@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import Lenis from "lenis";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -7,6 +8,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { LandingCanvas } from "@/components/landing/LandingCanvas";
 import { LandingStoryUI } from "@/components/landing/LandingStoryUI";
 import type { TrackedVessel } from "@/components/landing/ShipCourseVectors";
+import { portsQuery } from "@/lib/api";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -43,6 +45,8 @@ function LandingPage() {
   const [lowPowerMode, setLowPowerMode] = useState(false);
   const [selectedVessel, setSelectedVessel] = useState<TrackedVessel | null>(null);
 
+  const ports = useQuery(portsQuery());
+
   useEffect(() => {
     setMounted(true);
 
@@ -73,7 +77,7 @@ function LandingPage() {
     gsap.ticker.add(tickerCb);
     gsap.ticker.lagSmoothing(0);
 
-    // Setup GSAP ScrollTrigger for 8 continuous scenes
+    // Setup GSAP ScrollTrigger for 10 continuous scenes
     const ctx = gsap.context(() => {
       ScrollTrigger.create({
         trigger: containerRef.current,
@@ -84,8 +88,8 @@ function LandingPage() {
           const p = self.progress;
           setScrollProgress(p);
 
-          // Map 0.0 - 1.0 to scene indices 0 to 7
-          const sceneIdx = Math.min(7, Math.max(0, Math.floor(p * 8)));
+          // Map 0.0 - 1.0 to scene indices 0 to 9
+          const sceneIdx = Math.min(9, Math.max(0, Math.floor(p * 10)));
           setCurrentScene(sceneIdx);
         },
       });
@@ -102,7 +106,7 @@ function LandingPage() {
   const handleJumpToScene = (index: number) => {
     if (!lenisRef.current || !containerRef.current) return;
     const totalHeight = containerRef.current.scrollHeight - window.innerHeight;
-    const targetY = (index / 8) * totalHeight;
+    const targetY = (index / 10) * totalHeight;
     lenisRef.current.scrollTo(targetY, { duration: 1.4 });
   };
 
@@ -118,6 +122,7 @@ function LandingPage() {
             lowPowerMode={lowPowerMode}
             onSelectVessel={setSelectedVessel}
             selectedVesselId={selectedVessel?.id}
+            portsData={ports.data?.data}
           />
         ) : (
           <div className="absolute inset-0 bg-[#080F20] flex items-center justify-center">
@@ -141,9 +146,10 @@ function LandingPage() {
         onToggleLowPower={() => setLowPowerMode((prev) => !prev)}
         onJumpToScene={handleJumpToScene}
         selectedVessel={selectedVessel}
+        portsData={ports.data?.data}
       />
 
-      {/* 8 Discrete 120vh Scroll Sections */}
+      {/* 10 Discrete 120vh Scroll Sections */}
       <div className="relative z-10 pointer-events-none">
         <section id="scene-0" className="h-[120vh] w-full" />
         <section id="scene-1" className="h-[120vh] w-full" />
@@ -153,6 +159,8 @@ function LandingPage() {
         <section id="scene-5" className="h-[120vh] w-full" />
         <section id="scene-6" className="h-[120vh] w-full" />
         <section id="scene-7" className="h-[120vh] w-full" />
+        <section id="scene-8" className="h-[120vh] w-full" />
+        <section id="scene-9" className="h-[120vh] w-full" />
       </div>
     </div>
   );

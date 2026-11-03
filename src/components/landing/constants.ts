@@ -112,55 +112,77 @@ export function createArcPoints(
 }
 
 /**
- * 8-Scene Cinematic Narrative Definition
+ * 10-Scene Cinematic Narrative Definition matching exact sequence
  */
-export const SCENES_8 = [
+export const SCENES_10 = [
   {
     id: 0,
-    title: "Planetary Command",
+    title: "The Awakening of Earth",
     badge: "GLOBAL SURVEILLANCE",
-    subtitle: "High orbital monitoring of the commercial world fleet",
+    headline: "THE WORLD NEVER STOPS MOVING.",
+    subtitle: "Explore the intelligence connecting global maritime operations.",
   },
   {
     id: 1,
-    title: "Global Trade Corridors",
-    badge: "TRANSOCEANIC LANES",
-    subtitle: "Luminous great-circle routes connecting 6 mega-hubs",
+    title: "Global Shipping Network",
+    badge: "AIS LIVE TRACKING",
+    headline: "HIGH-DENSITY COMMERCIAL FAIRWAYS",
+    subtitle: "Multiple commercial vessels navigating synchronized great-circle trade corridors.",
   },
   {
     id: 2,
-    title: "The Living Ocean",
-    badge: "TRANSOCEANIC CORRIDOR",
-    subtitle: "Deep ocean bathymetry, swells, and great-circle transit routes",
+    title: "Weather Risk Intelligence",
+    badge: "METEOROLOGICAL INTELLIGENCE",
+    headline: "THE OCEAN IS UNPREDICTABLE. YOUR DECISIONS SHOULDN'T BE.",
+    subtitle: "Doppler cyclone tracking, isobaric wind vectors, and dynamic route safety divergence.",
   },
   {
     id: 3,
-    title: "Commercial Shipping Lanes",
-    badge: "HIGH-DENSITY FAIRWAYS",
-    subtitle: "Aerial view of commercial fleets navigating transit separation schemes",
+    title: "The Time Machine",
+    badge: "TEMPORAL VORTEX",
+    headline: "EXPLORE MARITIME CONDITIONS ACROSS TIME",
+    subtitle: "Navigate past, real-time, and predicted fleet congestion through 4D temporal forensics.",
   },
   {
     id: 4,
-    title: "Commercial Fleet",
-    badge: "ULCV & TANKER LOGISTICS",
-    subtitle: "Giant Triple-E container ships and supertankers underway at sea",
+    title: "Global Port Congestion",
+    badge: "BENCHMARKING",
+    headline: "STRATEGIC GATEWAY CONGESTION RANKINGS",
+    subtitle: "Live anchorage dwell analysis and queue density across the world's 6 prime maritime hubs.",
   },
   {
     id: 5,
-    title: "Kinematic Vector Tracking",
-    badge: "REAL-TIME AIS RADAR",
-    subtitle: "Heading vectors, SOG/COG telemetry, and collision avoidance safety envelopes",
+    title: "Three Types of Ships",
+    badge: "MERCHANT FLEET",
+    headline: "THE PILLARS OF GLOBAL SEABORNE COMMERCE",
+    subtitle: "Container carriers, passenger liners, and crude oil tankers operating simultaneously.",
   },
   {
     id: 6,
-    title: "Port Discovery & Quayside",
-    badge: "ILLUMINATED TERMINAL",
-    subtitle: "Spectacular illuminated container terminal with automated STS gantry cranes",
+    title: "Cargo Ship",
+    badge: "ULCV CONTAINER CARRIER",
+    headline: "GLOBAL SUPPLY CHAIN WORKHORSES",
+    subtitle: "Cargo vessels transport international goods and commodities across transoceanic supply chains.",
   },
   {
     id: 7,
-    title: "Port Congestion Intelligence",
-    badge: "ANCHORAGE ROADSTEADS",
-    subtitle: "Vessels waiting in roadsteads, dwell analysis, and global command center launch",
+    title: "Passenger Ship",
+    badge: "LUXURY CRUISE LINER",
+    headline: "CONNECTING SEAS AND DESTINATIONS",
+    subtitle: "Passenger vessels transport people across oceans, connecting ports through cruise and ferry services.",
+  },
+  {
+    id: 8,
+    title: "Tanker Ship",
+    badge: "VLCC CRUDE & CHEMICAL TANKER",
+    headline: "CRITICAL ENERGY INFRASTRUCTURE",
+    subtitle: "Tankers transport liquid cargo such as crude oil and petroleum products vital for global energy security.",
+  },
+  {
+    id: 9,
+    title: "Global Maritime Hero",
+    badge: "OPERATIONAL LAUNCH",
+    headline: "GLOBAL MARITIME",
+    subtitle: "One ocean. Connected intelligence.",
   },
 ];
