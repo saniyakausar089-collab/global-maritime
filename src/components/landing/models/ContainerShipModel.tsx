@@ -132,19 +132,16 @@ export function ContainerShipModel({
           <boxGeometry args={[3.0, 0.65, 18.2]} />
         </mesh>
 
-        {/* Flared Bow Section */}
-        <mesh
-          position={[0, 0.35, 9.8]}
-          rotation={[Math.PI / 2, 0, Math.PI / 4]}
-          scale={[1.25, 0.8, 1.0]}
-          castShadow
-          material={materials.hullTop}
-        >
-          <coneGeometry args={[1.9, 3.8, 4]} />
+        {/* Hydrodynamic Streamlined Bow */}
+        <mesh position={[0, 0.45, 9.2]} castShadow material={materials.hullTop}>
+          <boxGeometry args={[3.2, 1.15, 2.4]} />
+        </mesh>
+        <mesh position={[0, 0.45, 10.4]} rotation={[0, Math.PI, 0]} castShadow material={materials.hullTop}>
+          <cylinderGeometry args={[0.3, 1.6, 1.15, 16, 1, false, 0, Math.PI]} />
         </mesh>
 
         {/* Bulbous Bow (Underwater) */}
-        <mesh position={[0, -0.42, 10.2]} scale={[0.85, 0.75, 1.7]} material={materials.hullKeel}>
+        <mesh position={[0, -0.42, 10.6]} scale={[0.85, 0.75, 1.7]} material={materials.hullKeel}>
           <sphereGeometry args={[0.75, 16, 16]} />
         </mesh>
 

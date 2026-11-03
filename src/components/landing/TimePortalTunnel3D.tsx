@@ -1,7 +1,6 @@
 import React, { useRef, useMemo } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import { ContainerShipModel } from "./models/ContainerShipModel";
 
 interface TimePortalTunnel3DProps {
@@ -272,19 +271,10 @@ export function TimePortalTunnel3D({ progress = 0.5 }: TimePortalTunnel3DProps) 
             <meshBasicMaterial color="#10B981" transparent opacity={0.7} />
           </mesh>
 
-          {/* 3D Telemetry HUD Displaying Reduced Congestion Transition */}
-          <Html position={[0, 3.8, 0]} center zIndexRange={[40, 0]}>
-            <div className="flex flex-col gap-1 p-2.5 rounded-xl border border-emerald-400/50 bg-[#080F20]/90 backdrop-blur-md shadow-2xl font-mono text-center pointer-events-none whitespace-nowrap">
-              <div className="flex items-center justify-center gap-1.5 text-emerald-400 text-[11px] font-bold">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                PREDICTIVE HORIZON T+24H · OPTIMAL CLEAR
-              </div>
-              <div className="text-[10px] text-muted-foreground">
-                TRANSITION: CONGESTION INDEX <span className="line-through text-rose-400">1.84</span> →{" "}
-                <span className="text-emerald-300 font-bold">0.92 CI</span>
-              </div>
-            </div>
-          </Html>
+          <mesh position={[0, 3.6, 0]}>
+            <sphereGeometry args={[0.22, 16, 16]} />
+            <meshBasicMaterial color="#10B981" />
+          </mesh>
         </group>
       </group>
     </group>

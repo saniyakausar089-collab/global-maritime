@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 
 export interface TrackedVessel {
   id: string;
@@ -152,22 +151,7 @@ function TrackedVesselVector({
       </mesh>
 
       {/* Compact Tactical HUD Tooltip */}
-      {isFocus && (
-        <Html position={[v.pos[0] + 0.3, v.pos[1] + 0.4, v.pos[2]]} center>
-          <div className="w-56 rounded-lg border border-cyan-400/40 bg-[#080F20]/90 p-2.5 shadow-xl backdrop-blur-md text-[11px] text-white pointer-events-none">
-            <div className="flex items-center justify-between border-b border-cyan-500/20 pb-1 mb-1.5">
-              <span className="font-semibold text-cyan-200 truncate">{v.name}</span>
-              <span className="text-[9px] font-mono text-cyan-400/80">{v.speedKnots} kn</span>
-            </div>
-            <div className="text-[10px] space-y-0.5 text-[#A9BAD2]">
-              <div>Type: <span className="text-white capitalize">{v.shipType}</span></div>
-              <div>Heading: <span className="text-white font-mono">{v.heading}°</span></div>
-              <div>Destination: <span className="text-amber-300 truncate">{v.destination ?? "Unknown"}</span></div>
-              <div>Status: <span className="text-emerald-400">{v.status}</span></div>
-            </div>
-          </div>
-        </Html>
-      )}
+      
     </group>
   );
 }

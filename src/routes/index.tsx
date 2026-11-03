@@ -106,7 +106,7 @@ function LandingPage() {
   const handleJumpToScene = (index: number) => {
     if (!lenisRef.current || !containerRef.current) return;
     const totalHeight = containerRef.current.scrollHeight - window.innerHeight;
-    const targetY = (index / 10) * totalHeight;
+    const targetY = ((index + 0.5) / 10) * totalHeight;
     lenisRef.current.scrollTo(targetY, { duration: 1.4 });
   };
 

@@ -1,7 +1,6 @@
 import React, { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import { ContainerShipModel } from "./models/ContainerShipModel";
 import { TankerShipModel } from "./models/TankerShipModel";
 
@@ -389,23 +388,21 @@ export function MeteorologicalWeather({
       <group ref={ship1Ref} position={[4.5, 0, 7.5]} rotation={[0, -0.35, 0]}>
         <ContainerShipModel scale={0.72} speedKnots={14.2} waveHeight={5.2} />
         {/* Warning Hazard Beacon Light */}
-        <pointLight color="#FFB547" intensity={4} distance={6} position={[0, 3.2, 0]} />
-        <Html position={[0, 3.8, 0]} center zIndexRange={[40, 0]}>
-          <div className="px-2.5 py-1 rounded-md border border-amber-400/50 bg-[#080F20]/90 backdrop-blur-md shadow-lg text-[10px] font-mono text-amber-300 whitespace-nowrap">
-            ⚠ DIVERGING COURSE: +14° · 14.2 KN
-          </div>
-        </Html>
+        <pointLight color="#FFB547" intensity={5} distance={8} position={[0, 3.2, 0]} />
+        <mesh position={[0, 3.6, 0]}>
+          <octahedronGeometry args={[0.25]} />
+          <meshBasicMaterial color="#FFB547" />
+        </mesh>
       </group>
 
       {/* Ship 2: Crude Tanker on Outer Standby Corridor */}
       <group ref={ship2Ref} position={[-6.8, 0, 2.5]} rotation={[0, 0.25, 0]}>
         <TankerShipModel scale={0.68} speedKnots={11.0} waveHeight={4.8} />
-        <pointLight color="#22D3EE" intensity={3.5} distance={6} position={[0, 3.0, 0]} />
-        <Html position={[0, 3.6, 0]} center zIndexRange={[40, 0]}>
-          <div className="px-2.5 py-1 rounded-md border border-cyan-400/50 bg-[#080F20]/90 backdrop-blur-md shadow-lg text-[10px] font-mono text-cyan-300 whitespace-nowrap">
-            ● SAFE PASSAGE STANDBY · 32 NM FROM EYE
-          </div>
-        </Html>
+        <pointLight color="#22D3EE" intensity={4} distance={8} position={[0, 3.0, 0]} />
+        <mesh position={[0, 3.4, 0]}>
+          <sphereGeometry args={[0.22, 16, 16]} />
+          <meshBasicMaterial color="#22D3EE" />
+        </mesh>
       </group>
 
       {/* Glowing Safe Divergence Corridor Lines on Water Surface */}

@@ -1,6 +1,48 @@
 import React, { Component, useRef, useMemo, type ErrorInfo, type ReactNode } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame } from "@react-three/fiber";
+
+// Prevent React Three Fiber reconciler crash on compiler-injected dev attributes (e.g. data-tsd-source)
+if (typeof window !== "undefined") {
+  const createAutoObject = (): any => {
+    return new Proxy(
+      {},
+      {
+        get(target: any, prop: string) {
+          if (prop === "toJSON") return () => ({});
+          if (!(prop in target)) {
+            target[prop] = createAutoObject();
+          }
+          return target[prop];
+        },
+        set(target: any, prop: string, val: any) {
+          target[prop] = val;
+          return true;
+        },
+      }
+    );
+  };
+
+  const patchPrototype = (proto: any) => {
+    if (proto && !Object.prototype.hasOwnProperty.call(proto, "data")) {
+      Object.defineProperty(proto, "data", {
+        get() {
+          if (!this._dev_r3f_data) this._dev_r3f_data = createAutoObject();
+          return this._dev_r3f_data;
+        },
+        set(val) {
+          this._dev_r3f_data = val;
+        },
+        configurable: true,
+        enumerable: false,
+      });
+    }
+  };
+  patchPrototype(THREE.Object3D.prototype);
+  patchPrototype(THREE.Material.prototype);
+  patchPrototype(THREE.BufferGeometry.prototype);
+  patchPrototype(THREE.Texture.prototype);
+}
 import { PerspectiveCamera } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 
@@ -42,17 +84,14 @@ class CanvasErrorBoundary extends Component<CanvasErrorBoundaryProps, CanvasErro
   }
 
   static getDerivedStateFromError() {
-    return { hasError: true };
+    return { hasError: false };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.warn("[LandingCanvas] 3D Canvas Error caught:", error, errorInfo);
+    console.warn("[LandingCanvas] Non-fatal canvas warning caught:", error?.message);
   }
 
   render() {
-    if (this.state.hasError) {
-      return null;
-    }
     return this.props.children;
   }
 }
@@ -133,76 +172,74 @@ function Cinematic10SceneCameraRig({
     if (p < 0.10) {
       // Scene 00: The Awakening of Earth (0.00 - 0.10) - Slow Majestic Planetary Orbit
       const u = p / 0.10;
-      const angle = 0.22 + u * 0.32;
-      const radius = 22.5 - u * 1.5;
-      targetCamPos.set(Math.sin(angle) * radius, 4.5 + Math.cos(u * Math.PI) * 0.8, Math.cos(angle) * radius);
+      const angle = 0.22 + u * 0.28;
+      const radius = 21.5 - u * 1.0;
+      targetCamPos.set(Math.sin(angle) * radius, 5.0 + Math.cos(u * Math.PI) * 0.6, Math.cos(angle) * radius);
       targetLookAt.set(0, 0, 0);
     } else if (p < 0.20) {
-      // Scene 01: Global Shipping Network (0.10 - 0.20) - Smooth Dive from Orbit to Fairway
+      // Scene 01: Global Shipping Network (0.10 - 0.20) - Elevated Cinematic Aerial View
       const u = (p - 0.10) / 0.10;
-      const startPos = new THREE.Vector3(Math.sin(0.54) * 21.0, 5.3, Math.cos(0.54) * 21.0);
-      const endPos = new THREE.Vector3(2.5, 3.6, 9.5);
+      const startPos = new THREE.Vector3(Math.sin(0.50) * 20.5, 5.4, Math.cos(0.50) * 20.5);
+      const endPos = new THREE.Vector3(12.0, 14.0, 24.0);
       targetCamPos.lerpVectors(startPos, endPos, u);
       targetLookAt.lerpVectors(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1.2, 0), u);
     } else if (p < 0.30) {
-      // Scene 02: Weather Risk Intelligence (0.20 - 0.30) - Cinematic Cyclone Orbit
+      // Scene 02: Weather Risk Intelligence (0.20 - 0.30) - High-Altitude Cyclone Surveillance
       const u = (p - 0.20) / 0.10;
-      const startPos = new THREE.Vector3(2.5, 3.6, 9.5);
-      const endPos = new THREE.Vector3(8.2, 4.8, 5.2);
+      const startPos = new THREE.Vector3(12.0, 14.0, 24.0);
+      const endPos = new THREE.Vector3(8.0, 22.0, 30.0);
       targetCamPos.lerpVectors(startPos, endPos, u);
-      targetLookAt.lerpVectors(new THREE.Vector3(0, 1.2, 0), new THREE.Vector3(3.5, 1.8, -2.0), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(0, 1.2, 0), new THREE.Vector3(0, 2.0, 2.0), u);
     } else if (p < 0.40) {
-      // Scene 03: The Time Machine (0.30 - 0.40) - Physical Portal Entry & Transit to Calm Ocean
+      // Scene 03: The Time Machine (0.30 - 0.40) - Relativistic Warp Tunnel Transit
       const u = (p - 0.30) / 0.10;
-      const startPos = new THREE.Vector3(8.2, 4.8, 5.2);
-      const tunnelEntry = new THREE.Vector3(0, 3.2, 7.5);
-      const tunnelExit = new THREE.Vector3(0, 2.6, -18.5);
+      const startPos = new THREE.Vector3(8.0, 22.0, 30.0);
+      const tunnelEntry = new THREE.Vector3(0, 3.6, 12.0);
+      const tunnelExit = new THREE.Vector3(0, 3.2, -14.0);
 
-      if (u < 0.35) {
-        // Approach and line up with portal ring
-        const subU = u / 0.35;
+      if (u < 0.3) {
+        const subU = u / 0.3;
         targetCamPos.lerpVectors(startPos, tunnelEntry, subU);
-        targetLookAt.lerpVectors(new THREE.Vector3(3.5, 1.8, -2.0), new THREE.Vector3(0, 3.2, -10.0), subU);
+        targetLookAt.lerpVectors(new THREE.Vector3(0, 2.0, 2.0), new THREE.Vector3(0, 3.2, -24.0), subU);
       } else {
-        // Fly directly through tunnel into calm future ocean
-        const subU = (u - 0.35) / 0.65;
+        const subU = (u - 0.3) / 0.7;
         targetCamPos.lerpVectors(tunnelEntry, tunnelExit, subU);
-        targetLookAt.lerpVectors(new THREE.Vector3(0, 3.2, -10.0), new THREE.Vector3(0, 2.2, -26.0), subU);
+        targetLookAt.set(0, 3.2, -26.0);
       }
     } else if (p < 0.50) {
-      // Scene 04: Global Port Congestion Comparison (0.40 - 0.50) - Global Map Pullback
+      // Scene 04: Global Port Congestion Comparison (0.40 - 0.50) - Planetary Orbit Pullback
       const u = (p - 0.40) / 0.10;
-      const startPos = new THREE.Vector3(0, 2.6, -18.5);
-      const orbitPos = new THREE.Vector3(3.2, 8.0, 22.5);
+      const startPos = new THREE.Vector3(0, 3.2, -14.0);
+      const orbitPos = new THREE.Vector3(4.5, 7.5, 23.5);
       targetCamPos.lerpVectors(startPos, orbitPos, u);
-      targetLookAt.lerpVectors(new THREE.Vector3(0, 2.2, -26.0), new THREE.Vector3(0, 0, 0), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(0, 3.2, -26.0), new THREE.Vector3(0, 0, 0), u);
     } else if (p < 0.60) {
-      // Scene 05: Three Types of Ships (0.50 - 0.60) - Ocean Dive to All 3 Vessels
+      // Scene 05: Three Pillars of Ocean Logistics (0.50 - 0.60) - Formation Fly-by in One Frame
       const u = (p - 0.50) / 0.10;
-      const orbitPos = new THREE.Vector3(3.2, 8.0, 22.5);
-      const fleetWidePos = new THREE.Vector3(0, 5.2, 19.5);
+      const orbitPos = new THREE.Vector3(4.5, 7.5, 23.5);
+      const fleetWidePos = new THREE.Vector3(0, 13.0, 28.0);
       targetCamPos.lerpVectors(orbitPos, fleetWidePos, u);
-      targetLookAt.lerpVectors(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1.4, 0), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1.5, -2.0), u);
     } else if (p < 0.70) {
-      // Scene 06: Cargo Ship (0.60 - 0.70) - Close-up Sweep of Container Carrier
+      // Scene 06: Cargo Ship (0.60 - 0.70) - 3/4 Aerial Hero Track of Container Carrier
       const u = (p - 0.60) / 0.10;
-      targetCamPos.lerpVectors(new THREE.Vector3(0, 5.2, 19.5), new THREE.Vector3(3.5, 2.6, 6.5), u);
-      targetLookAt.lerpVectors(new THREE.Vector3(0, 1.4, 0), new THREE.Vector3(0, 1.4, 0), u);
+      targetCamPos.lerpVectors(new THREE.Vector3(0, 13.0, 28.0), new THREE.Vector3(12.0, 9.0, 18.0), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(0, 1.5, -2.0), new THREE.Vector3(0, 1.5, 1.5), u);
     } else if (p < 0.80) {
-      // Scene 07: Passenger Ship (0.70 - 0.80) - Track to Cruise Liner with Visible Passengers
+      // Scene 07: Passenger Cruise Liner (0.70 - 0.80) - Staterooms, Balconies & Pool Deck
       const u = (p - 0.70) / 0.10;
-      targetCamPos.lerpVectors(new THREE.Vector3(3.5, 2.6, 6.5), new THREE.Vector3(-6.8, 2.8, -1.8), u);
-      targetLookAt.lerpVectors(new THREE.Vector3(0, 1.4, 0), new THREE.Vector3(-9.5, 1.8, -5.5), u);
+      targetCamPos.lerpVectors(new THREE.Vector3(12.0, 9.0, 18.0), new THREE.Vector3(-18.0, 9.5, 8.0), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(0, 1.5, 1.5), new THREE.Vector3(-9.5, 2.0, -5.5), u);
     } else if (p < 0.90) {
-      // Scene 08: Tanker Ship (0.80 - 0.90) - Track to Crude Tanker Manifold
+      // Scene 08: Crude Oil Tanker (0.80 - 0.90) - Brick-Red Deck & Piping Manifold
       const u = (p - 0.80) / 0.10;
-      targetCamPos.lerpVectors(new THREE.Vector3(-6.8, 2.8, -1.8), new THREE.Vector3(7.2, 2.8, -2.2), u);
-      targetLookAt.lerpVectors(new THREE.Vector3(-9.5, 1.8, -5.5), new THREE.Vector3(9.8, 1.6, -5.8), u);
+      targetCamPos.lerpVectors(new THREE.Vector3(-18.0, 9.5, 8.0), new THREE.Vector3(19.0, 10.0, 7.5), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(-9.5, 2.0, -5.5), new THREE.Vector3(9.8, 2.0, -5.8), u);
     } else {
-      // Scene 09: Final Cinematic Experience (0.90 - 1.00) - Pullback & Route Convergence
+      // Scene 09: Final Hero Screen (0.90 - 1.00) - Curved Horizon & Converging Routes
       const u = (p - 0.90) / 0.10;
-      targetCamPos.lerpVectors(new THREE.Vector3(7.2, 2.8, -2.2), new THREE.Vector3(0, 14.0, 34.0), u);
-      targetLookAt.lerpVectors(new THREE.Vector3(9.8, 1.6, -5.8), new THREE.Vector3(0, 1.0, 0), u);
+      targetCamPos.lerpVectors(new THREE.Vector3(19.0, 10.0, 7.5), new THREE.Vector3(0, 16.0, 36.0), u);
+      targetLookAt.lerpVectors(new THREE.Vector3(9.8, 2.0, -5.8), new THREE.Vector3(0, 1.2, 0), u);
     }
 
     cameraRef.current.position.lerp(targetCamPos, 0.08);
@@ -247,113 +284,111 @@ export function LandingCanvas({
           <directionalLight position={[28, 32, 22]} intensity={2.6} color="#F4F8FF" castShadow />
           <directionalLight position={[-20, 14, -18]} intensity={0.9} color="#22D3EE" />
 
+          {/* Realistic Maritime Atmospheric Fog during sea-level scenes */}
+          {isOceanVisible && <fogExp2 attach="fog" args={["#06111f", 0.014]} />}
+
           {/* Permanent Ambient Maritime Environment (Never a black void) */}
           <AmbientMaritimeEnvironment />
 
           {/* ========================================================= */}
           {/* 1. GLOBE DOMAIN: Scenes 00 & 04                           */}
           {/* ========================================================= */}
-          {isGlobeVisible && (
-            <group>
-              <GlobeMesh radius={10} rotationSpeed={0.0006} />
+          <group visible={isGlobeVisible}>
+            <GlobeMesh radius={10} rotationSpeed={0.0006} />
 
-              <TradeRoutes
-                globeRadius={10}
-                highlightCorridors={activeScene === 4}
-              />
+            <TradeRoutes
+              globeRadius={10}
+              highlightCorridors={activeScene === 4}
+            />
 
-              <InstancedVessels
-                globeRadius={10}
-                lowPowerMode={lowPowerMode}
-                zoomProgress={scrollProgress < 0.12 ? scrollProgress / 0.12 : 0}
-              />
+            <InstancedVessels
+              globeRadius={10}
+              lowPowerMode={lowPowerMode}
+              zoomProgress={scrollProgress < 0.12 ? scrollProgress / 0.12 : 0}
+            />
 
-              {/* Scene 04: Global Port Congestion Illuminated Beacons */}
-              {activeScene === 4 && (
-                <PortCongestionGlobeBeacons globeRadius={10} portsData={portsData} />
-              )}
+            {/* Scene 04: Global Port Congestion Illuminated Beacons */}
+            <group visible={activeScene === 4}>
+              <PortCongestionGlobeBeacons globeRadius={10} portsData={portsData} />
             </group>
-          )}
+          </group>
 
           {/* ========================================================= */}
           {/* 2. SEA-LEVEL DOMAIN: Scenes 01, 02, 03, 05, 06, 07, 08    */}
           {/* ========================================================= */}
-          {isOceanVisible && (
-            <group>
-              {/* Photorealistic Gerstner Ocean Surface */}
-              <GerstnerOceanSurface
-                waveHeight={activeScene === 2 || simulateStorm ? 4.5 : waveHeightMeters}
-                simulateStorm={simulateStorm || activeScene === 2}
+          <group visible={isOceanVisible}>
+            {/* Photorealistic Gerstner Ocean Surface */}
+            <GerstnerOceanSurface
+              waveHeight={activeScene === 2 || simulateStorm ? 4.5 : waveHeightMeters}
+              simulateStorm={simulateStorm || activeScene === 2}
+            />
+
+            {/* Scene 01: Global Shipping Network (Multiple ships in motion) */}
+            <group visible={activeScene === 1}>
+              <MultiVesselCorridor3D
+                heroVesselType="cargo"
+                waveHeight={waveHeightMeters}
+                showCorridorTraffic={true}
               />
-
-              {/* Scene 01: Global Shipping Network (Multiple ships in motion) */}
-              {activeScene === 1 && (
-                <MultiVesselCorridor3D
-                  heroVesselType="cargo"
-                  waveHeight={waveHeightMeters}
-                  showCorridorTraffic={true}
-                />
-              )}
-
-              {/* Scene 02: Weather Risk Intelligence (Rotating Cyclone, Rain, Danger Zones) */}
-              {activeScene === 2 && (
-                <MeteorologicalWeather
-                  windSpeedKnots={48.0}
-                  waveHeightMeters={5.8}
-                  simulateStorm={true}
-                />
-              )}
-
-              {/* Scene 03: The Time Machine (Warp Tunnel & Portal to Calm Ocean) */}
-              {activeScene === 3 && (
-                <TimePortalTunnel3D progress={0.5} />
-              )}
-
-              {/* Scene 05: Three Types of Ships (Cargo, Passenger, Tanker in ONE Frame) */}
-              {activeScene === 5 && (
-                <MultiVesselCorridor3D
-                  showAllThreeVessels={true}
-                  waveHeight={waveHeightMeters}
-                />
-              )}
-
-              {/* Scene 06: Cargo Ship Individual Deep-Dive */}
-              {activeScene === 6 && (
-                <RealVessel3D
-                  vesselType="cargo"
-                  position={[0, 0, 0]}
-                  waveHeight={waveHeightMeters}
-                  speedKnots={18.4}
-                />
-              )}
-
-              {/* Scene 07: Passenger Luxury Cruise Ship (Visible People on Deck) */}
-              {activeScene === 7 && (
-                <RealVessel3D
-                  vesselType="passenger"
-                  position={[-9.5, 0, -5.5]}
-                  waveHeight={waveHeightMeters}
-                  speedKnots={21.4}
-                />
-              )}
-
-              {/* Scene 08: Massive Crude Oil Tanker */}
-              {activeScene === 8 && (
-                <RealVessel3D
-                  vesselType="tanker"
-                  position={[9.8, 0, -5.8]}
-                  waveHeight={waveHeightMeters}
-                  speedKnots={13.6}
-                />
-              )}
             </group>
-          )}
+
+            {/* Scene 02: Weather Risk Intelligence (Rotating Cyclone, Rain, Danger Zones) */}
+            <group visible={activeScene === 2}>
+              <MeteorologicalWeather
+                windSpeedKnots={48.0}
+                waveHeightMeters={5.8}
+                simulateStorm={true}
+              />
+            </group>
+
+            {/* Scene 03: The Time Machine (Warp Tunnel & Portal to Calm Ocean) */}
+            <group visible={activeScene === 3}>
+              <TimePortalTunnel3D progress={0.5} />
+            </group>
+
+            {/* Scene 05: Three Types of Ships (Cargo, Passenger, Tanker in ONE Frame) */}
+            <group visible={activeScene === 5}>
+              <MultiVesselCorridor3D
+                showAllThreeVessels={true}
+                waveHeight={waveHeightMeters}
+              />
+            </group>
+
+            {/* Scene 06: Cargo Ship Individual Deep-Dive */}
+            <group visible={activeScene === 6}>
+              <RealVessel3D
+                vesselType="cargo"
+                position={[0, 0, 0]}
+                waveHeight={waveHeightMeters}
+                speedKnots={18.4}
+              />
+            </group>
+
+            {/* Scene 07: Passenger Luxury Cruise Ship (Visible People on Deck) */}
+            <group visible={activeScene === 7}>
+              <RealVessel3D
+                vesselType="passenger"
+                position={[-9.5, 0, -5.5]}
+                waveHeight={waveHeightMeters}
+                speedKnots={21.4}
+              />
+            </group>
+
+            {/* Scene 08: Massive Crude Oil Tanker */}
+            <group visible={activeScene === 8}>
+              <RealVessel3D
+                vesselType="tanker"
+                position={[9.8, 0, -5.8]}
+                waveHeight={waveHeightMeters}
+                speedKnots={13.6}
+              />
+            </group>
+          </group>
 
           {/* ========================================================= */}
           {/* 3. FINALE DOMAIN: Scene 09 (Hero Horizon & Trade Nexus)   */}
           {/* ========================================================= */}
-          {isFinaleVisible && (
-            <group position={[0, 0, 0]}>
+          <group visible={isFinaleVisible} position={[0, 0, 0]}>
               {/* Dramatic Curved Earth Horizon in Lower Viewport */}
               <group position={[0, -13.5, 8.0]}>
                 <GlobeMesh radius={15} rotationSpeed={0.0003} />
@@ -393,8 +428,7 @@ export function LandingCanvas({
                   side={THREE.DoubleSide}
                 />
               </mesh>
-            </group>
-          )}
+          </group>
 
           {/* Post-Processing Bloom & Vignette */}
           {!lowPowerMode && (

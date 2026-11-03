@@ -1,7 +1,6 @@
 import React, { useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 
 import { ContainerShipModel } from "./models/ContainerShipModel";
 import { TankerShipModel } from "./models/TankerShipModel";
@@ -83,12 +82,10 @@ export function MultiVesselCorridor3D({
             <meshBasicMaterial color="#38BDF8" transparent opacity={0.65} />
           </mesh>
 
-          <Html position={[0, 4.2, 0]} center zIndexRange={[50, 0]}>
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-cyan-400/50 bg-[#080F20]/90 backdrop-blur-md shadow-xl text-[10px] font-mono text-cyan-300 pointer-events-none whitespace-nowrap">
-              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
-              <span>CARGO VESSEL · 18,270 TEU CONTAINER CARRIER</span>
-            </div>
-          </Html>
+          <mesh position={[0, 3.8, 0]}>
+            <sphereGeometry args={[0.2, 16, 16]} />
+            <meshBasicMaterial color="#22D3EE" />
+          </mesh>
         </group>
 
         {/* 2. PORT SIDE (LEFT): Luxury Passenger Cruise Ship */}
@@ -101,12 +98,10 @@ export function MultiVesselCorridor3D({
             <meshBasicMaterial color="#A78BFA" transparent opacity={0.65} />
           </mesh>
 
-          <Html position={[0, 4.2, 0]} center zIndexRange={[50, 0]}>
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-purple-400/50 bg-[#080F20]/90 backdrop-blur-md shadow-xl text-[10px] font-mono text-purple-300 pointer-events-none whitespace-nowrap">
-              <span className="h-2 w-2 rounded-full bg-purple-400 animate-ping" />
-              <span>PASSENGER SHIP · 5,400 PAX LUXURY CRUISE LINER</span>
-            </div>
-          </Html>
+          <mesh position={[0, 4.0, 0]}>
+            <sphereGeometry args={[0.2, 16, 16]} />
+            <meshBasicMaterial color="#A78BFA" />
+          </mesh>
         </group>
 
         {/* 3. STARBOARD SIDE (RIGHT): Crude Oil Tanker */}
@@ -119,12 +114,10 @@ export function MultiVesselCorridor3D({
             <meshBasicMaterial color="#FFB547" transparent opacity={0.65} />
           </mesh>
 
-          <Html position={[0, 4.2, 0]} center zIndexRange={[50, 0]}>
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-400/50 bg-[#080F20]/90 backdrop-blur-md shadow-xl text-[10px] font-mono text-amber-300 pointer-events-none whitespace-nowrap">
-              <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
-              <span>OIL TANKER · 318,000 DWT VLCC CRUDE CARRIER</span>
-            </div>
-          </Html>
+          <mesh position={[0, 3.6, 0]}>
+            <sphereGeometry args={[0.2, 16, 16]} />
+            <meshBasicMaterial color="#FFB547" />
+          </mesh>
         </group>
       </group>
     );

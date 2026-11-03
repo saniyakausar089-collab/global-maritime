@@ -1,7 +1,6 @@
 import React, { Component, useRef, useMemo, type ErrorInfo, type ReactNode } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 
 import { ContainerShipModel } from "./models/ContainerShipModel";
 import { TankerShipModel } from "./models/TankerShipModel";
@@ -214,22 +213,12 @@ export function RealVessel3D({
           />
         </mesh>
 
-        {/* --- COMPACT HOLOGRAPHIC VESSEL CALLOUT --- */}
+        {/* --- 3D TRANSPONDER BEACON --- */}
         {showHud && (
-          <Html position={[2.6, 2.8, 0]} center zIndexRange={[50, 0]}>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-400/30 bg-[#080F20]/85 backdrop-blur-md shadow-xl text-xs text-white pointer-events-none whitespace-nowrap">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400"></span>
-              </span>
-              <span className="font-semibold text-[11px] tracking-wide text-cyan-200">
-                {activeTelemetry.name}
-              </span>
-              <span className="text-[10px] font-mono text-cyan-400/80 border-l border-cyan-400/30 pl-2">
-                {activeTelemetry.speed.toFixed(1)} kn · {activeTelemetry.heading}°
-              </span>
-            </div>
-          </Html>
+          <mesh position={[2.6, 2.8, 0]}>
+            <sphereGeometry args={[0.2, 16, 16]} />
+            <meshBasicMaterial color="#22D3EE" />
+          </mesh>
         )}
       </group>
     </group>

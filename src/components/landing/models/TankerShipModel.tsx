@@ -166,15 +166,18 @@ export function TankerShipModel({
           <boxGeometry args={[3.4, 0.7, 19.0]} />
         </mesh>
 
-        {/* Blunt Cylindrical Tanker Bow (Full block coefficient) */}
+        {/* Blunt Rounded Tanker Bow (Authentic VLCC high block coefficient) */}
+        <mesh position={[0, 0.25, 9.8]} castShadow material={materials.hullTop}>
+          <boxGeometry args={[3.5, 1.1, 2.0]} />
+        </mesh>
         <mesh
-          position={[0, 0.25, 10.1]}
-          rotation={[Math.PI / 2, 0, Math.PI / 4]}
-          scale={[1.35, 0.85, 1.0]}
+          position={[0, 0.25, 10.8]}
+          rotation={[0, Math.PI, 0]}
+          scale={[1.75, 1.0, 1.2]}
           castShadow
           material={materials.hullTop}
         >
-          <coneGeometry args={[2.0, 3.4, 4]} />
+          <cylinderGeometry args={[0.4, 1.0, 1.1, 24, 1, false, 0, Math.PI]} />
         </mesh>
 
         {/* Bulbous Bow (Immersed) */}

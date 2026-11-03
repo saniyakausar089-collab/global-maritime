@@ -1,7 +1,6 @@
 import React, { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import { MONITORED_PORTS, latLonToVector3 } from "./constants";
 
 interface PortCongestionGlobeBeaconsProps {
@@ -93,30 +92,6 @@ export function PortCongestionGlobeBeacons({
             </mesh>
 
             <pointLight color={beaconColor} intensity={3.5} distance={6} position={topPos} />
-
-            {/* 4. 3D Floating Rank & Congestion Badge */}
-            <Html
-              position={[topPos.x, topPos.y + 0.5, topPos.z]}
-              center
-              distanceFactor={32}
-              zIndexRange={[50, 0]}
-            >
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border/80 bg-[#080F20]/90 backdrop-blur-md shadow-xl text-[10px] font-mono whitespace-nowrap pointer-events-none select-none">
-                <span className="font-extrabold text-cyan-400">#{port.rank}</span>
-                <span className="font-bold text-foreground">{port.name}</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                    port.ci >= 1.4
-                      ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                      : port.ci >= 1.2
-                      ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                      : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                  }`}
-                >
-                  CI {port.ci.toFixed(2)}
-                </span>
-              </div>
-            </Html>
           </group>
         );
       })}
