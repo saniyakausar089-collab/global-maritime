@@ -6,10 +6,32 @@ import { isNavigableWater } from "./maritimeRouter.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, "vessels.sqlite");
 
+/**
+ * Classifies geographic coordinates into primary global maritime basins
+ */
+export function getOceanRegion(lat, lon) {
+  if (lat == null || lon == null) return "other";
+  // Mediterranean & Black Sea
+  if (lat >= 30 && lat <= 46 && lon >= -5.5 && lon <= 36) return "mediterranean";
+  // North Sea, Baltic Sea & English Channel
+  if (lat >= 50 && lat <= 66 && lon >= -4 && lon <= 30) return "north_baltic_sea";
+  // South China Sea & Malacca Strait
+  if (lat >= 0 && lat <= 25 && lon >= 100 && lon <= 125) return "south_china_sea";
+  // Indian Ocean & Arabian Sea / Red Sea
+  if (lat >= -45 && lat <= 30 && lon >= 20 && lon <= 100) return "indian";
+  // Pacific Ocean Basin
+  if ((lon > 100 && lon <= 180) || (lon >= -180 && lon < -75 && lat < 60)) return "pacific";
+  // Atlantic Ocean Basin
+  if (lon >= -75 && lon < 20) return "atlantic";
+  return "other";
+}
+
 export class VesselStore {
   constructor() {
     this.memoryMap = new Map();
     this.dirtyMmsis = new Set();
+    this.lastBreadcrumbByMmsi = new Map();
+    this.regionCountsBuffer = new Map(); // "bucket:region" -> count
     this.initDatabase();
   }
 
@@ -35,7 +57,9 @@ export class VesselStore {
           last_seen INTEGER NOT NULL,
           first_seen INTEGER NOT NULL,
           source TEXT DEFAULT 'live',
-          confidence REAL DEFAULT 1.0
+          confidence REAL DEFAULT 1.0,
+          sog_history TEXT DEFAULT '[]',
+          status TEXT DEFAULT 'underway'
         );
 
         CREATE TABLE IF NOT EXISTS breadcrumbs (
@@ -46,16 +70,32 @@ export class VesselStore {
           t INTEGER NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS hourly_region_stats (
+          hour_bucket TEXT NOT NULL,
+          region TEXT NOT NULL,
+          message_count INTEGER DEFAULT 0,
+          PRIMARY KEY (hour_bucket, region)
+        );
+
         CREATE INDEX IF NOT EXISTS idx_vessels_last_seen ON vessels(last_seen);
         CREATE INDEX IF NOT EXISTS idx_breadcrumbs_mmsi ON breadcrumbs(mmsi, t);
+        CREATE INDEX IF NOT EXISTS idx_breadcrumbs_t ON breadcrumbs(t);
       `);
+
+      // Safe schema migration for optional columns
+      try {
+        this.db.exec(`ALTER TABLE vessels ADD COLUMN sog_history TEXT DEFAULT '[]';`);
+      } catch {}
+      try {
+        this.db.exec(`ALTER TABLE vessels ADD COLUMN status TEXT DEFAULT 'underway';`);
+      } catch {}
 
       // Prepare statements
       this.stmtUpsert = this.db.prepare(`
         INSERT INTO vessels (
-          mmsi, name, lat, lon, sog, cog, hdg, type, destination, eta, length, beam, last_seen, first_seen, source, confidence
+          mmsi, name, lat, lon, sog, cog, hdg, type, destination, eta, length, beam, last_seen, first_seen, source, confidence, sog_history, status
         ) VALUES (
-          @mmsi, @name, @lat, @lon, @sog, @cog, @hdg, @type, @destination, @eta, @length, @beam, @last_seen, @first_seen, @source, @confidence
+          @mmsi, @name, @lat, @lon, @sog, @cog, @hdg, @type, @destination, @eta, @length, @beam, @last_seen, @first_seen, @source, @confidence, @sog_history, @status
         )
         ON CONFLICT(mmsi) DO UPDATE SET
           name = COALESCE(NULLIF(excluded.name, ''), vessels.name),
@@ -71,7 +111,9 @@ export class VesselStore {
           beam = CASE WHEN excluded.beam > 0 THEN excluded.beam ELSE vessels.beam END,
           last_seen = excluded.last_seen,
           source = excluded.source,
-          confidence = excluded.confidence;
+          confidence = excluded.confidence,
+          sog_history = excluded.sog_history,
+          status = excluded.status;
       `);
 
       this.stmtInsertBreadcrumb = this.db.prepare(`
@@ -81,8 +123,27 @@ export class VesselStore {
       this.stmtGetBreadcrumbs = this.db.prepare(`
         SELECT lat, lon, t FROM breadcrumbs
         WHERE mmsi = ?
-        ORDER BY t DESC
-        LIMIT 25;
+        ORDER BY t ASC
+        LIMIT 100;
+      `);
+
+      this.stmtGetRecentBreadcrumbsAll = this.db.prepare(`
+        SELECT lat, lon, t FROM breadcrumbs
+        WHERE t >= ?
+        LIMIT 5000;
+      `);
+
+      this.stmtUpsertRegionStat = this.db.prepare(`
+        INSERT INTO hourly_region_stats (hour_bucket, region, message_count)
+        VALUES (?, ?, ?)
+        ON CONFLICT(hour_bucket, region) DO UPDATE SET
+          message_count = message_count + excluded.message_count;
+      `);
+
+      this.stmtGetHourlyRegionStats = this.db.prepare(`
+        SELECT hour_bucket, region, message_count FROM hourly_region_stats
+        WHERE hour_bucket >= ?
+        ORDER BY hour_bucket DESC;
       `);
 
       this.stmtPruneVessels = this.db.prepare(`
@@ -114,6 +175,11 @@ export class VesselStore {
         continue;
       }
 
+      let parsedSogHistory = [];
+      try {
+        parsedSogHistory = JSON.parse(row.sog_history || "[]");
+      } catch {}
+
       this.memoryMap.set(row.mmsi, {
         id: row.mmsi,
         mmsi: row.mmsi,
@@ -133,6 +199,8 @@ export class VesselStore {
         seen: row.last_seen,
         source: row.source || "live",
         confidence: row.confidence ?? 1.0,
+        sog_history: parsedSogHistory,
+        status: row.status || "underway",
       });
     }
 
@@ -142,6 +210,59 @@ export class VesselStore {
         del.run(mmsi);
       }
       console.log(`[Storage] Purged ${toDelete.length} stale estimated vessels colliding with land.`);
+    }
+  }
+
+  /**
+   * Tracks an incoming AIS position report in hourly ocean region buckets
+   */
+  recordRegionMessage(lat, lon) {
+    const region = getOceanRegion(lat, lon);
+    const date = new Date();
+    // YYYY-MM-DDTHH:00:00Z
+    const hourBucket = `${date.toISOString().slice(0, 13)}:00:00Z`;
+    const key = `${hourBucket}|${region}`;
+
+    const cur = this.regionCountsBuffer.get(key) || 0;
+    this.regionCountsBuffer.set(key, cur + 1);
+
+    if (this.regionCountsBuffer.size >= 50) {
+      this.flushRegionStats();
+    }
+  }
+
+  flushRegionStats() {
+    if (!this.regionCountsBuffer.size || !this.stmtUpsertRegionStat) return;
+    try {
+      for (const [key, count] of this.regionCountsBuffer.entries()) {
+        const [bucket, region] = key.split("|");
+        this.stmtUpsertRegionStat.run(bucket, region, count);
+      }
+      this.regionCountsBuffer.clear();
+    } catch (e) {
+      console.warn("[Storage] Failed to flush region stats:", e.message);
+    }
+  }
+
+  getHourlyRegionStats(hours = 24) {
+    this.flushRegionStats();
+    const cutoffDate = new Date(Date.now() - hours * 3600 * 1000);
+    const cutoff = `${cutoffDate.toISOString().slice(0, 13)}:00:00Z`;
+    try {
+      const rows = this.stmtGetHourlyRegionStats.all(cutoff);
+      const summary = {};
+      for (const r of rows) {
+        if (!summary[r.region]) summary[r.region] = 0;
+        summary[r.region] += r.message_count;
+      }
+      return {
+        cutoff,
+        hours,
+        byRegion: summary,
+        hourlyHistory: rows,
+      };
+    } catch (e) {
+      return { cutoff, hours, byRegion: {}, hourlyHistory: [] };
     }
   }
 
@@ -159,6 +280,14 @@ export class VesselStore {
     const eta = existing?.eta || null;
     const length = existing?.length || 0;
     const beam = existing?.beam || 0;
+    const currentSog = sog ?? existing?.sog ?? 0;
+
+    // SOG velocity history (sampled every ~15 min, max 16 points for ~4h history)
+    const sogHistory = existing?.sog_history ? [...existing.sog_history] : [];
+    if (!sogHistory.length || now - sogHistory[sogHistory.length - 1].t >= 15 * 60 * 1000) {
+      sogHistory.push({ sog: currentSog, t: now });
+      if (sogHistory.length > 16) sogHistory.shift();
+    }
 
     const vessel = {
       id: mmsi,
@@ -166,7 +295,7 @@ export class VesselStore {
       name: finalName,
       lat,
       lon,
-      sog: sog ?? existing?.sog ?? 0,
+      sog: currentSog,
       cog: cog ?? existing?.cog ?? 0,
       hdg: hdg ?? cog ?? existing?.hdg ?? 0,
       type: finalType,
@@ -179,10 +308,13 @@ export class VesselStore {
       seen: now,
       source: "live",
       confidence: 1.0,
+      sog_history: sogHistory,
+      status: currentSog < 0.5 ? "anchored" : "underway",
     };
 
     this.memoryMap.set(mmsi, vessel);
     this.dirtyMmsis.add(mmsi);
+    this.recordRegionMessage(lat, lon);
 
     // Save to SQLite
     try {
@@ -203,35 +335,38 @@ export class VesselStore {
         first_seen,
         source: "live",
         confidence: 1.0,
+        sog_history: JSON.stringify(sogHistory),
+        status: vessel.status,
       });
 
-      // Sample breadcrumb every ~2 minutes or if moved > 500m
-      if (
-        !existing ||
-        Math.abs(existing.lat - lat) > 0.005 ||
-        Math.abs(existing.lon - lon) > 0.005 ||
-        now - (existing.lastBreadcrumb || 0) > 120000
-      ) {
+      // DOWNSAMPLED TRACK: Store at most 1 breadcrumb per 30 minutes (1800000ms) for 14-day history
+      const lastBreadcrumbTime = this.lastBreadcrumbByMmsi.get(mmsi) || 0;
+      if (now - lastBreadcrumbTime >= 30 * 60 * 1000) {
         this.stmtInsertBreadcrumb.run(mmsi, lat, lon, now);
-        vessel.lastBreadcrumb = now;
+        this.lastBreadcrumbByMmsi.set(mmsi, now);
       }
     } catch (e) {
       console.warn("[Storage] Failed to persist vessel position to SQLite:", e.message);
     }
-
-    return vessel;
   }
 
   /**
-   * Updates ship static info (Type, Name, Destination, ETA, Dimension)
+   * Updates static voyage metadata (destination, ETA, ship dimensions)
    */
-  updateStatic({ mmsi, name, type, destination, eta, length, beam }) {
+  updateStatic({ mmsi, name, ship_type, destination, eta, length, beam }) {
     const existing = this.memoryMap.get(mmsi);
     const now = Date.now();
 
-    if (!existing) {
-      // Create skeleton record
-      const vessel = {
+    if (existing) {
+      if (name) existing.name = name;
+      if (ship_type) existing.type = ship_type;
+      if (destination) existing.destination = destination;
+      if (eta) existing.eta = eta;
+      if (length) existing.length = length;
+      if (beam) existing.beam = beam;
+      this.dirtyMmsis.add(mmsi);
+    } else {
+      this.memoryMap.set(mmsi, {
         id: mmsi,
         mmsi,
         name: name || `VESSEL-${mmsi}`,
@@ -240,7 +375,7 @@ export class VesselStore {
         sog: 0,
         cog: 0,
         hdg: 0,
-        type: type || 0,
+        type: ship_type || 0,
         destination: destination || null,
         eta: eta || null,
         length: length || 0,
@@ -250,42 +385,45 @@ export class VesselStore {
         seen: now,
         source: "live",
         confidence: 1.0,
-      };
-      this.memoryMap.set(mmsi, vessel);
-      return;
+        sog_history: [],
+        status: "underway",
+      });
+      this.dirtyMmsis.add(mmsi);
     }
-
-    if (name) existing.name = name;
-    if (type) existing.type = type;
-    if (destination) existing.destination = destination;
-    if (eta) existing.eta = eta;
-    if (length) existing.length = length;
-    if (beam) existing.beam = beam;
-
-    this.dirtyMmsis.add(mmsi);
 
     try {
+      const v = this.memoryMap.get(mmsi);
       this.stmtUpsert.run({
         mmsi,
-        name: existing.name,
-        lat: existing.lat,
-        lon: existing.lon,
-        sog: existing.sog,
-        cog: existing.cog,
-        hdg: existing.hdg,
-        type: existing.type,
-        destination: existing.destination,
-        eta: existing.eta,
-        length: existing.length,
-        beam: existing.beam,
-        last_seen: existing.last_seen,
-        first_seen: existing.first_seen,
-        source: existing.source,
-        confidence: existing.confidence,
+        name: v.name,
+        lat: v.lat,
+        lon: v.lon,
+        sog: v.sog,
+        cog: v.cog,
+        hdg: v.hdg,
+        type: v.type,
+        destination: v.destination,
+        eta: v.eta,
+        length: v.length,
+        beam: v.beam,
+        last_seen: v.last_seen,
+        first_seen: v.first_seen,
+        source: v.source,
+        confidence: v.confidence,
+        sog_history: JSON.stringify(v.sog_history || []),
+        status: v.status || "underway",
       });
     } catch (e) {
-      // Ignored
+      console.warn("[Storage] Failed to persist static vessel to SQLite:", e.message);
     }
+  }
+
+  get(mmsi) {
+    return this.memoryMap.get(mmsi);
+  }
+
+  getAll() {
+    return this.memoryMap;
   }
 
   getBreadcrumbs(mmsi) {
@@ -296,42 +434,45 @@ export class VesselStore {
     }
   }
 
-  /**
-   * Prunes records older than 24h
-   */
+  getRecentTrafficBreadcrumbs(days = 7) {
+    const cutoff = Date.now() - days * 24 * 3600 * 1000;
+    try {
+      return this.stmtGetRecentBreadcrumbsAll.all(cutoff);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  getDirtyAndClear() {
+    const list = Array.from(this.dirtyMmsis);
+    this.dirtyMmsis.clear();
+    return list;
+  }
+
   pruneStale() {
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    // Prune stale breadcrumbs older than 14 days
+    const breadcrumbCutoff = now - 14 * 24 * 60 * 60 * 1000;
+    // Prune stale vessels older than 14 days
+    const vesselCutoff = now - 14 * 24 * 60 * 60 * 1000;
     const gone = [];
 
-    for (const [mmsi, v] of this.memoryMap) {
-      if (v.last_seen < cutoff) {
+    try {
+      this.stmtPruneBreadcrumbs.run(breadcrumbCutoff);
+      this.stmtPruneVessels.run(vesselCutoff);
+      this.flushRegionStats();
+    } catch (e) {
+      console.warn("[Storage] Error during SQLite prune cycle:", e.message);
+    }
+
+    for (const [mmsi, v] of this.memoryMap.entries()) {
+      if (v.last_seen < vesselCutoff) {
         this.memoryMap.delete(mmsi);
+        this.lastBreadcrumbByMmsi.delete(mmsi);
         gone.push(mmsi);
       }
     }
 
-    try {
-      this.stmtPruneVessels.run(cutoff);
-      this.stmtPruneBreadcrumbs.run(cutoff);
-    } catch (e) {
-      console.warn("[Storage] Error pruning stale entries:", e.message);
-    }
-
     return gone;
   }
-
-  getAll() {
-    return this.memoryMap;
-  }
-
-  get(mmsi) {
-    return this.memoryMap.get(mmsi);
-  }
-
-  getDirtyAndClear() {
-    const dirty = [...this.dirtyMmsis];
-    this.dirtyMmsis.clear();
-    return dirty;
-  }
 }
-

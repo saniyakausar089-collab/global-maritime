@@ -17,6 +17,8 @@ import {
   normalizeDestination,
   isNavigableWater,
   landCheckMetrics,
+  routeValidationMetrics,
+  computeVesselSeaRoute,
   KNOWN_PORTS,
 } from "./maritimeRouter.js";
 
@@ -333,6 +335,8 @@ app.get("/api/debug", (_, res) => {
     estimatedVessels: estCount,
     avgReportAgeMinutes: avgAgeMinutes,
     landCheckMetrics,
+    routeValidationMetrics,
+    regionalCoverage: store.getHourlyRegionStats(24),
     ageHistogram,
     filterMetrics,
   });
@@ -402,6 +406,7 @@ app.get("/api/vessels/:mmsi/track", (req, res) => {
   const vessel = store.get(mmsi);
   const breadcrumbs = store.getBreadcrumbs(mmsi);
   const destPort = vessel ? normalizeDestination(vessel.destination) : null;
+  const seaRoute = vessel && destPort ? computeVesselSeaRoute(vessel, destPort) : null;
 
   res.json({
     mmsi,
@@ -412,7 +417,40 @@ app.get("/api/vessels/:mmsi/track", (req, res) => {
           coordinates: [destPort.lon, destPort.lat],
         }
       : null,
+    routeCoordinates: seaRoute, // Authentic sea corridor coordinates, or null if crosses land. Never a straight line!
   });
+});
+
+// Observed Traffic Density (Last 7 Days of Real Breadcrumbs + Live Positions)
+app.get("/api/traffic-density", (req, res) => {
+  const days = Math.min(14, Math.max(1, Number(req.query.days) || 7));
+  const breadcrumbs = store.getRecentTrafficBreadcrumbs(days);
+
+  const points = breadcrumbs.map((b) => [b.lon, b.lat]);
+  const allVessels = [...store.getAll().values()];
+  for (const v of allVessels) {
+    if (v.source === "live" && v.lon != null && v.lat != null) {
+      points.push([+v.lon.toFixed(4), +v.lat.toFixed(4)]);
+    }
+  }
+
+  res.json({
+    type: "FeatureCollection",
+    count: points.length,
+    ageDays: days,
+    features: points.map(([lon, lat], idx) => ({
+      type: "Feature",
+      id: idx,
+      geometry: { type: "Point", coordinates: [lon, lat] },
+      properties: {},
+    })),
+  });
+});
+
+// Hourly Regional Ocean Message Coverage
+app.get("/api/region-coverage", (req, res) => {
+  const hours = Math.min(72, Math.max(1, Number(req.query.hours) || 24));
+  res.json(store.getHourlyRegionStats(hours));
 });
 
 app.get(["/api/history", "/ports/:id/history"], (req, res) => {

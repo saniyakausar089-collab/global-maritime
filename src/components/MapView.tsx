@@ -22,6 +22,7 @@ import {
   X,
   ExternalLink,
   Radio,
+  Activity,
 } from "lucide-react";
 
 if (typeof window !== "undefined" && typeof maplibregl.setWorkerUrl === "function") {
@@ -215,6 +216,7 @@ export function MapView({
   const [showPortLabels, setShowPortLabels] = useState(true);
   const [showAnchored, setShowAnchored] = useState(true);
   const [showEstimated, setShowEstimated] = useState(true);
+  const [showTrafficDensity, setShowTrafficDensity] = useState(true);
 
   // Deduplicate and split counts: unique MMSIs, live vs estimated
   const { uniqueVessels, liveCount, estimatedCount } = useMemo(() => {
@@ -340,6 +342,51 @@ export function MapView({
             "line-opacity": 0.18,
           },
         });
+      }
+
+      // 1b. Observed Traffic Density Source & Heatmap Layer (Last 7 Days)
+      if (!map.getSource("traffic_density")) {
+        map.addSource("traffic_density", {
+          type: "geojson",
+          data: "/api/traffic-density",
+        });
+      }
+
+      if (!map.getLayer("traffic_density_layer")) {
+        map.addLayer(
+          {
+            id: "traffic_density_layer",
+            type: "heatmap",
+            source: "traffic_density",
+            layout: {
+              visibility: showTrafficDensity ? "visible" : "none",
+            },
+            paint: {
+              "heatmap-weight": ["interpolate", ["linear"], ["zoom"], 1, 0.4, 6, 1.0],
+              "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 1, 0.7, 6, 1.2],
+              "heatmap-color": [
+                "interpolate",
+                ["linear"],
+                ["heatmap-density"],
+                0, "rgba(4, 7, 13, 0)",
+                0.2, "rgba(34, 211, 238, 0.1)",
+                0.5, "rgba(94, 231, 255, 0.28)",
+                0.8, "rgba(56, 189, 248, 0.55)",
+                1.0, "rgba(94, 231, 255, 0.85)",
+              ],
+              "heatmap-radius": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                1, 4,
+                4, 10,
+                8, 20,
+              ],
+              "heatmap-opacity": 0.22,
+            },
+          },
+          "vessel_breadcrumbs"
+        );
       }
 
       // 2. Selected Vessel Track & Breadcrumbs Source
@@ -521,6 +568,19 @@ export function MapView({
     };
   }, [showAnchored, showEstimated]);
 
+  // Toggle traffic density heatmap visibility
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    if (map.getLayer("traffic_density_layer")) {
+      map.setLayoutProperty(
+        "traffic_density_layer",
+        "visibility",
+        showTrafficDensity ? "visible" : "none"
+      );
+    }
+  }, [showTrafficDensity, mapLoaded]);
+
   // Fetch and draw real breadcrumbs & destination track for selected vessel
   useEffect(() => {
     const map = mapRef.current;
@@ -542,26 +602,26 @@ export function MapView({
         const curPos = deadReckonPos(selectedVessel, Date.now());
         const features: any[] = [];
 
-        // Historic breadcrumbs
-        if (Array.isArray(data.breadcrumbs) && data.breadcrumbs.length > 1) {
+        // Historic real breadcrumbs (chronological order up to current position)
+        if (Array.isArray(data.breadcrumbs) && data.breadcrumbs.length > 0) {
           features.push({
             type: "Feature",
             properties: { type: "breadcrumb" },
             geometry: {
               type: "LineString",
-              coordinates: [...data.breadcrumbs.reverse(), curPos],
+              coordinates: [...data.breadcrumbs, curPos],
             },
           });
         }
 
-        // Estimated route toward destination
-        if (data.destination?.coordinates) {
+        // Authentic nautical sea corridor toward destination (NEVER a straight line fallback)
+        if (Array.isArray(data.routeCoordinates) && data.routeCoordinates.length > 1) {
           features.push({
             type: "Feature",
             properties: { type: "route" },
             geometry: {
               type: "LineString",
-              coordinates: [curPos, data.destination.coordinates],
+              coordinates: data.routeCoordinates,
             },
           });
         }
@@ -827,6 +887,16 @@ export function MapView({
           </button>
           <button
             type="button"
+            onClick={() => setShowTrafficDensity(!showTrafficDensity)}
+            title={showTrafficDensity ? "Hide 7-Day Observed Traffic Density" : "Show 7-Day Observed Traffic Density"}
+            className={`flex h-7 w-7 items-center justify-center rounded-full transition cursor-pointer ${
+              showTrafficDensity ? "text-accent bg-accent/15" : "text-ink-2 hover:text-ink hover:bg-white/10"
+            }`}
+          >
+            <Activity className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
             onClick={() => setShowEstimated(!showEstimated)}
             title={showEstimated ? "Hide Estimated Open-Ocean Positions" : "Show Estimated Open-Ocean Positions"}
             className={`flex h-7 w-7 items-center justify-center rounded-full transition cursor-pointer font-bold text-xs ${
@@ -879,6 +949,14 @@ export function MapView({
           <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
             <span className="h-2 w-2 rounded-full border border-[#FBBF24] bg-transparent" /> Estimated (Open-Ocean ~)
           </span>
+          {showTrafficDensity && (
+            <>
+              <span className="text-white/15">|</span>
+              <span className="flex items-center gap-1.5 text-[11px] text-accent font-medium">
+                <span className="h-2 w-2 rounded-full bg-[#5EE7FF] shadow-[0_0_6px_#5EE7FF]" /> Observed Traffic Density <span className="text-[10px] text-ink-3">(7-day history)</span>
+              </span>
+            </>
+          )}
           <span className="text-white/15">|</span>
           <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
             <span className="h-2 w-2 rounded-full bg-[#5EE7FF]" /> Cargo
