@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CompareRouteImport } from './routes/compare'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MethodologyRouteImport } from './routes/methodology'
 import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as TimemachineRouteImport } from './routes/timemachine'
@@ -24,6 +25,11 @@ const IndexRoute = IndexRouteImport.update({
 const CompareRoute = CompareRouteImport.update({
   id: '/compare',
   path: '/compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MethodologyRoute = MethodologyRouteImport.update({
@@ -50,6 +56,7 @@ const PortsIdRoute = PortsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/compare': typeof CompareRoute
+  '/login': typeof LoginRoute
   '/methodology': typeof MethodologyRoute
   '/overview': typeof OverviewRoute
   '/timemachine': typeof TimemachineRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/compare': typeof CompareRoute
+  '/login': typeof LoginRoute
   '/methodology': typeof MethodologyRoute
   '/overview': typeof OverviewRoute
   '/timemachine': typeof TimemachineRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/compare': typeof CompareRoute
+  '/login': typeof LoginRoute
   '/methodology': typeof MethodologyRoute
   '/overview': typeof OverviewRoute
   '/timemachine': typeof TimemachineRoute
@@ -77,6 +86,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/compare'
+    | '/login'
     | '/methodology'
     | '/overview'
     | '/timemachine'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/compare'
+    | '/login'
     | '/methodology'
     | '/overview'
     | '/timemachine'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/compare'
+    | '/login'
     | '/methodology'
     | '/overview'
     | '/timemachine'
@@ -102,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CompareRoute: typeof CompareRoute
+  LoginRoute: typeof LoginRoute
   MethodologyRoute: typeof MethodologyRoute
   OverviewRoute: typeof OverviewRoute
   TimemachineRoute: typeof TimemachineRoute
@@ -122,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/compare'
       fullPath: '/compare'
       preLoaderRoute: typeof CompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/methodology': {
@@ -158,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CompareRoute: CompareRoute,
+  LoginRoute: LoginRoute,
   MethodologyRoute: MethodologyRoute,
   OverviewRoute: OverviewRoute,
   TimemachineRoute: TimemachineRoute,

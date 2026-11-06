@@ -5,12 +5,13 @@ import {
   createRootRouteWithContext,
   useRouter,
   useRouterState,
+  useNavigate,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { Anchor, Moon, Sun, RefreshCw, Radio, CheckCircle2, AlertCircle, WifiOff, History, Compass, Sparkles, LogIn } from "lucide-react";
+import { Anchor, Moon, Sun, RefreshCw, Radio, CheckCircle2, AlertCircle, WifiOff, History, Compass, Sparkles, LogIn, LogOut, ShieldCheck, Lock } from "lucide-react";
 import { useFeedHealth, type FeedHealthState } from "@/lib/feedHealth";
 import { useLiveTime, formatUtcClock, formatTimeAgo } from "@/lib/time";
 
@@ -126,9 +127,45 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isLanding = pathname === "/";
   const isLogin = pathname === "/login";
+
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("auth_logged_in") === "true";
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleAuth = () => {
+      const logged = localStorage.getItem("auth_logged_in") === "true";
+      setIsAuthenticated(logged);
+    };
+    window.addEventListener("auth-change", handleAuth);
+    window.addEventListener("storage", handleAuth);
+    return () => {
+      window.removeEventListener("auth-change", handleAuth);
+      window.removeEventListener("storage", handleAuth);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated && !isLanding && !isLogin) {
+      navigate({
+        to: "/login",
+        search: { redirect: pathname },
+        replace: true,
+      });
+    } else if (isAuthenticated && isLogin) {
+      navigate({
+        to: "/overview",
+        replace: true,
+      });
+    }
+  }, [isAuthenticated, pathname, isLanding, isLogin, navigate]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -137,6 +174,18 @@ function RootComponent() {
         {!isLanding && !isLogin && <Header />}
         {isLanding || isLogin ? (
           <Outlet />
+        ) : !isAuthenticated ? (
+          <div className="flex min-h-[70vh] items-center justify-center px-4">
+            <div className="flex flex-col items-center gap-3 text-center p-7 rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl max-w-sm shadow-2xl">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 animate-pulse">
+                <Lock className="h-6 w-6" />
+              </div>
+              <h2 className="text-base font-bold text-white tracking-wide">Operator Clearance Required</h2>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Guest access is disabled. Redirecting to Terminal Login...
+              </p>
+            </div>
+          </div>
         ) : (
           <main className="mx-auto max-w-7xl px-4 py-6">
             <Outlet />
@@ -148,6 +197,7 @@ function RootComponent() {
 }
 
 function Header() {
+  const navigate = useNavigate();
   const [dark, setDark] = useState(true);
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -155,6 +205,42 @@ function Header() {
   const queryClient = useQueryClient();
   const isFetching = useIsFetching() > 0;
   const now = useLiveTime();
+
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("auth_logged_in") === "true";
+    }
+    return false;
+  });
+  const [authUser, setAuthUser] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("auth_user") || "Operator";
+    }
+    return "Operator";
+  });
+
+  useEffect(() => {
+    const syncAuth = () => {
+      const logged = localStorage.getItem("auth_logged_in") === "true";
+      setIsAuthenticated(logged);
+      setAuthUser(localStorage.getItem("auth_user") || "Operator");
+    };
+    window.addEventListener("auth-change", syncAuth);
+    window.addEventListener("storage", syncAuth);
+    return () => {
+      window.removeEventListener("auth-change", syncAuth);
+      window.removeEventListener("storage", syncAuth);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem("auth_logged_in");
+      localStorage.removeItem("auth_user");
+      window.dispatchEvent(new Event("auth-change"));
+    } catch {}
+    navigate({ to: "/login", replace: true });
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
@@ -236,10 +322,31 @@ function Header() {
           <Link to="/methodology" className={navLinkClass} activeProps={activeNavProps}>
             <span>Methodology</span>
           </Link>
-          <Link to="/login" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps}>
-            <LogIn className="h-3.5 w-3.5 text-accent" />
-            <span>Terminal Login</span>
-          </Link>
+
+          {isAuthenticated ? (
+            <div className="flex items-center gap-2 pl-2 ml-1 border-l border-white/10">
+              <div className="flex items-center gap-1.5 rounded-full border border-[#00ffc6]/30 bg-[#00ffc6]/10 px-2.5 py-1 text-xs font-mono text-[#00ffc6]">
+                <ShieldCheck className="h-3.5 w-3.5 text-[#00ffc6]" />
+                <span className="max-w-[110px] truncate text-[11px] font-semibold">
+                  {authUser.includes("@") ? authUser.split("@")[0] : authUser}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                title="Log out from console"
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-mono text-slate-300 hover:text-rose-400 hover:bg-rose-500/10 rounded-full border border-white/15 transition-all cursor-pointer"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Logout</span>
+              </button>
+            </div>
+          ) : (
+            <Link to="/login" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps}>
+              <LogIn className="h-3.5 w-3.5 text-accent" />
+              <span>Terminal Login</span>
+            </Link>
+          )}
         </nav>
 
         {/* Right: Live Telemetry, UTC Clock, Refresh & Theme Toggle */}
@@ -311,9 +418,30 @@ function Header() {
           <Link to="/methodology" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
             Methodology
           </Link>
-          <Link to="/login" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
-            Terminal Login
-          </Link>
+
+          {isAuthenticated ? (
+            <div className="pt-2 mt-1 border-t border-white/10 flex items-center justify-between px-2">
+              <div className="flex items-center gap-1.5 text-xs font-mono text-[#00ffc6]">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                <span className="truncate max-w-[140px] font-semibold">{authUser}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleLogout();
+                }}
+                className="flex items-center gap-1 px-3 py-1 text-xs font-mono text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-full border border-rose-500/20 transition-colors cursor-pointer"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Logout</span>
+              </button>
+            </div>
+          ) : (
+            <Link to="/login" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
+              Terminal Login
+            </Link>
+          )}
         </div>
       )}
     </header>
