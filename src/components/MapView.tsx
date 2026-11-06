@@ -849,12 +849,12 @@ export function MapView({
         </div>
 
         {/* Action Controls Pill */}
-        <div className="glass-pill flex items-center p-1 shadow-lg">
+        <div className="glass-pill flex items-center p-1 shadow-lg bg-black/40 border border-white/15">
           <button
             type="button"
             onClick={zoomIn}
             title="Zoom In"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-ink-2 hover:text-ink hover:bg-white/10 transition cursor-pointer"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-slate-300 hover:text-white hover:bg-white/15 transition cursor-pointer"
           >
             <ZoomIn className="h-3.5 w-3.5" />
           </button>
@@ -862,16 +862,16 @@ export function MapView({
             type="button"
             onClick={zoomOut}
             title="Zoom Out"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-ink-2 hover:text-ink hover:bg-white/10 transition cursor-pointer"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-slate-300 hover:text-white hover:bg-white/15 transition cursor-pointer"
           >
             <ZoomOut className="h-3.5 w-3.5" />
           </button>
-          <div className="mx-1 h-3.5 w-px bg-white/10" />
+          <div className="mx-1 h-3.5 w-px bg-white/15" />
           <button
             type="button"
             onClick={resetView}
             title="Fit to World / Reset View"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-ink-2 hover:text-ink hover:bg-white/10 transition cursor-pointer"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-slate-300 hover:text-white hover:bg-white/15 transition cursor-pointer"
           >
             <RotateCcw className="h-3 w-3" />
           </button>
@@ -880,7 +880,7 @@ export function MapView({
             onClick={() => setShowRoutes(!showRoutes)}
             title={showRoutes ? "Hide Sea Corridors" : "Show Sea Corridors"}
             className={`flex h-7 w-7 items-center justify-center rounded-full transition cursor-pointer ${
-              showRoutes ? "text-accent bg-accent/15" : "text-ink-2 hover:text-ink hover:bg-white/10"
+              showRoutes ? "text-accent bg-accent/20" : "text-slate-300 hover:text-white hover:bg-white/15"
             }`}
           >
             <Navigation className="h-3 w-3" />
@@ -890,7 +890,7 @@ export function MapView({
             onClick={() => setShowTrafficDensity(!showTrafficDensity)}
             title={showTrafficDensity ? "Hide 7-Day Observed Traffic Density" : "Show 7-Day Observed Traffic Density"}
             className={`flex h-7 w-7 items-center justify-center rounded-full transition cursor-pointer ${
-              showTrafficDensity ? "text-accent bg-accent/15" : "text-ink-2 hover:text-ink hover:bg-white/10"
+              showTrafficDensity ? "text-accent bg-accent/20" : "text-slate-300 hover:text-white hover:bg-white/15"
             }`}
           >
             <Activity className="h-3 w-3" />
@@ -900,7 +900,7 @@ export function MapView({
             onClick={() => setShowEstimated(!showEstimated)}
             title={showEstimated ? "Hide Estimated Open-Ocean Positions" : "Show Estimated Open-Ocean Positions"}
             className={`flex h-7 w-7 items-center justify-center rounded-full transition cursor-pointer font-bold text-xs ${
-              showEstimated ? "text-amber-400 bg-amber-400/15" : "text-ink-2 hover:text-ink hover:bg-white/10"
+              showEstimated ? "text-amber-400 bg-amber-400/20" : "text-slate-300 hover:text-white hover:bg-white/15"
             }`}
           >
             ~
@@ -910,7 +910,7 @@ export function MapView({
             onClick={() => setShowPortLabels(!showPortLabels)}
             title={showPortLabels ? "Hide Port Hub Labels" : "Show Port Hub Labels"}
             className={`flex h-7 w-7 items-center justify-center rounded-full transition cursor-pointer ${
-              showPortLabels ? "text-accent bg-accent/15" : "text-ink-2 hover:text-ink hover:bg-white/10"
+              showPortLabels ? "text-accent bg-accent/20" : "text-slate-300 hover:text-white hover:bg-white/15"
             }`}
           >
             <Anchor className="h-3 w-3" />
@@ -920,17 +920,17 @@ export function MapView({
             onClick={() => setShowAnchored(!showAnchored)}
             title={showAnchored ? "Hide Anchored Vessels" : "Show Anchored Vessels"}
             className={`flex h-7 w-7 items-center justify-center rounded-full transition cursor-pointer ${
-              showAnchored ? "text-accent bg-accent/15" : "text-ink-2 hover:text-ink hover:bg-white/10"
+              showAnchored ? "text-accent bg-accent/20" : "text-slate-300 hover:text-white hover:bg-white/15"
             }`}
           >
             <Ship className="h-3 w-3" />
           </button>
-          <div className="mx-1 h-3.5 w-px bg-white/10" />
+          <div className="mx-1 h-3.5 w-px bg-white/15" />
           <button
             type="button"
             onClick={toggleFullscreen}
             title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Map"}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-ink-2 hover:text-ink hover:bg-white/10 transition cursor-pointer"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-slate-300 hover:text-white hover:bg-white/15 transition cursor-pointer"
           >
             {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
           </button>

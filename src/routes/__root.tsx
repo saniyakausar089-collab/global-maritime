@@ -10,7 +10,7 @@ import {
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { Anchor, Moon, Sun, RefreshCw, Radio, CheckCircle2, AlertCircle, WifiOff, History, Compass, Sparkles } from "lucide-react";
+import { Anchor, Moon, Sun, RefreshCw, Radio, CheckCircle2, AlertCircle, WifiOff, History, Compass, Sparkles, LogIn } from "lucide-react";
 import { useFeedHealth, type FeedHealthState } from "@/lib/feedHealth";
 import { useLiveTime, formatUtcClock, formatTimeAgo } from "@/lib/time";
 
@@ -30,7 +30,7 @@ function NotFoundComponent() {
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            3D Story
+            Intro
           </Link>
           <Link
             to="/overview"
@@ -128,15 +128,17 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isLanding = pathname === "/";
+  const isLogin = pathname === "/login";
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-background text-foreground">
-        {!isLanding && <Header />}
-        {isLanding ? (
+      <div className="min-h-screen bg-bg text-ink relative selection:bg-accent/25 selection:text-ink">
+        <div className="film-grain" />
+        {!isLanding && !isLogin && <Header />}
+        {isLanding || isLogin ? (
           <Outlet />
         ) : (
-          <main className="mx-auto max-w-7xl px-4 py-5">
+          <main className="mx-auto max-w-7xl px-4 py-6">
             <Outlet />
           </main>
         )}
@@ -146,16 +148,27 @@ function RootComponent() {
 }
 
 function Header() {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(true);
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const feedHealth = useFeedHealth();
   const queryClient = useQueryClient();
   const isFetching = useIsFetching() > 0;
   const now = useLiveTime();
 
   useEffect(() => {
-    const d = localStorage.getItem("theme") === "dark";
+    const stored = localStorage.getItem("theme");
+    const d = stored === null ? true : stored === "dark";
     setDark(d);
     document.documentElement.classList.toggle("dark", d);
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setScrolled(window.scrollY > 15);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   const toggle = () => {
@@ -171,162 +184,138 @@ function Header() {
   };
 
   const navLinkClass =
-    "px-3 py-1.5 text-xs font-medium rounded-md transition-colors text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent";
+    "whitespace-nowrap px-3.5 py-1.5 text-xs font-medium rounded-full transition-all text-ink-2 hover:text-ink hover:bg-white/5";
   const activeNavProps = {
     className:
-      "px-3 py-1.5 text-xs font-semibold rounded-md transition-colors bg-sidebar-accent text-sidebar-primary border border-sidebar-primary/20",
+      "whitespace-nowrap px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all bg-white/10 text-accent border border-white/10 shadow-xs",
   };
 
-  // Health Pill Config (LIVE, DELAYED, STALE, OFFLINE)
-  const healthBadge = {
-    LIVE: {
-      label: "LIVE",
-      color: "bg-emerald-500",
-      ping: true,
-      text: "text-emerald-400",
-      border: "border-emerald-500/30",
-      bg: "bg-emerald-500/10",
-      icon: Radio,
-    },
-    DELAYED: {
-      label: "DELAYED",
-      color: "bg-amber-400",
-      ping: true,
-      text: "text-amber-300",
-      border: "border-amber-400/30",
-      bg: "bg-amber-400/10",
-      icon: AlertCircle,
-    },
-    STALE: {
-      label: "STALE",
-      color: "bg-orange-500",
-      ping: false,
-      text: "text-orange-400",
-      border: "border-orange-500/30",
-      bg: "bg-orange-500/10",
-      icon: AlertCircle,
-    },
-    OFFLINE: {
-      label: "OFFLINE",
-      color: "bg-rose-500",
-      ping: false,
-      text: "text-rose-400",
-      border: "border-rose-500/30",
-      bg: "bg-rose-500/10",
-      icon: WifiOff,
-    },
-  }[feedHealth.state] || {
-    label: "LIVE",
-    color: "bg-emerald-500",
-    ping: true,
-    text: "text-emerald-400",
-    border: "border-emerald-500/30",
-    bg: "bg-emerald-500/10",
-    icon: Radio,
-  };
-
-  const HealthIcon = healthBadge.icon;
   const utcClock = formatUtcClock(now);
-  const localClock = now ? now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--:--:--";
-  const syncAgo = formatTimeAgo(feedHealth.lastSyncTime || undefined, now);
 
   return (
-    <header className="sticky top-0 z-[1000] h-[64px] border-b border-sidebar-border bg-sidebar shadow-md">
-      <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-3 px-4">
-        {/* Left: Brand Identity */}
-        <div className="flex items-center gap-5">
-          <Link to="/" className="flex items-center gap-2.5 font-bold tracking-tight text-sidebar-foreground group">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-accent border border-sidebar-primary/30 text-sidebar-primary transition-transform group-hover:scale-105 shadow-inner">
-              <Anchor className="h-5 w-5" />
+    <header className="sticky top-0 z-[1000] px-3 sm:px-4 pt-3 pb-1 pointer-events-none transition-all duration-300">
+      {/* Centered Apple-Style Floating Glass Pill Nav */}
+      <div
+        className={`mx-auto max-w-[960px] h-[56px] rounded-full glass-panel px-3.5 sm:px-5 flex items-center justify-between pointer-events-auto transition-all duration-300 ${
+          scrolled ? "shadow-[0_20px_40px_rgba(0,0,0,0.6)] scale-[0.985] bg-opacity-80" : "shadow-lg"
+        }`}
+      >
+        {/* Left: Brand Identity with Fixed Line-Height & Overflow Protection */}
+        <div className="flex items-center gap-3 shrink-0">
+          <Link to="/" className="flex items-center gap-2.5 font-bold tracking-tight text-ink group">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 border border-accent/30 text-accent transition-transform group-hover:scale-105 shadow-inner">
+              <Anchor className="h-4 w-4" />
             </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-bold tracking-tight text-sidebar-foreground flex items-center gap-1.5">
+            <div className="flex flex-col justify-center">
+              <span className="text-[13px] font-bold tracking-tight text-ink flex items-center gap-1.5 leading-none whitespace-nowrap">
                 Port Monitor
-                <span className="rounded bg-sidebar-primary/15 px-1.5 py-0.2 text-[9px] font-semibold text-sidebar-primary uppercase tracking-widest border border-sidebar-primary/25">
-                  AIS Intel
-                </span>
               </span>
-              <span className="text-[10px] font-normal text-sidebar-foreground/60 tracking-wider">
+              <span className="hidden min-[1100px]:block text-[10px] font-normal text-ink-3 tracking-wider leading-tight mt-0.5 whitespace-nowrap">
                 Enterprise Maritime Analytics
               </span>
             </div>
           </Link>
-
-          {/* Navigation Items */}
-          <nav className="hidden md:flex items-center gap-1">
-            <Link to="/" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps} activeOptions={{ exact: true }}>
-              <Compass className="h-3.5 w-3.5 text-cyan-400" />
-              3D Story
-            </Link>
-            <Link to="/overview" className={navLinkClass} activeProps={activeNavProps}>
-              Overview
-            </Link>
-            <Link to="/timemachine" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps}>
-              <History className="h-3.5 w-3.5 text-cyan-400" />
-              Time Machine
-            </Link>
-            <Link to="/compare" className={navLinkClass} activeProps={activeNavProps}>
-              Compare
-            </Link>
-            <Link to="/methodology" className={navLinkClass} activeProps={activeNavProps}>
-              Methodology
-            </Link>
-          </nav>
         </div>
 
-        {/* Right: Telemetry, Sync, Clocks, Refresh & Theme Toggle */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Feed Health Indicator Pill */}
+        {/* Center: Navigation Links */}
+        <nav className="hidden lg:flex items-center gap-1 shrink-0">
+          <Link to="/" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps} activeOptions={{ exact: true }}>
+            <Compass className="h-3.5 w-3.5 text-accent" />
+            <span>Intro</span>
+          </Link>
+          <Link to="/overview" className={navLinkClass} activeProps={activeNavProps}>
+            <span>Overview</span>
+          </Link>
+          <Link to="/timemachine" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps}>
+            <History className="h-3.5 w-3.5 text-accent" />
+            <span>Time Machine</span>
+          </Link>
+          <Link to="/compare" className={navLinkClass} activeProps={activeNavProps}>
+            <span>Compare</span>
+          </Link>
+          <Link to="/methodology" className={navLinkClass} activeProps={activeNavProps}>
+            <span>Methodology</span>
+          </Link>
+          <Link to="/login" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps}>
+            <LogIn className="h-3.5 w-3.5 text-accent" />
+            <span>Terminal Login</span>
+          </Link>
+        </nav>
+
+        {/* Right: Live Telemetry, UTC Clock, Refresh & Theme Toggle */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {/* Pulsing LIVE Chip */}
           <div
-            className={`hidden sm:flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-mono backdrop-blur-sm ${healthBadge.border} ${healthBadge.bg}`}
+            className="flex items-center gap-1.5 rounded-full border border-[#34D399]/30 bg-[#34D399]/12 px-2.5 py-1 text-xs font-mono"
             title={`AIS Stream Status: ${feedHealth.message}`}
           >
             <span className="relative flex h-2 w-2">
-              {healthBadge.ping && (
-                <span
-                  className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${healthBadge.color}`}
-                />
-              )}
-              <span className={`relative inline-flex h-2 w-2 rounded-full ${healthBadge.color}`} />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-[#34D399]" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#34D399]" />
             </span>
-            <span className={`text-[11px] font-bold ${healthBadge.text}`}>{healthBadge.label}</span>
+            <span className="text-[10px] font-bold text-[#34D399] tracking-wider">LIVE</span>
           </div>
 
-          {/* Real-time UTC & Local Clock */}
-          <div className="hidden lg:flex items-center gap-2 rounded-full border border-sidebar-border bg-sidebar-accent/50 px-3 py-1 font-mono text-[11px] text-sidebar-foreground/90">
-            <span className="font-semibold text-sidebar-primary">{utcClock}</span>
-            <span className="text-sidebar-foreground/40">|</span>
-            <span className="text-sidebar-foreground/60">{localClock} Local</span>
+          {/* Real-time UTC Clock */}
+          <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 font-mono text-[10px] text-slate-200">
+            <span className="text-accent font-semibold">{utcClock}</span>
           </div>
 
-          {/* Synchronization Timestamp */}
-          <div className="hidden xl:flex items-center gap-1.5 text-[11px] font-mono text-sidebar-foreground/60">
-            <span>Synced:</span>
-            <span className="text-sidebar-foreground/90 font-medium">{syncAgo}</span>
-          </div>
-
-          {/* Manual Refresh Button with Spinning State */}
+          {/* Manual Refresh Button */}
           <button
             onClick={handleRefresh}
             disabled={isFetching}
             title={isFetching ? "Refreshing telemetry..." : "Refresh telemetry"}
             aria-label="Refresh data"
-            className="flex items-center justify-center h-8 w-8 rounded-lg border border-sidebar-border bg-sidebar-accent/60 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary disabled:opacity-50 transition-all shadow-xs"
+            className="flex items-center justify-center h-8 w-8 rounded-full border border-white/20 bg-white/10 text-slate-200 hover:text-white hover:bg-white/20 disabled:opacity-50 transition-all cursor-pointer shadow-sm"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-sidebar-primary" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-accent" : ""}`} />
           </button>
 
-          {/* Light / Dark Mode Toggle */}
+          {/* Theme Toggle */}
           <button
             onClick={toggle}
             aria-label="Toggle theme"
             title={dark ? "Switch to light mode" : "Switch to dark mode"}
-            className="flex items-center justify-center h-8 w-8 rounded-lg border border-sidebar-border bg-sidebar-accent/60 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary transition-all shadow-xs"
+            className="flex items-center justify-center h-8 w-8 rounded-full border border-white/20 bg-white/10 text-slate-200 hover:text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm"
           >
-            {dark ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-cyan-300" />}
+            {dark ? <Sun className="h-4 w-4 text-amber-300" /> : <Moon className="h-4 w-4 text-accent" />}
+          </button>
+
+          {/* Mobile Menu Hamburger */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="lg:hidden flex items-center justify-center h-8 w-8 rounded-full border border-white/20 bg-white/10 text-white cursor-pointer shadow-sm"
+            aria-label="Toggle mobile menu"
+          >
+            <span className="text-xs font-bold font-mono">☰</span>
           </button>
         </div>
       </div>
+
+      {/* Mobile Drawer */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden mx-auto max-w-[960px] mt-2 p-3 glass-panel rounded-2xl flex flex-col gap-1 pointer-events-auto">
+          <Link to="/" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
+            Intro
+          </Link>
+          <Link to="/overview" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
+            Overview
+          </Link>
+          <Link to="/timemachine" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
+            Time Machine
+          </Link>
+          <Link to="/compare" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
+            Compare
+          </Link>
+          <Link to="/methodology" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
+            Methodology
+          </Link>
+          <Link to="/login" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
+            Terminal Login
+          </Link>
+        </div>
+      )}
     </header>
   );
 }

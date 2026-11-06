@@ -503,31 +503,31 @@ export function HistoricalMapView({
       <div ref={containerRef} className="absolute inset-0 w-full h-full" />
 
       {/* Floating Toolbar Controls */}
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 glass-pill px-2 py-1 shadow-xl">
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 glass-pill px-2.5 py-1.5 shadow-xl bg-black/50 border border-white/20">
         <button
           type="button"
           onClick={zoomIn}
           title="Zoom In"
-          className="flex h-7 w-7 items-center justify-center rounded-full text-ink-2 hover:text-ink hover:bg-white/10 transition cursor-pointer"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-slate-200 hover:text-white hover:bg-white/20 transition cursor-pointer shadow-sm"
         >
-          <ZoomIn className="h-3.5 w-3.5" />
+          <ZoomIn className="h-4 w-4" />
         </button>
         <button
           type="button"
           onClick={zoomOut}
           title="Zoom Out"
-          className="flex h-7 w-7 items-center justify-center rounded-full text-ink-2 hover:text-ink hover:bg-white/10 transition cursor-pointer"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-slate-200 hover:text-white hover:bg-white/20 transition cursor-pointer shadow-sm"
         >
-          <ZoomOut className="h-3.5 w-3.5" />
+          <ZoomOut className="h-4 w-4" />
         </button>
-        <div className="mx-0.5 h-3.5 w-px bg-white/10" />
+        <div className="mx-0.5 h-3.5 w-px bg-white/20" />
         <button
           type="button"
           onClick={resetView}
           title="Fit to World / Reset View"
-          className="flex h-7 w-7 items-center justify-center rounded-full text-ink-2 hover:text-ink hover:bg-white/10 transition cursor-pointer"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-slate-200 hover:text-white hover:bg-white/20 transition cursor-pointer shadow-sm"
         >
-          <RotateCcw className="h-3 w-3" />
+          <RotateCcw className="h-3.5 w-3.5" />
         </button>
       </div>
 

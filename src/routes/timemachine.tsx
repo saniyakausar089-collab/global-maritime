@@ -399,10 +399,10 @@ export function TimeMachinePage() {
               key={tab.id}
               type="button"
               onClick={() => setActiveMode(tab.id as TimeMachineMode)}
-              className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 font-medium transition cursor-pointer ${
+              className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 font-bold text-xs transition cursor-pointer shadow-sm ${
                 isActive
-                  ? "bg-accent text-black font-bold shadow-md shadow-accent/25"
-                  : "bg-[#0A1019] text-ink-2 hover:bg-white/10 hover:text-ink border border-white/10"
+                  ? "bg-accent text-black font-extrabold shadow-md shadow-accent/25"
+                  : "bg-white/10 text-slate-200 hover:bg-white/20 hover:text-white border border-white/20 hover:border-accent/50"
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
