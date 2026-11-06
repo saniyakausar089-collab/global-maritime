@@ -187,14 +187,18 @@ export function HistoricalMapView({
       zoom: 2.2,
       minZoom: 1.5,
       maxBounds: [
-        [-180, -85],
-        [180, 85],
+        [-179.9, -85],
+        [179.9, 85],
       ],
       renderWorldCopies: false,
       attributionControl: { compact: true },
     });
 
     mapRef.current = map;
+
+    map.on("error", (e) => {
+      console.warn("[MapLibre Replay] warning/error:", e?.error?.message || e);
+    });
 
     map.on("load", () => {
       // Register ship icon glyphs (both solid and hollow forecast)
