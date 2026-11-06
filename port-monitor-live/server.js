@@ -1,4 +1,5 @@
 import "dotenv/config";
+import fs from "fs";
 import express from "express";
 import http from "http";
 import path from "path";
@@ -873,6 +874,23 @@ app.post("/api/vessel-chat", async (req, res) => {
 
 app.use(express.static(path.join(__dirname, "public")));
 
+const clientDist = path.join(__dirname, "..", ".output", "public");
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.use((req, res, next) => {
+    if (req.method !== "GET") return next();
+    if (req.path.startsWith("/api") || req.path.startsWith("/ws")) return next();
+    const cleanPath = req.path.replace(/\/$/, "");
+    const directHtml = path.join(clientDist, `${cleanPath}.html`);
+    const indexHtmlInFolder = path.join(clientDist, cleanPath, "index.html");
+    if (cleanPath && fs.existsSync(directHtml)) return res.sendFile(directHtml);
+    if (cleanPath && fs.existsSync(indexHtmlInFolder)) return res.sendFile(indexHtmlInFolder);
+    const rootIndex = path.join(clientDist, "index.html");
+    if (fs.existsSync(rootIndex)) return res.sendFile(rootIndex);
+    next();
+  });
+}
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 
@@ -904,8 +922,8 @@ wss.on("connection", (ws) => {
 });
 
 if (process.env.NODE_ENV !== "test") {
-  server.listen(PORT, () => {
-    console.log(`Port Monitor Server running on http://localhost:${PORT}`);
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`Port Monitor Server running on http://0.0.0.0:${PORT}`);
     console.log(`Active Provider: ${provider.name} | Demo Mode: ${DEMO_MODE ? "ENABLED" : "OFF (Real AIS Only)"}`);
     provider.start();
   });

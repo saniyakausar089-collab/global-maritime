@@ -4,7 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 import { isNavigableWater } from "./maritimeRouter.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, "vessels.sqlite");
+const DB_DIR = process.env.DATA_DIR || __dirname;
+const DB_PATH = path.join(DB_DIR, "vessels.sqlite");
 
 /**
  * Classifies geographic coordinates into primary global maritime basins
