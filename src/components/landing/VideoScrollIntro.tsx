@@ -10,14 +10,14 @@ export const CLIPS = [
 ];
 
 export const SEC: [number, number][] = [
-  [0, 0.14],
-  [0.18, 0.38],
-  [0.44, 0.62],
-  [0.66, 0.84],
-  [0.88, 1],
+  [0, 0.22],
+  [0.20, 0.42],
+  [0.40, 0.62],
+  [0.60, 0.82],
+  [0.80, 1.0],
 ];
 
-export const ST: number[] = [0, 0.22, 0.5, 0.72, 0.92];
+export const ST: number[] = [0, 0.22, 0.44, 0.66, 0.88];
 
 const N = CLIPS.length;
 
@@ -124,11 +124,15 @@ export function VideoScrollIntro() {
       }
 
       await new Promise<void>((resolve) => {
-        if (videoEl.readyState >= 2) return resolve();
+        if (videoEl.readyState >= 2) {
+          videoEl.pause();
+          return resolve();
+        }
         let settled = false;
         const done = () => {
           if (!settled) {
             settled = true;
+            videoEl.pause();
             resolve();
           }
         };
@@ -139,6 +143,8 @@ export function VideoScrollIntro() {
         videoEl.load();
       });
 
+      videoEl.pause();
+      videoEl.currentTime = 0;
       totalProgress.p[index] = 1;
       updateLoadingBar();
     }
@@ -165,16 +171,42 @@ export function VideoScrollIntro() {
     // Motion preference
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // Direct seeking function for all-keyframe video: instant, steady 60fps seek without blocking
-    let l0 = -1;
-    function seek(v: HTMLVideoElement, u: number, prev: number) {
-      const d = v.duration || 10;
-      const t = Math.min(d - 0.05, Math.max(0, u * d));
-      if (Math.abs(t - prev) > 0.015) {
-        v.currentTime = t;
-        return t;
+    // Non-blocking asynchronous video seeking pipeline
+    let isSeeking = false;
+    let pendingTime: number | null = null;
+    const v0 = vids[0];
+
+    const onSeeked = () => {
+      isSeeking = false;
+      if (pendingTime !== null && v0) {
+        const nextTime = pendingTime;
+        pendingTime = null;
+        if (Math.abs(v0.currentTime - nextTime) > 0.033) {
+          isSeeking = true;
+          v0.currentTime = nextTime;
+        }
       }
-      return prev;
+    };
+
+    if (v0) {
+      v0.pause();
+      v0.addEventListener("seeked", onSeeked);
+    }
+
+    function seekVideo(v: HTMLVideoElement, progress: number) {
+      if (!v || v.readyState < 2) return;
+      const d = v.duration || 10;
+      const targetTime = Math.min(d - 0.05, Math.max(0, progress * d));
+
+      if (isSeeking) {
+        pendingTime = targetTime;
+        return;
+      }
+
+      if (Math.abs(v.currentTime - targetTime) > 0.033) {
+        isSeeking = true;
+        v.currentTime = targetTime;
+      }
     }
 
     const sectionEls = [s0Ref.current, s1Ref.current, s2Ref.current, s3Ref.current, s4Ref.current];
@@ -190,41 +222,36 @@ export function VideoScrollIntro() {
       const dt = Math.min((now - lastTime) / 1000, 0.05);
       lastTime = now;
 
-      // Smoother lerp: factor 4.5 gives buttery inertia without lag or jerking
+      // Responsive, buttery lerp: factor 12.0 gives immediate, natural tracking without lag or jerking
       if (prefersReducedMotion) {
         currentP = targetP;
       } else {
-        currentP += (targetP - currentP) * (1 - Math.exp(-dt * 4.5));
+        const factor = 1 - Math.exp(-dt * 12);
+        currentP += (targetP - currentP) * factor;
       }
 
-      // Single continuous video scrubbing: steady 60fps with zero crossfade/glitches
-      const v0 = vids[0];
+      // Single continuous video scrubbing: steady 60fps with non-blocking seeks
       if (v0) {
         v0.style.opacity = "1";
         v0.style.visibility = "visible";
-        l0 = seek(v0, currentP, l0);
+        seekVideo(v0, currentP);
       }
 
       // Section fading & sliding
       sectionEls.forEach((el, i) => {
         if (!el) return;
         const range = SEC[i];
-        const opacity = Math.max(
-          0,
-          Math.min(1, Math.min((currentP - range[0]) / 0.025, (range[1] - currentP) / 0.025)),
-        );
+        const fadeIn = (currentP - range[0]) / 0.035;
+        const fadeOut = (range[1] - currentP) / 0.035;
+        const opacity = Math.max(0, Math.min(1, Math.min(fadeIn, fadeOut)));
         el.style.opacity = opacity.toString();
-        el.style.transform = `translateY(calc(-50% + ${(1 - opacity) * 22}px))`;
-        if (opacity > 0.5) {
-          el.style.pointerEvents = "auto";
-        } else {
-          el.style.pointerEvents = "none";
-        }
+        el.style.transform = `translateY(calc(-50% + ${(1 - opacity) * 16}px))`;
+        el.style.pointerEvents = opacity > 0.4 ? "auto" : "none";
       });
 
       // Hide video HUD as user enters the direct login section
       const sp = document.getElementById("sp");
-      const inLoginSection = currentP >= 0.99 || (sp && window.scrollY >= sp.offsetHeight - 80);
+      const inLoginSection = currentP >= 0.98 || (sp && window.scrollY >= sp.offsetHeight - 80);
 
       // Active progress dot
       let bestDotIdx = 0;
@@ -276,6 +303,9 @@ export function VideoScrollIntro() {
     return () => {
       isMounted = false;
       window.removeEventListener("scroll", onScroll);
+      if (v0) {
+        v0.removeEventListener("seeked", onSeeked);
+      }
       if (rAFId) cancelAnimationFrame(rAFId);
       objectUrlsRef.current.forEach((url) => {
         try {
@@ -529,9 +559,9 @@ export function VideoScrollIntro() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 6. TALL SPACER DRIVING PASSIVE SCROLL (2200vh for steady, cinematic pace)  */}
+      {/* 6. TALL SPACER DRIVING PASSIVE SCROLL (500vh for smooth, cinematic pace)   */}
       {/* ========================================================================= */}
-      <div id="sp" className="h-[2200vh] w-full pointer-events-none" />
+      <div id="sp" className="h-[500vh] w-full pointer-events-none" />
 
       {/* ========================================================================= */}
       {/* 7. DIRECT LOGIN SECTION (ROBOT SENTRY) CONTINUOUS AFTER SCROLL             */}
