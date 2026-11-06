@@ -2,12 +2,14 @@ import { queryOptions } from "@tanstack/react-query";
 
 /** Single place to configure the relay backend. */
 export const API_BASE_URL =
-  (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ||
-  "http://localhost:3000";
+  (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ??
+  (typeof window !== "undefined" ? "" : "http://localhost:3000");
 
 export const WS_BASE_URL =
-  (import.meta as unknown as { env?: { VITE_WS_URL?: string } }).env?.VITE_WS_URL ||
-  API_BASE_URL.replace(/^http/, "ws") + "/ws";
+  (import.meta as unknown as { env?: { VITE_WS_URL?: string } }).env?.VITE_WS_URL ??
+  (typeof window !== "undefined"
+    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`
+    : "ws://localhost:3000/ws");
 export const REFRESH_MS = 60_000;
 
 export type Port = {

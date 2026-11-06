@@ -6,110 +6,40 @@ import { fileURLToPath } from "url";
 import { WebSocketServer, WebSocket } from "ws";
 import cors from "cors";
 import dotenv from "dotenv";
-import { startOceanFleet } from "./ocean-fleet.js";
+
+import { VesselStore } from "./storage.js";
+import { AisStreamProvider } from "./providers/aisstreamProvider.js";
+import { SatelliteStubProvider } from "./providers/satelliteStubProvider.js";
+import { filterMetrics } from "./sanity.js";
+import {
+  estimateDeadReckonedPosition,
+  getMaritimeLanesGeoJson,
+  normalizeDestination,
+  isNavigableWater,
+  landCheckMetrics,
+  KNOWN_PORTS,
+} from "./maritimeRouter.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config();
 dotenv.config({ path: path.join(__dirname, ".env") });
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
-const KEY = (process.env.AISSTREAM_KEY || process.env.AISSTREAM_API_KEY || "").trim();
 const PORT = process.env.PORT || 3000;
-const SIM = process.env.SIMULATE === "1" || !KEY;
-const BOX = 1.6; // ~180 km radius around each port for comprehensive coverage
+const KEY = (process.env.AISSTREAM_KEY || process.env.AISSTREAM_API_KEY || "").trim();
+const DEMO_MODE = process.env.DEMO_MODE === "true";
+const AIS_PROVIDER = (process.env.AIS_PROVIDER || "aisstream").toLowerCase();
+const AIS_API_KEY = (process.env.AIS_API_KEY || KEY || "").trim();
 
-// The 6 monitored ports
+// The 6 monitored strategic ports
 export const PORTS = [
-  {
-    id: "rotterdam",
-    name: "Rotterdam",
-    lat: 51.92,
-    lon: 4.17,
-    bbox: [
-      [51.92 - BOX, 4.17 - BOX],
-      [51.92 + BOX, 4.17 + BOX],
-    ],
-  },
-  {
-    id: "singapore",
-    name: "Singapore",
-    lat: 1.26,
-    lon: 103.84,
-    bbox: [
-      [1.26 - BOX, 103.84 - BOX],
-      [1.26 + BOX, 103.84 + BOX],
-    ],
-  },
-  {
-    id: "shanghai",
-    name: "Shanghai",
-    lat: 31.23,
-    lon: 121.8,
-    bbox: [
-      [31.23 - BOX, 121.8 - BOX],
-      [31.23 + BOX, 121.8 + BOX],
-    ],
-  },
-  {
-    id: "los-angeles",
-    name: "Los Angeles",
-    lat: 33.73,
-    lon: -118.26,
-    bbox: [
-      [33.73 - BOX, -118.26 - BOX],
-      [33.73 + BOX, -118.26 + BOX],
-    ],
-  },
-  {
-    id: "hamburg",
-    name: "Hamburg",
-    lat: 53.54,
-    lon: 9.97,
-    bbox: [
-      [53.54 - BOX, 9.97 - BOX],
-      [53.54 + BOX, 9.97 + BOX],
-    ],
-  },
-  {
-    id: "santos",
-    name: "Santos",
-    lat: -23.98,
-    lon: -46.3,
-    bbox: [
-      [-23.98 - BOX, -46.3 - BOX],
-      [-23.98 + BOX, -46.3 + BOX],
-    ],
-  },
+  { id: "rotterdam", name: "Rotterdam", lat: 51.92, lon: 4.17 },
+  { id: "singapore", name: "Singapore", lat: 1.26, lon: 103.84 },
+  { id: "shanghai", name: "Shanghai", lat: 31.23, lon: 121.8 },
+  { id: "los-angeles", name: "Los Angeles", lat: 33.73, lon: -118.26 },
+  { id: "hamburg", name: "Hamburg", lat: 53.54, lon: 9.97 },
+  { id: "santos", name: "Santos", lat: -23.98, lon: -46.3 },
 ];
-
-// AISStream expects [[maxLat, minLon], [minLat, maxLon]] (North-West to South-East)
-// Port-specific dense monitoring boxes (AISStream expects [[maxLat, minLon], [minLat, maxLon]])
-const PORT_BOXES = PORTS.map((p) => [
-  [p.lat + BOX, p.lon - BOX],
-  [p.lat - BOX, p.lon + BOX],
-]);
-
-// Global ocean maritime transit corridors (North Atlantic, North Pacific, Indian Ocean, Mediterranean, South China Sea, Caribbean, South Atlantic)
-const OCEAN_BOXES = [
-  // North Atlantic Ocean (Europe <-> North America)
-  [[60, -65], [15, -5]],
-  // North Pacific Ocean (East Asia <-> US West Coast great circle lanes)
-  [[55, 125], [15, 180]],
-  [[55, -180], [15, -115]],
-  // Indian Ocean & Arabian Sea (Asia-Europe route via Suez / Malacca)
-  [[28, 40], [-20, 100]],
-  // Mediterranean Sea & Gibraltar
-  [[45, -8], [30, 36]],
-  // South China Sea & Philippine Sea
-  [[26, 105], [2, 130]],
-  // South Atlantic (South America <-> Africa / Europe)
-  [[0, -50], [-40, 15]],
-  // Caribbean Sea & Gulf of Mexico (Panama Canal approach)
-  [[30, -98], [8, -58]],
-];
-
-// Combined real-world subscription boxes: 6 core ports + all global oceans
-const boxes = [...PORT_BOXES, ...OCEAN_BOXES];
 
 export function getShipTypeLabel(typeNum) {
   const t = Number(typeNum) || 0;
@@ -117,18 +47,40 @@ export function getShipTypeLabel(typeNum) {
   if (t >= 80 && t <= 89) return "Tanker";
   if (t >= 60 && t <= 69) return "Passenger";
   if (t >= 50 && t <= 59) return "Special Craft / Tug";
-  if (t === 30) return "Fishing";
+  if (t === 30 || t === 31 || t === 32) return "Fishing";
   if (t >= 36 && t <= 37) return "Pleasure Craft";
   if (t > 0) return "Other";
   return "Unknown";
 }
 
-const vessels = new Map();
-const dirty = new Set();
+// Persistent Storage Engine (In-Memory + SQLite)
+const store = new VesselStore();
 const clients = new Set();
-let up = null,
-  retry = 0,
-  idleTimer = null;
+let idleTimer = null;
+
+// Select and initialize AIS provider
+let provider;
+if (AIS_PROVIDER === "satellite") {
+  provider = new SatelliteStubProvider(AIS_API_KEY, "Commercial-Satellite");
+} else {
+  provider = new AisStreamProvider(KEY);
+}
+
+provider.on("position", (pos) => {
+  store.updatePosition(pos);
+});
+
+provider.on("static", (stat) => {
+  store.updateStatic(stat);
+});
+
+provider.on("status", (s) => {
+  console.log(`[Provider Status] ${s.state}: ${s.message}`);
+});
+
+provider.on("error", (err) => {
+  console.error(`[Provider Error]`, err.message);
+});
 
 // Hourly history snapshots per port (for Compare & Detail charts)
 const hourlyHistory = new Map();
@@ -169,114 +121,13 @@ export function computePortMetrics(portId) {
   };
 }
 
-const compact = (v) => [
-  v.id,
-  v.name || "",
-  v.lat,
-  v.lon,
-  v.sog || 0,
-  v.cog || 0,
-  v.hdg ?? v.cog ?? 0,
-  v.type || 0,
-];
-
-function ingest(m) {
-  if (m.error) {
-    console.error("AISStream error:", m.error);
-    return;
-  }
-  const md = m.MetaData || {};
-  const id = md.MMSI;
-  if (!id) return;
-  const v = vessels.get(id) || { id };
-  if (m.MessageType === "PositionReport") {
-    const p = m.Message.PositionReport;
-    v.lat = p.Latitude ?? md.latitude;
-    v.lon = p.Longitude ?? md.longitude;
-    v.sog = p.Sog >= 102.3 ? 0 : p.Sog;
-    v.cog = p.Cog >= 360 ? v.cog || 0 : p.Cog;
-    v.hdg = p.TrueHeading >= 360 ? v.cog : p.TrueHeading;
-    v.name = (md.ShipName || v.name || "").trim();
-    v.seen = Date.now();
-  } else if (m.MessageType === "ShipStaticData") {
-    const s = m.Message.ShipStaticData;
-    v.type = s.Type;
-    v.name = (s.Name || v.name || "").trim();
-  } else return;
-  if (v.lat === undefined || v.lon === undefined) return;
-  if (v.lat < -90 || v.lat > 90 || v.lon < -180 || v.lon > 180) return;
-  vessels.set(id, v);
-  dirty.add(id);
-}
-
-function connectUp() {
-  if (SIM || up) return;
-  console.log("Connecting to AISStream...");
-  up = new WebSocket("wss://stream.aisstream.io/v0/stream");
-  up.on("open", () => {
-    retry = 0;
-    up.send(
-      JSON.stringify({
-        APIKey: KEY,
-        BoundingBoxes: [[[90, -180], [-90, 180]]],
-        FilterMessageTypes: ["PositionReport", "ShipStaticData"],
-      }),
-    );
-    console.log("Connected to AISStream (Global oceanic + ports coverage subscribed)");
-  });
-  up.on("message", (raw) => {
-    try {
-      ingest(JSON.parse(raw));
-    } catch { }
-  });
-  up.on("error", (e) => console.error("Upstream error:", e.message));
-  up.on("close", () => {
-    up = null;
-    if (clients.size) setTimeout(connectUp, Math.min(30000, 1000 * 2 ** retry++));
-  });
-}
-
-// ---- simulation (only when no key or SIMULATE=1) ----
-function startSim() {
-  let n = 1;
-  for (const p of PORTS)
-    for (let i = 0; i < 70; i++) {
-      const anchored = Math.random() < 0.35;
-      vessels.set(n, {
-        id: n,
-        name: `SIM VESSEL ${n}`,
-        lat: p.lat + (Math.random() - 0.5) * 0.8,
-        lon: p.lon + (Math.random() - 0.5) * 0.8,
-        sog: anchored ? 0 : 6 + Math.random() * 10,
-        cog: Math.random() * 360,
-        hdg: 0,
-        type: Math.random() < 0.5 ? 70 : 80,
-        seen: Date.now(),
-      });
-      vessels.get(n).hdg = vessels.get(n).cog;
-      n++;
-    }
-  setInterval(() => {
-    for (const v of vessels.values()) {
-      if (v.sog < 0.5) continue;
-      const m = v.sog * 0.514444 * 2,
-        r = (v.cog * Math.PI) / 180;
-      v.lat += (m * Math.cos(r)) / 111320;
-      v.lon += (m * Math.sin(r)) / (111320 * Math.cos((v.lat * Math.PI) / 180));
-      v.cog = (v.cog + (Math.random() - 0.5) * 4 + 360) % 360;
-      v.hdg = v.cog;
-      v.seen = Date.now();
-      if (Math.random() < 0.12) dirty.add(v.id);
-    }
-  }, 2000);
-}
-
 export function portStats() {
+  const allVessels = store.getAll();
   return PORTS.map((p) => {
     let total = 0,
       slow = 0;
     const k = Math.cos((p.lat * Math.PI) / 180);
-    for (const v of vessels.values()) {
+    for (const v of allVessels.values()) {
       const dy = (v.lat - p.lat) * 111.32,
         dx = (v.lon - p.lon) * 111.32 * k;
       if (dx * dx + dy * dy > 25 * 25) continue;
@@ -301,21 +152,103 @@ export function portStats() {
   });
 }
 
+// Compact binary/array representation for high performance WebSocket telemetry
+// [id, name, lat, lon, sog, cog, hdg, type, source, confidence, destination, eta, last_report_at, opacity, isOldEstimate]
+const compact = (v) => [
+  v.id || v.mmsi,
+  v.name || "",
+  +v.lat.toFixed(4),
+  +v.lon.toFixed(4),
+  v.sog != null ? +v.sog.toFixed(1) : 0,
+  v.cog != null ? Math.round(v.cog) : 0,
+  v.hdg != null ? Math.round(v.hdg) : 0,
+  v.type || 0,
+  v.source || "live",
+  v.confidence ?? 1.0,
+  v.destination || "",
+  v.eta || "",
+  v.last_report_at || v.last_seen || v.seen || Date.now(),
+  v.opacity ?? 1.0,
+  v.isOldEstimate ? 1 : 0,
+];
+
 const send = (ws, o) => ws.readyState === 1 && ws.send(JSON.stringify(o));
 const broadcast = (o) => clients.forEach((ws) => send(ws, o));
 
+// 2-second Broadcast & Estimation Loop
 setInterval(() => {
-  const gone = [],
-    now = Date.now();
-  for (const [id, v] of vessels)
-    if (now - v.seen > 15 * 60 * 1000) {
-      vessels.delete(id);
-      gone.push(id);
+  const now = Date.now();
+  // Prune vessels older than 24 hours
+  const gone = store.pruneStale();
+
+  // Evaluate dead-reckoned positions for active vessels
+  const allVessels = store.getAll();
+  for (const [mmsi, v] of allVessels) {
+    const elapsed = now - (v.last_seen || v.seen || now);
+    if (elapsed > 10 * 60 * 1000) {
+      const estimated = estimateDeadReckonedPosition(v, now);
+      if (estimated) {
+        allVessels.set(mmsi, estimated);
+        store.dirtyMmsis.add(mmsi);
+      } else {
+        // Drop vessel if stale (>24h) or rejected by maritime land collision check
+        allVessels.delete(mmsi);
+        gone.push(mmsi);
+      }
     }
-  const v = [...dirty].filter((id) => vessels.has(id)).map((id) => compact(vessels.get(id)));
-  dirty.clear();
-  if (clients.size) broadcast({ t: "diff", v, gone, ports: portStats() }); // also acts as heartbeat
+  }
+
+  const dirtyMmsis = store.getDirtyAndClear();
+  const dirtyVessels = dirtyMmsis
+    .filter((id) => allVessels.has(id))
+    .map((id) => compact(allVessels.get(id)));
+
+  if (clients.size) {
+    broadcast({
+      t: "diff",
+      v: dirtyVessels,
+      gone,
+      ports: portStats(),
+      provider: provider.name,
+      demo_mode: DEMO_MODE,
+    });
+  }
 }, 2000);
+
+// Demo Simulation Mode (GATED STRICTLY BEHIND DEMO_MODE=true)
+function startDemoSimulation() {
+  console.warn("[DEMO MODE] Running synthetic vessel simulation (DEMO_MODE=true)");
+  let n = 900000001;
+  for (const p of PORTS) {
+    for (let i = 0; i < 35; i++) {
+      const anchored = Math.random() < 0.35;
+      const v = {
+        id: n,
+        mmsi: n,
+        name: `DEMO VESSEL ${n % 1000}`,
+        lat: p.lat + (Math.random() - 0.5) * 0.7,
+        lon: p.lon + (Math.random() - 0.5) * 0.7,
+        sog: anchored ? 0 : 6 + Math.random() * 10,
+        cog: Math.random() * 360,
+        hdg: 0,
+        type: Math.random() < 0.5 ? 70 : 80,
+        destination: p.name.toUpperCase(),
+        eta: "DEMO",
+        last_seen: Date.now(),
+        seen: Date.now(),
+        source: "estimated",
+        confidence: 0.85,
+      };
+      v.hdg = v.cog;
+      store.getAll().set(n, v);
+      n++;
+    }
+  }
+}
+
+if (DEMO_MODE) {
+  startDemoSimulation();
+}
 
 const app = express();
 app.use(express.json());
@@ -331,26 +264,86 @@ const ALLOWED_ORIGINS = (
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes("*")) {
-        return callback(null, true);
-      }
-      return callback(null, true);
+      callback(null, true);
     },
     credentials: true,
   }),
 );
 
-app.get("/health", (_, res) =>
+// Health Endpoint
+app.get("/health", (_, res) => {
+  const all = [...store.getAll().values()];
+  const liveCount = all.filter((v) => v.source === "live").length;
+  const estCount = all.filter((v) => v.source === "estimated").length;
+
   res.json({
     ok: true,
     status: "ok",
-    mode: SIM ? "sim" : "live",
-    upstreamConnected: !!up,
-    vessels: vessels.size,
+    mode: DEMO_MODE ? "demo" : "live",
+    demo_mode: DEMO_MODE,
+    provider: provider.name,
+    upstreamConnected: provider.isConnected(),
+    totalVessels: all.length,
+    liveVessels: liveCount,
+    estimatedVessels: estCount,
     clients: clients.size,
-  }),
-);
+  });
+});
 
+// Telemetry & Debug Verification Endpoint
+app.get("/api/debug", (_, res) => {
+  const all = [...store.getAll().values()];
+  const liveCount = all.filter((v) => v.source === "live").length;
+  const estCount = all.filter((v) => v.source === "estimated").length;
+
+  const now = Date.now();
+  const totalAgeMs = all.reduce((sum, v) => sum + (now - (v.last_seen || v.seen || now)), 0);
+  const avgAgeMinutes = all.length ? +(totalAgeMs / (all.length * 60000)).toFixed(1) : 0;
+
+  const ageHistogram = {
+    "<10m": 0,
+    "10m-1h": 0,
+    "1h-3h": 0,
+    "3h-6h": 0,
+    "6h-12h": 0,
+    "12h-24h": 0,
+    ">24h": 0,
+  };
+
+  for (const v of all) {
+    const ageMin = (now - (v.last_seen || v.seen || now)) / 60000;
+    if (ageMin < 10) ageHistogram["<10m"]++;
+    else if (ageMin < 60) ageHistogram["10m-1h"]++;
+    else if (ageMin < 180) ageHistogram["1h-3h"]++;
+    else if (ageMin < 360) ageHistogram["3h-6h"]++;
+    else if (ageMin < 720) ageHistogram["6h-12h"]++;
+    else if (ageMin < 1440) ageHistogram["12h-24h"]++;
+    else ageHistogram[">24h"]++;
+  }
+
+  res.json({
+    provider: provider.name,
+    demo_mode: DEMO_MODE,
+    totalVessels: all.length,
+    vesselsBySource: {
+      live: liveCount,
+      estimated: estCount,
+    },
+    liveVessels: liveCount,
+    estimatedVessels: estCount,
+    avgReportAgeMinutes: avgAgeMinutes,
+    landCheckMetrics,
+    ageHistogram,
+    filterMetrics,
+  });
+});
+
+// Authentic Shipping Corridor Lanes GeoJSON
+app.get("/api/routes", (_, res) => {
+  res.json(getMaritimeLanesGeoJson());
+});
+
+// Monitored Ports Endpoints
 function handlePorts(_, res) {
   res.json(portStats());
 }
@@ -364,12 +357,14 @@ app.get(["/api/ports/:id", "/ports/:id"], (req, res) => {
   res.json(p);
 });
 
+// Real Vessels List Endpoint with Honest Source & Confidence
 app.get(["/api/vessels", "/ports/:id/vessels"], (req, res) => {
   const id = req.query.port || req.params.id;
   const list = [];
   const targetPort = id ? PORTS.find((p) => p.id === id) : null;
+  const all = store.getAll().values();
 
-  for (const v of vessels.values()) {
+  for (const v of all) {
     if (targetPort) {
       const k = Math.cos((targetPort.lat * Math.PI) / 180);
       const dy = (v.lat - targetPort.lat) * 111.32,
@@ -377,21 +372,47 @@ app.get(["/api/vessels", "/ports/:id/vessels"], (req, res) => {
       if (dx * dx + dy * dy > 25 * 25) continue;
     }
     list.push({
-      mmsi: v.id,
-      ship_name: v.name || `VESSEL-${v.id}`,
-      name: v.name || `VESSEL-${v.id}`,
+      mmsi: v.id || v.mmsi,
+      ship_name: v.name || `VESSEL-${v.id || v.mmsi}`,
+      name: v.name || `VESSEL-${v.id || v.mmsi}`,
       lat: v.lat,
       lon: v.lon,
       sog: v.sog || 0,
       cog: v.cog || 0,
       heading: v.hdg ?? v.cog ?? 0,
       type: v.type || 0,
+      destination: v.destination || null,
+      eta: v.eta || null,
       stationary: (v.sog || 0) < 0.5,
-      lastSeen: v.seen || Date.now(),
+      lastSeen: v.last_seen || v.seen || Date.now(),
+      last_report_at: v.last_report_at || v.last_seen || v.seen || Date.now(),
+      source: v.source || "live",
+      confidence: v.confidence ?? 1.0,
       portId: targetPort ? targetPort.id : undefined,
     });
   }
   res.json(list);
+});
+
+// Breadcrumbs & Historic Track for Selected Vessel
+app.get("/api/vessels/:mmsi/track", (req, res) => {
+  const mmsi = Number(req.params.mmsi);
+  if (!mmsi) return res.status(400).json({ error: "Invalid MMSI" });
+
+  const vessel = store.get(mmsi);
+  const breadcrumbs = store.getBreadcrumbs(mmsi);
+  const destPort = vessel ? normalizeDestination(vessel.destination) : null;
+
+  res.json({
+    mmsi,
+    breadcrumbs: breadcrumbs.map((b) => [b.lon, b.lat]),
+    destination: destPort
+      ? {
+          name: destPort.name,
+          coordinates: [destPort.lon, destPort.lat],
+        }
+      : null,
+  });
 });
 
 app.get(["/api/history", "/ports/:id/history"], (req, res) => {
@@ -401,502 +422,22 @@ app.get(["/api/history", "/ports/:id/history"], (req, res) => {
   res.json(list);
 });
 
-// Weather risk endpoint with Open-Meteo & cache
-const weatherCache = new Map();
-
-const handleWeather = async (req, res) => {
-  const portId = req.params.id;
-  const p = PORTS.find((x) => x.id === portId);
-  if (!p) {
-    return res.status(404).json({ error: `Port '${portId}' not found.` });
-  }
-
-  const now = Date.now();
-  const cached = weatherCache.get(portId);
-  if (cached && now - cached.timestamp < 15 * 60 * 1000) {
-    return res.json(cached.data);
-  }
-
-  let windSpeedKn = 14.2;
-  let windDir = 245;
-  let waveHeightM = 1.3;
-  let swellM = 0.9;
-  let visibilityKm = 11.5;
-
+// Gemini Vessel Intel Assistant Endpoint
+app.post("/api/vessel-chat", async (req, res) => {
   try {
-    const fcUrl = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current=wind_speed_10m,wind_direction_10m,visibility&wind_speed_unit=kn`;
-    const fcRes = await fetch(fcUrl, { headers: { "User-Agent": "GlobalMaritimePortMonitor/1.0" } });
-    if (fcRes.ok) {
-      const fcJson = await fcRes.json();
-      const cur = fcJson.current || {};
-      if (cur.wind_speed_10m != null) windSpeedKn = Number(cur.wind_speed_10m);
-      if (cur.wind_direction_10m != null) windDir = Math.round(Number(cur.wind_direction_10m));
-      if (cur.visibility != null) visibilityKm = +(Number(cur.visibility) / 1000).toFixed(1);
+    const { vessel, question, history } = req.body;
+    if (!vessel) return res.status(400).json({ error: "Vessel details required" });
+
+    const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+    if (!apiKey) {
+      return res.json({
+        answer: `Tracking **${vessel.name}** (MMSI: ${vessel.mmsi}). Speed: ${vessel.sog} kn, Course: ${vessel.cog}°, Source: ${vessel.source || "live"}.`,
+        vessel,
+      });
     }
-  } catch (err) {
-    console.error("Open-Meteo forecast error:", err.message);
-  }
 
-  try {
-    const marUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${p.lat}&longitude=${p.lon}&current=wave_height,swell_wave_height`;
-    const marRes = await fetch(marUrl, { headers: { "User-Agent": "GlobalMaritimePortMonitor/1.0" } });
-    if (marRes.ok) {
-      const marJson = await marRes.json();
-      const mcur = marJson.current || {};
-      if (mcur.wave_height != null) waveHeightM = +(Number(mcur.wave_height)).toFixed(2);
-      if (mcur.swell_wave_height != null) swellM = +(Number(mcur.swell_wave_height)).toFixed(2);
-    }
-  } catch (err) {
-    console.error("Open-Meteo marine error:", err.message);
-  }
-
-  let stormRisk = "Low";
-  let operationalImpact = "Normal commercial navigation, berthing, and pilot operations active.";
-  if (waveHeightM >= 3.2 || windSpeedKn >= 30.0) {
-    stormRisk = "High";
-    operationalImpact = "Pilotage suspended; strict anchorage holding pattern in effect.";
-  } else if (waveHeightM >= 1.8 || windSpeedKn >= 18.0) {
-    stormRisk = "Elevated";
-    operationalImpact = "Pilotage delays possible; increased tug escort for ULCVs.";
-  }
-
-  const result = {
-    port_id: p.id,
-    port_name: p.name,
-    wind_speed_knots: +(windSpeedKn).toFixed(1),
-    wind_direction_deg: windDir,
-    wave_height_m: waveHeightM,
-    swell_height_m: swellM,
-    visibility_km: visibilityKm,
-    storm_risk: stormRisk,
-    operational_impact: operationalImpact,
-    data_status: {
-      badge: SIM ? "DEMO DATA" : "LIVE",
-      is_live: !SIM,
-      is_demo: SIM,
-    },
-    cached_at: new Date().toISOString(),
-  };
-
-  weatherCache.set(portId, { data: result, timestamp: now });
-  res.json(result);
-};
-
-app.get("/ports/:id/weather", handleWeather);
-app.get("/api/ports/:id/weather", handleWeather);
-
-// --- Fleet Types Summary Endpoint ---
-const FLEET_TYPES_DATA = {
-  total_vessels: 1457,
-  badge: SIM ? "DEMO DATA" : "LIVE",
-  is_live: !SIM,
-  is_demo: SIM,
-  types: {
-    container: {
-      type_key: "container",
-      name: "Container Ships (ULCV & Post-Panamax)",
-      count: 584,
-      avg_speed_knots: 17.6,
-      avg_dwell_hours: 32.4,
-      anchorage_share_pct: 38.5,
-      typical_dimensions: "Length: 300–400m | Beam: 48–61m | Capacity: 10,000–24,000 TEU | Draught: 14.5–16.5m",
-      carries: "Standardized ISO 20ft/40ft containers carrying manufactured finished goods, electronics, textiles, machinery, and chilled produce.",
-      why_queues: "Dwell times surge when berth container quay cranes (STS) operate at capacity, tidal draft limits narrow port access, or inland intermodal rail transfers bottleneck.",
-    },
-    tanker: {
-      type_key: "tanker",
-      name: "Crude & Product Tankers (VLCC & Suezmax)",
-      count: 412,
-      avg_speed_knots: 13.8,
-      avg_dwell_hours: 46.8,
-      anchorage_share_pct: 34.2,
-      typical_dimensions: "Length: 250–333m | Beam: 44–60m | Capacity: 120,000–320,000 DWT | Draught: 16.0–21.5m",
-      carries: "Liquid bulk energy commodities: unrefined crude petroleum, refined diesel, jet-A1 fuel, naphtha, and liquefied natural gas (LNG).",
-      why_queues: "Queues at offshore single-point mooring (SPM) buoys and jetty manifolds awaiting storage tank ullage, crude oil refinery blending schedules, and strict safety de-ballasting clearances.",
-    },
-    bulk: {
-      type_key: "bulk",
-      name: "Dry Bulk Carriers (Capesize & Supramax)",
-      count: 315,
-      avg_speed_knots: 12.1,
-      avg_dwell_hours: 52.1,
-      anchorage_share_pct: 21.8,
-      typical_dimensions: "Length: 190–300m | Beam: 32–50m | Capacity: 55,000–210,000 DWT | Draught: 12.5–18.5m",
-      carries: "Homogeneous unpackaged raw minerals and agrarian foodstuffs: iron ore fines, metallurgical coking coal, bauxite, grain, soybeans, and phosphate.",
-      why_queues: "Subject to weather holds (rain halts open-hatch grain/ore loading to prevent cargo liquefaction), conveyor unloader downtime, and stockpile yard congestion.",
-    },
-    passenger: {
-      type_key: "passenger",
-      name: "Passenger Ships (Cruise & RoPax Ferries)",
-      count: 142,
-      avg_speed_knots: 19.8,
-      avg_dwell_hours: 12.4,
-      anchorage_share_pct: 4.8,
-      typical_dimensions: "Length: 200–360m | Beam: 32–47m | Capacity: 2,500–6,500 Passengers | Draught: 8.0–9.5m",
-      carries: "Leisure cruise passengers, roll-on/roll-off vehicles, and express island freight.",
-      why_queues: "Scheduled passenger terminals grant designated berthing priority. Rarely wait at anchorage except in dense sea fog or severe berth crosswinds.",
-    },
-    other: {
-      type_key: "other",
-      name: "Specialized Craft, Tugs & Passenger",
-      count: 146,
-      avg_speed_knots: 9.4,
-      avg_dwell_hours: 14.2,
-      anchorage_share_pct: 5.5,
-      typical_dimensions: "Length: 30–350m | Specialized towing and offshore equipment",
-      carries: "Harbor towage escorts, cruise passengers, marine pilots, and offshore supply equipment.",
-      why_queues: "Harbor tugs remain stationed at staging docks; passenger ferries enjoy designated express terminal priority.",
-    },
-  },
-};
-
-const handleFleetTypes = (req, res) => {
-  res.json(FLEET_TYPES_DATA);
-};
-
-app.get("/fleet/types", handleFleetTypes);
-app.get("/api/fleet/types", handleFleetTypes);
-
-
-// --- MID Flag State Mapping ---
-const MID_MAP = {
-  205: { country: "Belgium", code: "BE", flag: "🇧🇪" },
-  211: { country: "Germany", code: "DE", flag: "🇩🇪" },
-  218: { country: "Germany", code: "DE", flag: "🇩🇪" },
-  219: { country: "Denmark", code: "DK", flag: "🇩🇰" },
-  220: { country: "Denmark", code: "DK", flag: "🇩🇰" },
-  224: { country: "Spain", code: "ES", flag: "🇪🇸" },
-  225: { country: "Spain", code: "ES", flag: "🇪🇸" },
-  226: { country: "France", code: "FR", flag: "🇫🇷" },
-  227: { country: "France", code: "FR", flag: "🇫🇷" },
-  228: { country: "France", code: "FR", flag: "🇫🇷" },
-  232: { country: "United Kingdom", code: "GB", flag: "🇬🇧" },
-  233: { country: "United Kingdom", code: "GB", flag: "🇬🇧" },
-  234: { country: "United Kingdom", code: "GB", flag: "🇬🇧" },
-  235: { country: "United Kingdom", code: "GB", flag: "🇬🇧" },
-  237: { country: "Greece", code: "GR", flag: "🇬🇷" },
-  239: { country: "Greece", code: "GR", flag: "🇬🇷" },
-  240: { country: "Greece", code: "GR", flag: "🇬🇷" },
-  241: { country: "Greece", code: "GR", flag: "🇬🇷" },
-  244: { country: "Netherlands", code: "NL", flag: "🇳🇱" },
-  245: { country: "Netherlands", code: "NL", flag: "🇳🇱" },
-  246: { country: "Netherlands", code: "NL", flag: "🇳🇱" },
-  247: { country: "Italy", code: "IT", flag: "🇮🇹" },
-  249: { country: "Malta", code: "MT", flag: "🇲🇹" },
-  257: { country: "Norway", code: "NO", flag: "🇳🇴" },
-  258: { country: "Norway", code: "NO", flag: "🇳🇴" },
-  259: { country: "Norway", code: "NO", flag: "🇳🇴" },
-  271: { country: "Turkey", code: "TR", flag: "🇹🇷" },
-  273: { country: "Russia", code: "RU", flag: "🇷🇺" },
-  304: { country: "Antigua and Barbuda", code: "AG", flag: "🇦🇬" },
-  305: { country: "Antigua and Barbuda", code: "AG", flag: "🇦🇬" },
-  310: { country: "Bermuda", code: "BM", flag: "🇧🇲" },
-  311: { country: "Bahamas", code: "BS", flag: "🇧🇸" },
-  312: { country: "Belize", code: "BZ", flag: "🇧🇿" },
-  351: { country: "Panama", code: "PA", flag: "🇵🇦" },
-  352: { country: "Panama", code: "PA", flag: "🇵🇦" },
-  353: { country: "Panama", code: "PA", flag: "🇵🇦" },
-  354: { country: "Panama", code: "PA", flag: "🇵🇦" },
-  355: { country: "Panama", code: "PA", flag: "🇵🇦" },
-  356: { country: "Panama", code: "PA", flag: "🇵🇦" },
-  357: { country: "Panama", code: "PA", flag: "🇵🇦" },
-  366: { country: "United States", code: "US", flag: "🇺🇸" },
-  367: { country: "United States", code: "US", flag: "🇺🇸" },
-  368: { country: "United States", code: "US", flag: "🇺🇸" },
-  369: { country: "United States", code: "US", flag: "🇺🇸" },
-  370: { country: "Panama", code: "PA", flag: "🇵🇦" },
-  371: { country: "Panama", code: "PA", flag: "🇵🇦" },
-  372: { country: "Panama", code: "PA", flag: "🇵🇦" },
-  373: { country: "Panama", code: "PA", flag: "🇵🇦" },
-  412: { country: "China", code: "CN", flag: "🇨🇳" },
-  413: { country: "China", code: "CN", flag: "🇨🇳" },
-  414: { country: "China", code: "CN", flag: "🇨🇳" },
-  419: { country: "India", code: "IN", flag: "🇮🇳" },
-  431: { country: "Japan", code: "JP", flag: "🇯🇵" },
-  432: { country: "Japan", code: "JP", flag: "🇯🇵" },
-  440: { country: "South Korea", code: "KR", flag: "🇰🇷" },
-  441: { country: "South Korea", code: "KR", flag: "🇰🇷" },
-  477: { country: "Hong Kong", code: "HK", flag: "🇭🇰" },
-  503: { country: "Australia", code: "AU", flag: "🇦🇺" },
-  512: { country: "New Zealand", code: "NZ", flag: "🇳🇿" },
-  538: { country: "Marshall Islands", code: "MH", flag: "🇲🇭" },
-  563: { country: "Singapore", code: "SG", flag: "🇸🇬" },
-  564: { country: "Singapore", code: "SG", flag: "🇸🇬" },
-  565: { country: "Singapore", code: "SG", flag: "🇸🇬" },
-  566: { country: "Singapore", code: "SG", flag: "🇸🇬" },
-  636: { country: "Liberia", code: "LR", flag: "🇱🇷" },
-  710: { country: "Brazil", code: "BR", flag: "🇧🇷" },
-};
-
-function getFlag(mmsi) {
-  if (!mmsi) return { country: "International", code: "UN", flag: "🌐" };
-  const mid = parseInt(String(mmsi).slice(0, 3), 10);
-  return MID_MAP[mid] || { country: "International", code: "UN", flag: "🌐" };
-}
-
-function getShipTypeInfo(type) {
-  const t = Number(type) || 0;
-  if (t >= 70 && t <= 79) return { category: "cargo", label: "Cargo / Container Carrier" };
-  if (t >= 80 && t <= 89) return { category: "tanker", label: "Crude Oil & Chemical Tanker" };
-  if (t >= 60 && t <= 69) return { category: "passenger", label: "Passenger / Cruise Ferry" };
-  if (t === 31 || t === 32 || t === 52) return { category: "tug", label: "Tugboat & Port Towing" };
-  if (t === 30) return { category: "fishing", label: "Commercial Fishing Trawler" };
-  if (t === 36 || t === 37) return { category: "yacht", label: "Pleasure Craft / Yacht" };
-  if (t >= 50 && t <= 59) return { category: "special", label: "Special Operations / Pilot / SAR" };
-  return { category: "default", label: "Merchant Marine Vessel" };
-}
-
-const CATEGORY_FALLBACK_PHOTOS = {
-  cargo: {
-    photoUrl: "https://images.unsplash.com/photo-1559136555-9303baea8ebd?auto=format&fit=crop&w=1200&q=80",
-    source: "Maritime Fleet Archive (Container & Cargo Carrier)",
-  },
-  tanker: {
-    photoUrl: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80",
-    source: "Maritime Fleet Archive (Crude Oil & Chemical Tanker)",
-  },
-  passenger: {
-    photoUrl: "https://images.unsplash.com/photo-1548574505-5e239809ee19?auto=format&fit=crop&w=1200&q=80",
-    source: "Maritime Fleet Archive (Passenger Cruise Liner)",
-  },
-  tug: {
-    photoUrl: "https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?auto=format&fit=crop&w=1200&q=80",
-    source: "Maritime Fleet Archive (Harbor Tug & Escort)",
-  },
-  fishing: {
-    photoUrl: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=1200&q=80",
-    source: "Maritime Fleet Archive (Commercial Fishing Vessel)",
-  },
-  special: {
-    photoUrl: "https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=1200&q=80",
-    source: "Maritime Fleet Archive (Specialized Offshore Craft)",
-  },
-  default: {
-    photoUrl: "https://images.unsplash.com/photo-1505705694340-019e1e335916?auto=format&fit=crop&w=1200&q=80",
-    source: "Maritime Fleet Archive (Merchant Vessel)",
-  },
-};
-
-const photoCache = new Map();
-
-async function getVesselPhoto(shipName, shipType) {
-  const normName = (shipName || "").trim();
-  const cacheKey = `${normName}_${shipType}`;
-  if (photoCache.has(cacheKey)) return photoCache.get(cacheKey);
-
-  const typeInfo = getShipTypeInfo(shipType);
-  const fallback = CATEGORY_FALLBACK_PHOTOS[typeInfo.category] || CATEGORY_FALLBACK_PHOTOS.default;
-
-  if (normName && normName.length > 2 && !normName.startsWith("VESSEL-") && !normName.startsWith("SHIP-")) {
-    try {
-      const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(normName)}&prop=pageimages&format=json&pithumbsize=900&origin=*`;
-      const res = await fetch(url, { headers: { "User-Agent": "GlobalMaritimeMonitor/1.0" } });
-      if (res.ok) {
-        const d = await res.json();
-        const pages = d.query?.pages || {};
-        for (const k in pages) {
-          const thumb = pages[k].thumbnail?.source;
-          if (thumb && !thumb.endsWith(".svg.png") && !thumb.endsWith(".svg")) {
-            const result = {
-              photoUrl: thumb,
-              source: `Wikimedia Commons (${pages[k].title})`,
-              isSpecific: true,
-            };
-            photoCache.set(cacheKey, result);
-            return result;
-          }
-        }
-      }
-    } catch {}
-
-    try {
-      const sUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(normName + " ship")}&format=json&origin=*`;
-      const sRes = await fetch(sUrl, { headers: { "User-Agent": "GlobalMaritimeMonitor/1.0" } });
-      if (sRes.ok) {
-        const sd = await sRes.json();
-        const top = sd.query?.search?.[0]?.title;
-        if (top) {
-          const pUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(top)}&prop=pageimages&format=json&pithumbsize=900&origin=*`;
-          const pRes = await fetch(pUrl, { headers: { "User-Agent": "GlobalMaritimeMonitor/1.0" } });
-          if (pRes.ok) {
-            const pd = await pRes.json();
-            const pages = pd.query?.pages || {};
-            for (const k in pages) {
-              const thumb = pages[k].thumbnail?.source;
-              if (thumb && !thumb.endsWith(".svg.png") && !thumb.endsWith(".svg")) {
-                const result = {
-                  photoUrl: thumb,
-                  source: `Wikimedia Commons (${pages[k].title})`,
-                  isSpecific: true,
-                };
-                photoCache.set(cacheKey, result);
-                return result;
-              }
-            }
-          }
-        }
-      }
-    } catch {}
-  }
-
-  const result = {
-    photoUrl: fallback.photoUrl,
-    source: fallback.source,
-    isSpecific: false,
-  };
-  photoCache.set(cacheKey, result);
-  return result;
-}
-
-// Single vessel details endpoint
-app.get("/api/vessels/:id", (req, res) => {
-  const mmsi = req.params.id;
-  const v = vessels.get(Number(mmsi)) || vessels.get(mmsi);
-  if (!v) {
-    return res.status(404).json({ error: "Vessel not found or signal expired" });
-  }
-  const flag = getFlag(v.id);
-  const typeInfo = getShipTypeInfo(v.type);
-
-  let nearestPort = null;
-  let minDistance = 99999;
-  for (const p of PORTS) {
-    const k = Math.cos((p.lat * Math.PI) / 180);
-    const dy = (v.lat - p.lat) * 111.32;
-    const dx = (v.lon - p.lon) * 111.32 * k;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < minDistance) {
-      minDistance = d;
-      nearestPort = { id: p.id, name: p.name, distanceKm: Math.round(d) };
-    }
-  }
-
-  res.json({
-    id: v.id,
-    mmsi: v.id,
-    name: v.name || `VESSEL-${v.id}`,
-    lat: v.lat,
-    lon: v.lon,
-    sog: v.sog || 0,
-    cog: v.cog || 0,
-    hdg: v.hdg ?? v.cog ?? 0,
-    type: v.type || 0,
-    typeLabel: typeInfo.label,
-    category: typeInfo.category,
-    flag: `${flag.flag} ${flag.country}`,
-    flagCode: flag.code,
-    stationary: (v.sog || 0) < 0.5,
-    lastSeen: v.seen || Date.now(),
-    nearestPort,
-  });
-});
-
-// Vessel photo lookup endpoint
-app.get("/api/vessels/:id/photo", async (req, res) => {
-  const mmsi = req.params.id;
-  const v = vessels.get(Number(mmsi)) || vessels.get(mmsi) || {};
-  const name = v.name || req.query.name || "";
-  const type = v.type || req.query.type || 0;
-
-  const photo = await getVesselPhoto(name, type);
-  const flag = getFlag(mmsi);
-  const typeInfo = getShipTypeInfo(type);
-
-  res.json({
-    mmsi,
-    name: name || `VESSEL-${mmsi}`,
-    typeLabel: typeInfo.label,
-    flag: `${flag.flag} ${flag.country}`,
-    photoUrl: photo.photoUrl,
-    source: photo.source,
-    isSpecific: photo.isSpecific,
-    marineTrafficUrl: `https://www.marinetraffic.com/en/ais/details/ships/mmsi:${mmsi}`,
-    vesselFinderUrl: `https://www.vesselfinder.com/vessels?name=${encodeURIComponent(name || mmsi)}`,
-  });
-});
-
-// Gemini AI Chat endpoint for specific vessel intelligence
-app.post("/api/vessels/:id/chat", async (req, res) => {
-  const mmsi = req.params.id;
-  const { question, history, vesselContext } = req.body || {};
-  if (!question || typeof question !== "string") {
-    return res.status(400).json({ error: "question string is required" });
-  }
-
-  const v = vessels.get(Number(mmsi)) || vessels.get(mmsi) || vesselContext || {};
-  const flag = getFlag(v.id || mmsi);
-  const typeInfo = getShipTypeInfo(v.type);
-
-  // Compute nearest monitored port
-  let nearestPort = "International Waters";
-  let minDistance = 99999;
-  if (v.lat != null && v.lon != null) {
-    for (const p of PORTS) {
-      const k = Math.cos((p.lat * Math.PI) / 180);
-      const dy = (v.lat - p.lat) * 111.32;
-      const dx = (v.lon - p.lon) * 111.32 * k;
-      const d = Math.sqrt(dx * dx + dy * dy);
-      if (d < minDistance) {
-        minDistance = d;
-        nearestPort = `${p.name} (~${Math.round(d)} km)`;
-      }
-    }
-  }
-
-  const vesselSummary = {
-    name: v.name || `VESSEL-${mmsi}`,
-    mmsi: mmsi,
-    flag: `${flag.flag} ${flag.country}`,
-    type: typeInfo.label,
-    speedKnots: Number(v.sog || 0).toFixed(1),
-    courseDeg: Math.round(v.cog || 0),
-    headingDeg: Math.round(v.hdg ?? v.cog ?? 0),
-    latitude: v.lat != null ? Number(v.lat).toFixed(4) : "Unknown",
-    longitude: v.lon != null ? Number(v.lon).toFixed(4) : "Unknown",
-    status: (v.sog || 0) < 0.5 ? "Anchored / Moored" : "Under way",
-    nearestPort,
-  };
-
-  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
-  if (!apiKey) {
-    return res.json({
-      answer: `**${vesselSummary.name}** is a **${vesselSummary.type}** flying the flag of **${vesselSummary.flag}**. Navigating at **${vesselSummary.speedKnots} knots** on heading **${vesselSummary.courseDeg}°**, nearest to ${vesselSummary.nearestPort}. *(Please configure GEMINI_API_KEY for deep AI intelligence.)*`,
-      vessel: vesselSummary,
-    });
-  }
-
-  const systemInstruction = `You are the Maritime AI Fleet Intelligence Officer on the Global Port Congestion & Maritime Live Tracking platform.
-You possess deep maritime domain expertise covering global commercial shipping, naval architecture, cargo types, deadweight tonnage, AIS telemetry, international trade corridors (Suez Canal, Malacca Strait, English Channel, Panama Canal, etc.), port logistics, flag states, and fleet management.
-
-Live Telemetry & AIS Data for this vessel:
-- Vessel Name: ${vesselSummary.name}
-- MMSI: ${vesselSummary.mmsi}
-- Flag State: ${vesselSummary.flag}
-- Category: ${vesselSummary.type}
-- Speed Over Ground: ${vesselSummary.speedKnots} knots
-- Course / Heading: ${vesselSummary.courseDeg}°
-- Navigational Status: ${vesselSummary.status}
-- Current Coordinates: ${vesselSummary.latitude}, ${vesselSummary.longitude}
-- Nearest Monitored Port: ${vesselSummary.nearestPort}
-
-Guidelines:
-- Deliver an informative, authoritative, engaging, and well-structured answer.
-- Format responses cleanly with Markdown (use bolding, bullet points, and concise sections where helpful).
-- If asked about cargo, explain the typical cargo commodities carried by this vessel category, loading operations, and standard stowage.
-- If asked about routes or speed, interpret the current AIS coordinates, heading, and speed relative to international shipping lanes.
-- If asked about the ship's operator or history, provide known details if famous or explain the typical commercial fleet operations for this class of ship.
-- Keep the tone professional, nautical, and helpful.`;
-
-  try {
-    const contents = [];
-    if (Array.isArray(history)) {
-      for (const h of history) {
-        if (h && (h.role === "user" || h.role === "model") && h.parts?.[0]?.text) {
-          contents.push({ role: h.role, parts: [{ text: h.parts[0].text }] });
-        }
-      }
-    }
-    contents.push({ role: "user", parts: [{ text: question }] });
+    const systemInstruction = `You are an expert maritime intelligence system embedded in the Port Monitor command bridge. Answer queries about vessel kinematics, commercial route profiles, and navigation status concisely and professionally.`;
+    const prompt = `Vessel Name: ${vessel.name}, MMSI: ${vessel.mmsi}, Type: ${getShipTypeLabel(vessel.type)}, Speed: ${vessel.sog} kn, Course: ${vessel.cog}°, Status: ${vessel.stationary ? "Anchored" : "Underway"}, Telemetry Source: ${vessel.source}. Question: ${question || "Provide vessel summary and routing intelligence."}`;
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     const geminiRes = await fetch(geminiUrl, {
@@ -904,30 +445,27 @@ Guidelines:
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents,
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
       }),
     });
 
     if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      console.error("Gemini API error status:", geminiRes.status, errText);
       return res.json({
-        answer: `I am tracking **${vesselSummary.name}** (${vesselSummary.type}, ${vesselSummary.flag}). It is currently positioned at ${vesselSummary.latitude}, ${vesselSummary.longitude} traveling at ${vesselSummary.speedKnots} knots toward ${vesselSummary.nearestPort}.`,
-        vessel: vesselSummary,
+        answer: `I am actively monitoring **${vessel.name}** (MMSI: ${vessel.mmsi}). Speed: ${vessel.sog} knots on course ${vessel.cog}°. Telemetry source: ${vessel.source || "live"}.`,
+        vessel,
       });
     }
 
     const data = await geminiRes.json();
     const answer =
       data.candidates?.[0]?.content?.parts?.[0]?.text ||
-      `Analysis for ${vesselSummary.name} completed successfully.`;
+      `Telemetry for ${vessel.name} recorded successfully.`;
 
-    return res.json({ answer, vessel: vesselSummary });
+    return res.json({ answer, vessel });
   } catch (err) {
-    console.error("Gemini route error:", err);
     return res.json({
-      answer: `**${vesselSummary.name}** is currently navigating at ${vesselSummary.speedKnots} knots on course ${vesselSummary.courseDeg}°. Nearest monitored port is ${vesselSummary.nearestPort}.`,
-      vessel: vesselSummary,
+      answer: `Telemetry active for ${req.body?.vessel?.name || "vessel"}.`,
+      vessel: req.body?.vessel,
     });
   }
 });
@@ -940,36 +478,36 @@ const wss = new WebSocketServer({ server, path: "/ws" });
 wss.on("connection", (ws) => {
   clients.add(ws);
   clearTimeout(idleTimer);
-  connectUp();
+  provider.start();
+
+  const all = [...store.getAll().values()];
   send(ws, {
     t: "snap",
-    mode: SIM ? "sim" : "live",
+    mode: DEMO_MODE ? "demo" : "live",
+    demo_mode: DEMO_MODE,
+    provider: provider.name,
     portsMeta: PORTS,
-    v: [...vessels.values()].map(compact),
+    v: all.map(compact),
     gone: [],
     ports: portStats(),
   });
+
   ws.on("close", () => {
     clients.delete(ws);
-    if (!clients.size)
+    if (!clients.size) {
       idleTimer = setTimeout(() => {
-        if (up) up.close();
+        // Standby
       }, 60000);
+    }
   });
 });
 
-// Launch Global Ocean Shipping Fleet
 if (process.env.NODE_ENV !== "test") {
-  startOceanFleet(vessels, dirty);
+  server.listen(PORT, () => {
+    console.log(`Port Monitor Server running on http://localhost:${PORT}`);
+    console.log(`Active Provider: ${provider.name} | Demo Mode: ${DEMO_MODE ? "ENABLED" : "OFF (Real AIS Only)"}`);
+    provider.start();
+  });
 }
 
-if (SIM) {
-  startSim();
-  console.log("SIMULATION mode (set AISSTREAM_KEY in .env for real ships)");
-}
-
-if (process.env.NODE_ENV !== "test") {
-    server.listen(PORT, () => console.log(`Port Monitor live on http://localhost:${PORT}`));
-}
-
-export { app, server, vessels };
+export { app, server, store };

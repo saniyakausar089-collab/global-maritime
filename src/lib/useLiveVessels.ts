@@ -2,6 +2,16 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { API_BASE_URL, WS_BASE_URL, getShipTypeLabel, type Port } from "@/lib/api";
 import { updateFeedHealth } from "@/lib/feedHealth";
 
+export function getVesselCategory(typeNum?: number): "cargo" | "tanker" | "passenger" | "tug" | "fishing" | "other" {
+  const t = Number(typeNum || 0);
+  if (t >= 70 && t <= 79) return "cargo";
+  if (t >= 80 && t <= 89) return "tanker";
+  if (t >= 60 && t <= 69) return "passenger";
+  if (t >= 50 && t <= 59) return "tug";
+  if (t === 30 || t === 31 || t === 32) return "fishing";
+  return "other";
+}
+
 export type LiveVessel = {
   id: number;
   mmsi: number;
@@ -17,6 +27,12 @@ export type LiveVessel = {
   type: number;
   shipType: number;
   shipTypeLabel: string;
+  category: "cargo" | "tanker" | "passenger" | "tug" | "fishing" | "other";
+  source: "live" | "estimated";
+  confidence: number;
+  destination?: string | null;
+  eta?: string | null;
+  last_report_at?: number;
   stationary: boolean;
   seen: number;
   lastSeen: number;
@@ -26,8 +42,6 @@ export type LiveVessel = {
   portId?: string | null;
   portName?: string;
   distanceToPortKm?: number;
-  destination?: string;
-  eta?: string;
   flag?: string;
 };
 
@@ -93,6 +107,7 @@ export function useLiveVessels() {
   statusRef.current = status;
   const [statusMessage, setStatusMessage] = useState<string>("Connecting to relay...");
   const [isSimulated, setIsSimulated] = useState<boolean>(false);
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
   const [portsStats, setPortsStats] = useState<PortStat[]>([]);
 
   // Filters
@@ -115,8 +130,8 @@ export function useLiveVessels() {
   const connectWsRef = useRef<() => void>(() => {});
 
   const upsertVessel = useCallback(
-    (a: [number, string, number, number, number, number, number, number]) => {
-      const [id, name, lat, lon, sog, cog, hdg, type] = a;
+    (a: any[]) => {
+      const [id, name, lat, lon, sog, cog, hdg, type, source, confidence, destination, eta, last_report_at] = a;
       const now = Date.now();
       const o = vesselsRef.current.get(id);
 
@@ -152,6 +167,12 @@ export function useLiveVessels() {
         type: type || 0,
         shipType: type || 0,
         shipTypeLabel: getShipTypeLabel(type),
+        category: getVesselCategory(type),
+        source: source === "estimated" ? "estimated" : "live",
+        confidence: typeof confidence === "number" ? confidence : 1.0,
+        destination: destination || null,
+        eta: eta || null,
+        last_report_at: typeof last_report_at === "number" ? last_report_at : now,
         stationary: isStationary,
         seen: now,
         lastSeen: now,
@@ -268,22 +289,18 @@ export function useLiveVessels() {
           if (msg.t === "snap") {
             vesselsRef.current.clear();
             setIsSimulated(msg.mode === "sim");
+            setIsDemoMode(Boolean(msg.demo_mode));
             if (Array.isArray(msg.v)) {
-              msg.v.forEach(
-                (item: [number, string, number, number, number, number, number, number]) =>
-                  upsertVessel(item),
-              );
+              msg.v.forEach((item: any[]) => upsertVessel(item));
             }
             if (Array.isArray(msg.ports)) {
               setPortsStats(msg.ports);
             }
             setVesselsMap(new Map(vesselsRef.current));
           } else if (msg.t === "diff") {
+            if (msg.demo_mode !== undefined) setIsDemoMode(Boolean(msg.demo_mode));
             if (Array.isArray(msg.v)) {
-              msg.v.forEach(
-                (item: [number, string, number, number, number, number, number, number]) =>
-                  upsertVessel(item),
-              );
+              msg.v.forEach((item: any[]) => upsertVessel(item));
             }
             if (Array.isArray(msg.gone)) {
               msg.gone.forEach((id: number) => vesselsRef.current.delete(id));
@@ -481,6 +498,19 @@ export function useLiveVessels() {
     setSelectedPortId("all");
   }, []);
 
+  const { liveCount, estimatedCount } = useMemo(() => {
+    let live = 0;
+    let est = 0;
+    for (const v of vesselsMap.values()) {
+      if (v.source === "estimated") {
+        est++;
+      } else {
+        live++;
+      }
+    }
+    return { liveCount: live, estimatedCount: est };
+  }, [vesselsMap]);
+
   return {
     vessels: vesselsList,
     vesselsMap,
@@ -489,6 +519,9 @@ export function useLiveVessels() {
     searchQuery: search,
     totalCount: vesselsMap.size,
     filteredCount: filteredVessels.length,
+    liveCount,
+    estimatedCount,
+    isDemoMode,
     status,
     statusMessage,
     isSimulated,

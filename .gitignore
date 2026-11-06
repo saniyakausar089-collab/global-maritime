@@ -42,7 +42,9 @@ __pycache__/
 *.py[cod]
 *.class
 *.db
+*.sqlite
 *.sqlite3
+*.sqlite-journal
 evaluation_results.csv
 config.local.js
 web/config.local.js
