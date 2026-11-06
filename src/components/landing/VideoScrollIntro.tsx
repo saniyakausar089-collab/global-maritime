@@ -149,21 +149,20 @@ export function VideoScrollIntro() {
       updateLoadingBar();
     }
 
-    // Scroll calculations calibrated strictly to the video spacer
-    const getMaxScroll = () => {
+    // Scroll calculations calibrated strictly so the entire video story finishes BEFORE login section enters
+    const getStoryScrollable = () => {
       const sp = document.getElementById("sp");
       if (sp) {
-        return Math.max(1, sp.offsetHeight);
+        return Math.max(1, sp.offsetHeight - window.innerHeight);
       }
-      const doc = document.documentElement;
-      return Math.max(1, doc.scrollHeight - window.innerHeight);
+      return Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
     };
 
     // Passive scroll listener updates target progress in ref (never React state)
     let targetP = 0;
     const onScroll = () => {
-      const maxS = getMaxScroll();
-      targetP = Math.min(1, Math.max(0, window.scrollY / maxS));
+      const storyEnd = getStoryScrollable();
+      targetP = Math.min(1, Math.max(0, window.scrollY / storyEnd));
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
@@ -222,11 +221,11 @@ export function VideoScrollIntro() {
       const dt = Math.min((now - lastTime) / 1000, 0.05);
       lastTime = now;
 
-      // Responsive, buttery lerp: factor 12.0 gives immediate, natural tracking without lag or jerking
+      // Cinematic analog lerp: factor 7.5 gives smooth inertia without rushing or lag
       if (prefersReducedMotion) {
         currentP = targetP;
       } else {
-        const factor = 1 - Math.exp(-dt * 12);
+        const factor = 1 - Math.exp(-dt * 7.5);
         currentP += (targetP - currentP) * factor;
       }
 
@@ -249,9 +248,9 @@ export function VideoScrollIntro() {
         el.style.pointerEvents = opacity > 0.4 ? "auto" : "none";
       });
 
-      // Hide video HUD as user enters the direct login section
-      const sp = document.getElementById("sp");
-      const inLoginSection = currentP >= 0.98 || (sp && window.scrollY >= sp.offsetHeight - 80);
+      // Hide video HUD only when user actually scrolls into the login section
+      const storyEnd = getStoryScrollable();
+      const inLoginSection = window.scrollY >= storyEnd - 40;
 
       // Active progress dot
       let bestDotIdx = 0;
@@ -318,9 +317,11 @@ export function VideoScrollIntro() {
 
   const handleGoTo = (u: number) => {
     const sp = document.getElementById("sp");
-    const maxScroll = sp ? sp.offsetHeight : Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+    const storyEnd = sp
+      ? Math.max(1, sp.offsetHeight - window.innerHeight)
+      : Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
     window.scrollTo({
-      top: u * maxScroll,
+      top: u * storyEnd,
       behavior: "smooth",
     });
   };
@@ -559,9 +560,9 @@ export function VideoScrollIntro() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 6. TALL SPACER DRIVING PASSIVE SCROLL (500vh for smooth, cinematic pace)   */}
+      {/* 6. TALL SPACER DRIVING PASSIVE SCROLL (1050vh for stately, cinematic pace) */}
       {/* ========================================================================= */}
-      <div id="sp" className="h-[500vh] w-full pointer-events-none" />
+      <div id="sp" className="h-[1050vh] w-full pointer-events-none" />
 
       {/* ========================================================================= */}
       {/* 7. DIRECT LOGIN SECTION (ROBOT SENTRY) CONTINUOUS AFTER SCROLL             */}
