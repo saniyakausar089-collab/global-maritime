@@ -3,13 +3,6 @@ import * as maplibregl from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
-  type HistoricalVessel,
-  type HistoricalEvent,
-  type PortArea,
-  MONITORED_PORTS,
-  interpolateVesselPosition,
-} from "@/lib/historicalData";
-import {
   Compass,
   Ship,
   ZoomIn,
@@ -24,60 +17,99 @@ import {
   Flag,
   Radio,
   Camera,
-  Box,
+  X,
+  ExternalLink,
 } from "lucide-react";
 
 if (typeof window !== "undefined" && typeof maplibregl.setWorkerUrl === "function") {
   maplibregl.setWorkerUrl(maplibreWorkerUrl);
 }
 
+export interface ReplayVesselRecord {
+  mmsi: number;
+  lat: number;
+  lon: number;
+  sog: number;
+  cog: number;
+  hdg: number;
+  type: number;
+  status: string;
+  confidence: number;
+  source: string;
+  isGap: number;
+  isInterpolated: number;
+  name: string;
+  destination: string;
+  eta: string;
+  haloRadius: number;
+}
+
 export interface HistoricalMapViewProps {
   currentTime: number;
-  vessels: HistoricalVessel[];
-  events: HistoricalEvent[];
-  selectedVessel: HistoricalVessel | null;
-  selectedPort: PortArea | null;
-  onSelectVessel: (vessel: HistoricalVessel | null) => void;
-  onSelectPort: (port: PortArea | null) => void;
-  onSelectEvent: (event: HistoricalEvent) => void;
-  showTrails?: boolean;
+  vessels: ReplayVesselRecord[];
+  mode: "replay" | "live" | "forecast";
+  selectedVessel: ReplayVesselRecord | null;
+  selectedPortId: string | null;
+  onSelectVessel: (vessel: ReplayVesselRecord | null) => void;
+  onSelectPort: (portId: string | null) => void;
   showRoutes?: boolean;
-  showEvents?: boolean;
   className?: string;
 }
 
 const SHIP_COLORS: Record<string, { fill: string; label: string }> = {
-  cargo: { fill: "#14B8A6", label: "Cargo Vessel" },
-  tanker: { fill: "#F59E0B", label: "Tanker" },
-  passenger: { fill: "#EC4899", label: "Passenger" },
-  tug: { fill: "#22D3EE", label: "Special Craft / Tug" },
-  fishing: { fill: "#EAB308", label: "Fishing" },
-  other: { fill: "#3B82F6", label: "Commercial" },
+  cargo: { fill: "#5EE7FF", label: "Cargo Vessel" },
+  tanker: { fill: "#FFB547", label: "Tanker" },
+  passenger: { fill: "#A78BFA", label: "Passenger" },
+  tug: { fill: "#FBBF24", label: "Special Craft / Tug" },
+  fishing: { fill: "#34D399", label: "Fishing" },
+  other: { fill: "#94A3B8", label: "Commercial" },
   anchored: { fill: "#64748B", label: "Anchored (<0.5 kn)" },
+  forecast: { fill: "#C084FC", label: "Forecast Position" },
 };
 
-function createHistoricalShipIcon(category: string, color: string): ImageData {
+const MONITORED_PORTS = [
+  { id: "rotterdam", name: "Rotterdam", flag: "🇳🇱", lat: 51.92, lon: 4.17 },
+  { id: "singapore", name: "Singapore", flag: "🇸🇬", lat: 1.26, lon: 103.84 },
+  { id: "shanghai", name: "Shanghai", flag: "🇨🇳", lat: 31.23, lon: 121.8 },
+  { id: "los-angeles", name: "Los Angeles", flag: "🇺🇸", lat: 33.73, lon: -118.26 },
+  { id: "hamburg", name: "Hamburg", flag: "🇩🇪", lat: 53.54, lon: 9.97 },
+  { id: "santos", name: "Santos", flag: "🇧🇷", lat: -23.98, lon: -46.3 },
+];
+
+function getCategoryFromType(typeNum: number, sog: number, isForecast: boolean): string {
+  if (isForecast) return "forecast";
+  if (sog < 0.5) return "anchored";
+  const t = Number(typeNum) || 0;
+  if (t >= 70 && t <= 79) return "cargo";
+  if (t >= 80 && t <= 89) return "tanker";
+  if (t >= 60 && t <= 69) return "passenger";
+  if (t >= 50 && t <= 59) return "tug";
+  if (t === 30 || t === 31 || t === 32) return "fishing";
+  return "other";
+}
+
+function createHistoricalShipIcon(category: string, color: string, isHollow = false): ImageData {
   const c = document.createElement("canvas");
-  c.width = 48;
-  c.height = 48;
+  c.width = 50;
+  c.height = 50;
   const x = c.getContext("2d")!;
-  const cx = 24;
+  const cx = 25;
 
   let bowY = 6;
-  let sternY = 42;
-  let hw = 7;
+  let sternY = 44;
+  let hw = 7.5;
 
   if (category === "tug") {
     bowY = 10;
-    sternY = 38;
-    hw = 7.5;
+    sternY = 40;
+    hw = 8.5;
   } else if (category === "tanker") {
-    hw = 7.8;
+    hw = 8.2;
   }
 
   // Wake
-  if (category !== "anchored") {
-    x.strokeStyle = "rgba(34, 211, 238, 0.4)";
+  if (category !== "anchored" && !isHollow) {
+    x.strokeStyle = "rgba(94, 231, 255, 0.4)";
     x.lineWidth = 1.5;
     x.beginPath();
     x.moveTo(cx - hw * 0.7, sternY - 2);
@@ -99,77 +131,50 @@ function createHistoricalShipIcon(category: string, color: string): ImageData {
   x.bezierCurveTo(cx - hw, bowY + 10, cx - hw * 0.6, bowY + 3, cx, bowY);
   x.closePath();
 
-  x.fillStyle = color;
-  x.fill();
+  if (isHollow) {
+    x.fillStyle = "rgba(10, 16, 25, 0.7)";
+    x.fill();
+    x.lineWidth = 2.0;
+    x.strokeStyle = color;
+    x.stroke();
+    // Tilde marker for estimated / forecast
+    x.fillStyle = color;
+    x.font = "bold 14px monospace";
+    x.textAlign = "center";
+    x.textBaseline = "middle";
+    x.fillText("~", cx, (bowY + sternY) / 2);
+  } else {
+    x.fillStyle = color;
+    x.fill();
+    x.lineWidth = 1.4;
+    x.strokeStyle = "rgba(255, 255, 255, 0.7)";
+    x.stroke();
+    // Bridge deck
+    x.fillStyle = "#FFFFFF";
+    x.fillRect(cx - hw * 0.5, sternY - 12, hw, 4);
+  }
 
-  x.lineWidth = 1.6;
-  x.strokeStyle = "#FFFFFF";
-  x.stroke();
-
-  // Bridge deck
-  x.fillStyle = "#FFFFFF";
-  x.fillRect(cx - hw * 0.5, sternY - 12, hw, 4);
-
-  return x.getImageData(0, 0, 48, 48);
-}
-
-function getVesselCategory(v: HistoricalVessel, isStationary: boolean): string {
-  if (isStationary) return "anchored";
-  const label = v.shipTypeLabel.toLowerCase();
-  if (label.includes("cargo")) return "cargo";
-  if (label.includes("tanker")) return "tanker";
-  if (label.includes("passenger")) return "passenger";
-  if (label.includes("tug") || label.includes("special")) return "tug";
-  if (label.includes("fishing")) return "fishing";
-  return "other";
+  return x.getImageData(0, 0, 50, 50);
 }
 
 export function HistoricalMapView({
   currentTime,
   vessels,
-  events,
+  mode,
   selectedVessel,
-  selectedPort,
+  selectedPortId,
   onSelectVessel,
   onSelectPort,
-  onSelectEvent,
-  showTrails = true,
   showRoutes = true,
-  showEvents = true,
-  className,
+  className = "",
 }: HistoricalMapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const portMarkersRef = useRef<maplibregl.Marker[]>([]);
-  const eventMarkersRef = useRef<maplibregl.Marker[]>([]);
   const popupRef = useRef<maplibregl.Popup | null>(null);
+  const portMarkersRef = useRef<maplibregl.Marker[]>([]);
 
   const [mapLoaded, setMapLoaded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [is3DMode, setIs3DMode] = useState(false);
-
-  const toggle3DMode = () => {
-    if (!mapRef.current) return;
-    const next = !is3DMode;
-    setIs3DMode(next);
-    mapRef.current.easeTo({
-      pitch: next ? 50 : 0,
-      bearing: next ? -20 : 0,
-      duration: 1000,
-    });
-  };
-
-  const captureMapSnapshot = () => {
-    if (!mapRef.current) return;
-    const canvas = mapRef.current.getCanvas();
-    const dataUrl = canvas.toDataURL("image/png");
-    const link = document.createElement("a");
-    link.href = dataUrl;
-    link.download = `port_monitor_snapshot_${new Date(currentTime).toISOString().replace(/[:.]/g, "-")}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   // Initialize MapLibre GL
   useEffect(() => {
@@ -180,25 +185,47 @@ export function HistoricalMapView({
       style: "https://tiles.openfreemap.org/styles/dark",
       center: [20, 20],
       zoom: 2.2,
+      minZoom: 1.5,
+      maxBounds: [
+        [-180, -85],
+        [180, 85],
+      ],
+      renderWorldCopies: false,
       attributionControl: { compact: true },
     });
 
     mapRef.current = map;
 
     map.on("load", () => {
-      // Register ship icon glyphs
+      // Register ship icon glyphs (both solid and hollow forecast)
       Object.entries(SHIP_COLORS).forEach(([key, conf]) => {
-        const id = `hist_ship_${key}`;
-        if (!map.hasImage(id)) {
-          map.addImage(id, createHistoricalShipIcon(key, conf.fill), { pixelRatio: 2 });
+        const idSolid = `hist_ship_${key}`;
+        const idHollow = `hist_ship_${key}_hollow`;
+        if (!map.hasImage(idSolid)) {
+          map.addImage(idSolid, createHistoricalShipIcon(key, conf.fill, false), { pixelRatio: 2 });
+        }
+        if (!map.hasImage(idHollow)) {
+          map.addImage(idHollow, createHistoricalShipIcon(key, conf.fill, true), { pixelRatio: 2 });
         }
       });
 
-      // 1. Vessel Positions GeoJSON Source
-      if (!map.getSource("hist_ships")) {
-        map.addSource("hist_ships", {
+      // 1. Sea corridors overlay
+      if (!map.getSource("hist_sea_lanes")) {
+        map.addSource("hist_sea_lanes", {
           type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
+          data: "/api/routes",
+        });
+      }
+      if (!map.getLayer("hist_sea_lanes_layer")) {
+        map.addLayer({
+          id: "hist_sea_lanes_layer",
+          type: "line",
+          source: "hist_sea_lanes",
+          paint: {
+            "line-color": "#5EE7FF",
+            "line-width": 1.0,
+            "line-opacity": 0.15,
+          },
         });
       }
 
@@ -210,83 +237,91 @@ export function HistoricalMapView({
         });
       }
 
-      // Route lines layer
-      if (!map.getLayer("hist_routes_layer")) {
+      // Route lines layer (solid recorded, dashed forecast)
+      if (!map.getLayer("hist_routes_solid")) {
         map.addLayer({
-          id: "hist_routes_layer",
+          id: "hist_routes_solid",
           type: "line",
           source: "hist_routes",
+          filter: ["==", ["get", "type"], "solid"],
           paint: {
-            "line-color": [
-              "case",
-              ["get", "selected"],
-              "#22D3EE",
-              "rgba(20, 184, 166, 0.45)",
-            ],
-            "line-width": [
-              "case",
-              ["get", "selected"],
-              3.5,
-              1.8,
-            ],
-            "line-dasharray": [
-              "case",
-              ["get", "selected"],
-              [1, 0],
-              [2, 2],
-            ],
+            "line-color": "#5EE7FF",
+            "line-width": 2.5,
+            "line-opacity": 0.85,
           },
         });
       }
 
-      // Ship halo glow
-      if (!map.getLayer("hist_ships_glow")) {
+      if (!map.getLayer("hist_routes_dashed")) {
         map.addLayer({
-          id: "hist_ships_glow",
+          id: "hist_routes_dashed",
+          type: "line",
+          source: "hist_routes",
+          filter: ["==", ["get", "type"], "dashed"],
+          paint: {
+            "line-color": "#C084FC",
+            "line-width": 2.0,
+            "line-dasharray": [3, 2],
+            "line-opacity": 0.75,
+          },
+        });
+      }
+
+      // 3. Vessel Positions GeoJSON Source
+      if (!map.getSource("hist_ships")) {
+        map.addSource("hist_ships", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+      }
+
+      // 4. Uncertainty Halos Layer (For Forecast positions)
+      if (!map.getLayer("hist_ships_halo")) {
+        map.addLayer({
+          id: "hist_ships_halo",
           type: "circle",
           source: "hist_ships",
+          filter: [">", ["get", "haloRadius"], 0],
           paint: {
             "circle-radius": [
-              "case",
-              ["get", "selected"],
-              12,
-              6,
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              1, ["*", 0.6, ["get", "haloRadius"]],
+              5, ["*", 1.0, ["get", "haloRadius"]],
+              10, ["*", 1.5, ["get", "haloRadius"]],
             ],
-            "circle-color": [
-              "case",
-              ["get", "selected"],
-              "#22D3EE",
-              "#14B8A6",
-            ],
-            "circle-opacity": [
-              "case",
-              ["get", "selected"],
-              0.65,
-              0.3,
-            ],
-            "circle-blur": 0.6,
+            "circle-color": "rgba(192, 132, 252, 0.12)",
+            "circle-stroke-color": "rgba(192, 132, 252, 0.35)",
+            "circle-stroke-width": 1.2,
           },
         });
       }
 
-      // Directional Ship symbols
+      // 5. Directional Ship symbols
       if (!map.getLayer("hist_ships_layer")) {
         map.addLayer({
           id: "hist_ships_layer",
           type: "symbol",
           source: "hist_ships",
           layout: {
-            "icon-image": ["concat", "hist_ship_", ["get", "icon"]],
+            "icon-image": ["get", "iconImage"],
             "icon-rotate": ["get", "hdg"],
             "icon-rotation-alignment": "map",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
             "icon-size": [
-              "case",
-              ["get", "selected"],
-              1.2,
-              0.9,
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              1, 0.65,
+              4, 0.85,
+              8, 1.1,
+              12, 1.35,
             ],
+          },
+          paint: {
+            "icon-opacity": ["get", "opacity"],
           },
         });
       }
@@ -294,9 +329,11 @@ export function HistoricalMapView({
       map.on("click", "hist_ships_layer", (e) => {
         const feat = e.features?.[0];
         if (!feat) return;
-        const id = Number(feat.properties?.id);
-        const v = vessels.find((item) => item.id === id);
-        if (v) onSelectVessel(v);
+        const mmsi = Number(feat.properties?.mmsi);
+        const v = vessels.find((item) => item.mmsi === mmsi);
+        if (v) {
+          onSelectVessel(v);
+        }
       });
 
       map.on("mouseenter", "hist_ships_layer", () => {
@@ -318,73 +355,106 @@ export function HistoricalMapView({
       map.remove();
       mapRef.current = null;
     };
-  }, [vessels, onSelectVessel]);
+  }, []);
 
-  // Update Vessel Positions & Routes on Replay Timestamp Change
+  // Update Vessel Positions on Map
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
 
-    const shipFeatures = [];
-    const routeFeatures = [];
+    const shipSrc = map.getSource("hist_ships") as maplibregl.GeoJSONSource | undefined;
+    if (!shipSrc) return;
+
+    const isFuture = mode === "forecast";
+    const features: any[] = [];
 
     for (const v of vessels) {
-      const pos = interpolateVesselPosition(v, currentTime);
-      if (!pos) continue;
+      if (v.isGap) continue; // Skip gaps
 
-      const isSel = selectedVessel?.id === v.id;
-      const cat = getVesselCategory(v, pos.stationary);
+      const isSel = selectedVessel?.mmsi === v.mmsi;
+      const cat = getCategoryFromType(v.type, v.sog, isFuture);
+      const isHollow = isFuture || v.source === "estimated";
+      const iconKey = `hist_ship_${cat}${isHollow ? "_hollow" : ""}`;
 
-      shipFeatures.push({
-        type: "Feature" as const,
+      features.push({
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [v.lon, v.lat],
+        },
         properties: {
-          id: v.id,
+          mmsi: v.mmsi,
           name: v.name,
-          icon: cat,
-          hdg: pos.hdg || pos.cog || 0,
-          sog: pos.sog,
+          hdg: v.hdg ?? v.cog ?? 0,
+          sog: v.sog,
+          cog: v.cog,
+          type: v.type,
+          iconImage: iconKey,
+          opacity: Math.max(0.25, v.confidence ?? 1.0),
+          haloRadius: isFuture ? (v.haloRadius || 8) : 0,
           selected: isSel,
         },
-        geometry: {
-          type: "Point" as const,
-          coordinates: [pos.lon, pos.lat],
-        },
       });
+    }
 
-      // Historical Trail / Route line up to currentTime
-      if (showRoutes || isSel) {
-        const pastPositions = v.positions.filter((p) => p.timestamp <= currentTime);
-        if (pastPositions.length >= 2) {
-          routeFeatures.push({
-            type: "Feature" as const,
-            properties: {
-              vesselId: v.id,
-              selected: isSel,
-            },
+    shipSrc.setData({
+      type: "FeatureCollection",
+      features,
+    });
+  }, [vessels, mode, selectedVessel, mapLoaded]);
+
+  // Update Selected Vessel Tracks (Solid recorded breadcrumbs up to currentTime + Dashed forecast if in future)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    const routeSrc = map.getSource("hist_routes") as maplibregl.GeoJSONSource | undefined;
+    if (!routeSrc) return;
+
+    if (!selectedVessel || !showRoutes) {
+      routeSrc.setData({ type: "FeatureCollection", features: [] });
+      return;
+    }
+
+    fetch(`/api/vessels/${selectedVessel.mmsi}/track`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const features: any[] = [];
+
+        // Solid line for past recorded breadcrumbs up to vessel position
+        if (Array.isArray(data.breadcrumbs) && data.breadcrumbs.length > 0) {
+          features.push({
+            type: "Feature",
+            properties: { type: "solid" },
             geometry: {
-              type: "LineString" as const,
-              coordinates: [
-                ...pastPositions.map((p) => [p.lon, p.lat]),
-                [pos.lon, pos.lat],
-              ],
+              type: "LineString",
+              coordinates: [...data.breadcrumbs, [selectedVessel.lon, selectedVessel.lat]],
             },
           });
         }
-      }
-    }
 
-    const shipSrc = map.getSource("hist_ships") as maplibregl.GeoJSONSource | undefined;
-    if (shipSrc) {
-      shipSrc.setData({ type: "FeatureCollection", features: shipFeatures });
-    }
+        // Dashed line if vessel has a future sea route
+        if (Array.isArray(data.routeCoordinates) && data.routeCoordinates.length > 1) {
+          features.push({
+            type: "Feature",
+            properties: { type: "dashed" },
+            geometry: {
+              type: "LineString",
+              coordinates: data.routeCoordinates,
+            },
+          });
+        }
 
-    const routeSrc = map.getSource("hist_routes") as maplibregl.GeoJSONSource | undefined;
-    if (routeSrc) {
-      routeSrc.setData({ type: "FeatureCollection", features: routeFeatures });
-    }
-  }, [currentTime, vessels, selectedVessel, showRoutes, mapLoaded]);
+        routeSrc.setData({
+          type: "FeatureCollection",
+          features,
+        });
+      })
+      .catch(() => {});
+  }, [selectedVessel, showRoutes, mapLoaded, currentTime]);
 
-  // Render Port Geofence Markers
+  // Update Port Markers with Collision Safety
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
@@ -393,207 +463,95 @@ export function HistoricalMapView({
     portMarkersRef.current = [];
 
     MONITORED_PORTS.forEach((p) => {
-      const isSel = selectedPort?.id === p.id;
+      const isSelected = selectedPortId === p.id;
       const el = document.createElement("div");
-      el.className = "cursor-pointer select-none group";
+      el.className = `cursor-pointer transition-transform hover:scale-110 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-mono font-bold backdrop-blur-md shadow-lg ${
+        isSelected
+          ? "bg-accent text-black border-white shadow-[0_0_12px_#5EE7FF]"
+          : "bg-[#0A1019]/85 text-ink border-white/20 hover:border-accent"
+      }`;
 
-      el.innerHTML = `
-        <div style="transform: translate(-50%, -50%); position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 9999px; font-family: system-ui, sans-serif; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.6); border: 1.5px solid ${isSel ? "#22D3EE" : "#14B8A6"}; background: #071B2F; color: #FFFFFF;">
-          <span style="font-size: 12px;">${p.flag}</span>
-          <span>${p.name}</span>
-          <span style="padding: 1px 5px; border-radius: 4px; background: rgba(34, 211, 238, 0.2); color: #22D3EE; font-family: monospace; font-size: 10px;">${p.radiusKm}km</span>
-        </div>
-      `;
+      // Offset Hamburg slightly right-up to prevent collision with Rotterdam
+      let anchorPos: maplibregl.PositionAnchor = "center";
+      let offset: [number, number] = [0, 0];
+      if (p.id === "hamburg") {
+        offset = [22, -14];
+      } else if (p.id === "rotterdam") {
+        offset = [-18, 12];
+      }
 
-      el.onclick = () => {
-        onSelectPort(isSel ? null : p);
-        map.flyTo({ center: [p.lon, p.lat], zoom: 9, essential: true });
+      el.innerHTML = `<span>${p.flag}</span><span>${p.name}</span>`;
+      el.onclick = (e) => {
+        e.stopPropagation();
+        onSelectPort(p.id === selectedPortId ? null : p.id);
       };
 
-      const marker = new maplibregl.Marker({ element: el }).setLngLat([p.lon, p.lat]).addTo(map);
-      portMarkersRef.current.push(marker);
-    });
-  }, [selectedPort, mapLoaded, onSelectPort]);
-
-  // Render Historical Event Markers (Glowing Amber/Teal/Red Beacons)
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoaded) return;
-
-    eventMarkersRef.current.forEach((m) => m.remove());
-    eventMarkersRef.current = [];
-
-    if (!showEvents) return;
-
-    // Show events that occurred around the current window (+/- 3 hours of replay time)
-    const activeEvents = events.filter(
-      (evt) => Math.abs(evt.timestamp - currentTime) <= 3 * 60 * 60 * 1000,
-    );
-
-    activeEvents.forEach((evt) => {
-      const el = document.createElement("div");
-      el.className = "cursor-pointer select-none";
-
-      let color = "#F59E0B"; // Amber for arrivals/anchorage
-      let icon = "⚓";
-      if (evt.type === "PORT_ENTRY") {
-        color = "#10B981";
-        icon = "🚢";
-      } else if (evt.type === "PORT_DEPARTURE") {
-        color = "#22D3EE";
-        icon = "💨";
-      }
-
-      el.innerHTML = `
-        <div style="transform: translate(-50%, -50%); position: relative; display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 9999px; background: ${color}; color: #071B2F; font-size: 12px; font-weight: bold; box-shadow: 0 0 16px ${color}; border: 2px solid #FFFFFF;">
-          ${icon}
-        </div>
-      `;
-
-      el.onclick = () => onSelectEvent(evt);
-
-      const marker = new maplibregl.Marker({ element: el })
-        .setLngLat(evt.coordinates)
+      const marker = new maplibregl.Marker({ element: el, anchor: anchorPos, offset })
+        .setLngLat([p.lon, p.lat])
         .addTo(map);
 
-      eventMarkersRef.current.push(marker);
+      portMarkersRef.current.push(marker);
     });
-  }, [events, currentTime, showEvents, mapLoaded, onSelectEvent]);
-
-  // Fly to selected vessel if selection changes
-  useEffect(() => {
-    if (selectedVessel && mapRef.current) {
-      const pos = interpolateVesselPosition(selectedVessel, currentTime);
-      if (pos) {
-        mapRef.current.flyTo({ center: [pos.lon, pos.lat], zoom: 9.5, essential: true });
-      }
-    }
-  }, [selectedVessel?.id]);
+  }, [selectedPortId, mapLoaded, onSelectPort]);
 
   const zoomIn = () => mapRef.current?.zoomIn();
   const zoomOut = () => mapRef.current?.zoomOut();
-  const resetView = () => mapRef.current?.flyTo({ center: [20, 20], zoom: 2.2, essential: true });
-
-  const toggleFullscreen = () => {
-    if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
-    } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
-    }
-  };
+  const resetView = () => mapRef.current?.flyTo({ center: [20, 20], zoom: 2.2, pitch: 0, bearing: 0 });
 
   return (
-    <div
-      ref={containerRef}
-      className={`relative overflow-hidden rounded-xl border border-border bg-[#071B2F] shadow-lg ${
-        isFullscreen ? "fixed inset-0 z-[2000] h-screen w-screen rounded-none" : className ?? "h-[540px] w-full"
-      }`}
-    >
-      {/* MapLibre Container */}
-      <div className="h-full w-full" />
+    <div className={`relative w-full h-[65vh] min-h-[500px] overflow-hidden rounded-2xl ${className}`}>
+      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
 
-      {/* Historical Mode Indicator Banner (Top Left) */}
-      <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2 rounded-full border border-amber-500/40 bg-[#071B2F]/90 px-3 py-1 font-mono text-xs backdrop-blur-md shadow-md">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
-          </span>
-          <span className="font-bold text-amber-400">HISTORICAL REPLAY — NOT LIVE</span>
-          <span className="text-white/40">|</span>
-          <span className="text-white/80 font-sans text-[11px]">
-            {vessels.length} recorded ships
-          </span>
-        </div>
-
-        {selectedPort && (
-          <div className="flex items-center gap-1.5 rounded-full border border-cyan-500/40 bg-cyan-950/80 px-2.5 py-0.5 text-xs text-cyan-300">
-            <span>{selectedPort.flag}</span>
-            <span className="font-semibold">{selectedPort.name} Area</span>
-            <button
-              onClick={() => onSelectPort(null)}
-              className="ml-1 text-cyan-300 hover:text-white"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Internal Map Controls Toolbar (Top Right) */}
-      <div className="absolute right-3 top-3 z-10 flex items-center rounded-lg border border-white/10 bg-[#071B2F]/90 p-1 backdrop-blur-md shadow-md">
+      {/* Floating Toolbar Controls */}
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 glass-pill px-2 py-1 shadow-xl">
         <button
           type="button"
           onClick={zoomIn}
           title="Zoom In"
-          className="flex h-7 w-7 items-center justify-center rounded text-white/70 hover:text-white hover:bg-white/10 transition"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-ink-2 hover:text-ink hover:bg-white/10 transition cursor-pointer"
         >
-          <ZoomIn className="h-4 w-4" />
+          <ZoomIn className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
           onClick={zoomOut}
           title="Zoom Out"
-          className="flex h-7 w-7 items-center justify-center rounded text-white/70 hover:text-white hover:bg-white/10 transition"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-ink-2 hover:text-ink hover:bg-white/10 transition cursor-pointer"
         >
-          <ZoomOut className="h-4 w-4" />
+          <ZoomOut className="h-3.5 w-3.5" />
         </button>
-        <div className="mx-1 h-4 w-px bg-white/10" />
+        <div className="mx-0.5 h-3.5 w-px bg-white/10" />
         <button
           type="button"
           onClick={resetView}
-          title="Reset Global View"
-          className="flex h-7 w-7 items-center justify-center rounded text-white/70 hover:text-white hover:bg-white/10 transition"
+          title="Fit to World / Reset View"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-ink-2 hover:text-ink hover:bg-white/10 transition cursor-pointer"
         >
-          <RotateCcw className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={toggle3DMode}
-          title={is3DMode ? "Switch to 2D Top-Down" : "Switch to 2.5D Digital Twin Tilt"}
-          className={`flex h-7 px-1.5 items-center justify-center rounded text-xs font-mono font-bold transition ${
-            is3DMode ? "bg-primary text-primary-foreground" : "text-white/70 hover:text-white hover:bg-white/10"
-          }`}
-        >
-          <Box className="h-3.5 w-3.5 mr-0.5" />
-          <span>{is3DMode ? "2.5D" : "2D"}</span>
-        </button>
-        <button
-          type="button"
-          onClick={captureMapSnapshot}
-          title="Capture Map Replay Snapshot (.png)"
-          className="flex h-7 w-7 items-center justify-center rounded text-white/70 hover:text-white hover:bg-white/10 transition"
-        >
-          <Camera className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Replay"}
-          className="flex h-7 w-7 items-center justify-center rounded text-white/70 hover:text-white hover:bg-white/10 transition"
-        >
-          {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          <RotateCcw className="h-3 w-3" />
         </button>
       </div>
 
-      {/* Legend & Telemetry Bar (Bottom Right Overlay) */}
-      <div className="absolute bottom-3 right-3 z-10 hidden sm:flex items-center gap-3 rounded-lg border border-white/10 bg-[#071B2F]/90 px-3 py-1.5 text-[11px] backdrop-blur-md shadow-md text-white/80">
-        <span className="font-semibold text-cyan-400">Recorded Categories:</span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-[#14B8A6]" /> Cargo
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-[#F59E0B]" /> Tanker
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-[#EC4899]" /> Passenger
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-[#64748B]" /> Anchored (&lt;0.5 kn)
-        </span>
+      {/* Floating Bottom Legend */}
+      <div className="absolute bottom-4 left-4 z-10 flex flex-wrap items-center gap-3 pointer-events-none">
+        <div className="glass-pill flex flex-wrap items-center gap-3 px-3.5 py-1.5 text-xs pointer-events-auto shadow-lg">
+          <span className="text-[10px] font-semibold text-ink-3 uppercase tracking-wider font-mono">
+            Layer:
+          </span>
+          <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
+            <span className="h-2 w-2 rounded-full bg-[#5EE7FF]" /> Recorded
+          </span>
+          <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
+            <span className="h-2 w-2 rounded-full border border-[#C084FC] bg-purple-500/20" /> Forecast (~)
+          </span>
+          <span className="text-white/15">|</span>
+          <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
+            <span className="h-2 w-2 rounded-full bg-[#34D399]" /> Active Live
+          </span>
+          <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
+            <span className="h-2 w-2 rounded-full bg-[#64748B]" /> Anchored
+          </span>
+        </div>
       </div>
     </div>
   );
 }
-

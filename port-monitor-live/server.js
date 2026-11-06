@@ -19,6 +19,8 @@ import {
   landCheckMetrics,
   routeValidationMetrics,
   computeVesselSeaRoute,
+  haversineKm,
+  bearingDeg,
   KNOWN_PORTS,
 } from "./maritimeRouter.js";
 
@@ -451,6 +453,367 @@ app.get("/api/traffic-density", (req, res) => {
 app.get("/api/region-coverage", (req, res) => {
   const hours = Math.min(72, Math.max(1, Number(req.query.hours) || 24));
   res.json(store.getHourlyRegionStats(hours));
+});
+
+// Replay & Forecasting Position Calculator
+function computeInstantPositions(targetTs, bbox = null) {
+  const now = Date.now();
+  const isPast = targetTs < now - 60000;
+  const isFuture = targetTs > now + 60000;
+
+  const coverage = store.getHourlyPositionCoverage(7);
+  const historyAvailableFrom = coverage.oldestRecordTs;
+
+  // 1. PAST / HISTORICAL REPLAY (Real Recorded Positions)
+  if (isPast) {
+    if (historyAvailableFrom && targetTs < historyAvailableFrom - 30 * 60 * 1000) {
+      return {
+        at: targetTs,
+        iso: new Date(targetTs).toISOString(),
+        mode: "replay",
+        status: "no_data_before_history",
+        historyAvailableFrom,
+        count: 0,
+        vessels: {
+          mmsi: [], lat: [], lon: [], sog: [], cog: [], hdg: [], type: [],
+          status: [], confidence: [], source: [], isGap: [], isInterpolated: [],
+          name: [], destination: [], eta: [], haloRadius: []
+        },
+        portArrivals: PORTS.map((p) => ({
+          id: p.id,
+          name: p.name,
+          predictedCount: 0,
+          currentCount: 0,
+          forecastIndex: null,
+          forecastLabel: "No history recorded for this timestamp",
+          topIncoming: [],
+        })),
+        debug: { recordedSamples: 0, interpolated: 0, gapVessels: 0, forecastVessels: 0 },
+      };
+    }
+
+    const { beforeRows, afterMap } = store.getPositionsAt(targetTs);
+
+    const res = {
+      mmsi: [], lat: [], lon: [], sog: [], cog: [], hdg: [], type: [],
+      status: [], confidence: [], source: [], isGap: [], isInterpolated: [],
+      name: [], destination: [], eta: [], haloRadius: []
+    };
+
+    let count = 0;
+    let interpolatedCount = 0;
+    let gapCount = 0;
+    const window3h = 3 * 3600 * 1000;
+
+    for (const b of beforeRows) {
+      const a = afterMap.get(b.mmsi);
+      let pLat = b.lat;
+      let pLon = b.lon;
+      let pSog = b.sog || 0;
+      let pCog = b.cog || 0;
+      let pHdg = b.hdg || b.cog || 0;
+      let isInterpolated = 0;
+      let isGap = 0;
+
+      if (a) {
+        const gapMs = a.ts - b.ts;
+        if (gapMs <= window3h && gapMs > 0) {
+          const frac = (targetTs - b.ts) / gapMs;
+          pLat = b.lat + (a.lat - b.lat) * frac;
+          pLon = b.lon + (a.lon - b.lon) * frac;
+          pSog = b.sog + (a.sog - b.sog) * frac;
+          pCog = a.cog;
+          pHdg = a.hdg || a.cog;
+          isInterpolated = 1;
+          interpolatedCount++;
+        } else {
+          isGap = 1;
+          gapCount++;
+        }
+      } else {
+        const ageMs = targetTs - b.ts;
+        if (ageMs > window3h) {
+          isGap = 1;
+          gapCount++;
+        }
+      }
+
+      if (bbox && bbox.length === 4) {
+        if (pLon < bbox[0] || pLon > bbox[2] || pLat < bbox[1] || pLat > bbox[3]) {
+          continue;
+        }
+      }
+
+      res.mmsi.push(b.mmsi);
+      res.lat.push(+pLat.toFixed(4));
+      res.lon.push(+pLon.toFixed(4));
+      res.sog.push(+pSog.toFixed(1));
+      res.cog.push(Math.round(pCog));
+      res.hdg.push(Math.round(pHdg));
+      res.type.push(b.type || 0);
+      res.status.push(pSog < 0.5 ? "anchored" : "underway");
+      res.confidence.push(isGap ? 0.2 : 1.0);
+      res.source.push(isGap ? "gap" : (isInterpolated ? "interpolated" : "recorded"));
+      res.isGap.push(isGap);
+      res.isInterpolated.push(isInterpolated);
+      res.name.push(b.name || `VESSEL-${b.mmsi}`);
+      res.destination.push(b.destination || "");
+      res.eta.push(b.eta || "");
+      res.haloRadius.push(0);
+      count++;
+    }
+
+    return {
+      at: targetTs,
+      iso: new Date(targetTs).toISOString(),
+      mode: "replay",
+      status: "ok",
+      historyAvailableFrom,
+      count,
+      vessels: res,
+      portArrivals: PORTS.map((p) => ({
+        id: p.id,
+        name: p.name,
+        predictedCount: 0,
+        currentCount: 0,
+        forecastIndex: null,
+        topIncoming: [],
+      })),
+      debug: {
+        recordedSamples: beforeRows.length,
+        interpolated: interpolatedCount,
+        gapVessels: gapCount,
+        forecastVessels: 0,
+      },
+    };
+  }
+
+  // 2. FUTURE / FORECAST (Route-Following Forecasting with Uncertainty Halos)
+  const hoursAhead = isFuture ? (targetTs - now) / (3600 * 1000) : 0;
+  const allVessels = [...store.getAll().values()];
+  const res = {
+    mmsi: [], lat: [], lon: [], sog: [], cog: [], hdg: [], type: [],
+    status: [], confidence: [], source: [], isGap: [], isInterpolated: [],
+    name: [], destination: [], eta: [], haloRadius: []
+  };
+
+  let count = 0;
+  let forecastCount = 0;
+  const portPredictions = new Map();
+  PORTS.forEach((p) => portPredictions.set(p.id, { current: 0, future: 0, incoming: [] }));
+
+  for (const v of allVessels) {
+    for (const p of PORTS) {
+      const dKm = haversineKm(v.lat, v.lon, p.lat, p.lon);
+      if (dKm <= 25) {
+        portPredictions.get(p.id).current++;
+      }
+    }
+  }
+
+  for (const v of allVessels) {
+    if (v.source === "live" || v.source === "estimated") {
+      const destPort = normalizeDestination(v.destination);
+      let fLat = v.lat;
+      let fLon = v.lon;
+      let fHeading = v.hdg ?? v.cog ?? 0;
+      let fConfidence = Math.max(0.15, +(1.0 - (hoursAhead / 72) * 0.75).toFixed(2));
+      let keep = false;
+
+      const avgSog = Math.max(3, v.sog || 12);
+      const distTravelKm = avgSog * 1.852 * hoursAhead;
+
+      if (destPort) {
+        const seaRoute = computeVesselSeaRoute(v, destPort);
+        if (seaRoute && seaRoute.length > 1) {
+          const totalDist = haversineKm(v.lat, v.lon, destPort.lat, destPort.lon);
+          const advanceRatio = Math.min(1.0, distTravelKm / (totalDist || 1));
+          if (advanceRatio >= 1.0) {
+            fLat = destPort.lat;
+            fLon = destPort.lon;
+            fConfidence = Math.max(0.3, +(fConfidence * 0.9).toFixed(2));
+          } else {
+            const idx = Math.min(seaRoute.length - 1, Math.floor(advanceRatio * (seaRoute.length - 1)));
+            const pt = seaRoute[idx];
+            fLon = pt[0];
+            fLat = pt[1];
+          }
+          keep = true;
+        } else {
+          const totalDist = haversineKm(v.lat, v.lon, destPort.lat, destPort.lon);
+          const advanceRatio = Math.min(1.0, distTravelKm / (totalDist || 1));
+          const candLat = v.lat + (destPort.lat - v.lat) * advanceRatio;
+          const candLon = v.lon + (destPort.lon - v.lon) * advanceRatio;
+          if (isNavigableWater(candLon, candLat)) {
+            fLat = candLat;
+            fLon = candLon;
+            keep = true;
+          }
+        }
+      } else if (hoursAhead <= 6 && v.cog != null) {
+        const rad = (v.cog * Math.PI) / 180;
+        const dLat = (distTravelKm * Math.cos(rad)) / 111.32;
+        const dLon = (distTravelKm * Math.sin(rad)) / (111.32 * Math.cos((v.lat * Math.PI) / 180) || 1);
+        const candLat = v.lat + dLat;
+        const candLon = v.lon + dLon;
+        if (isNavigableWater(candLon, candLat)) {
+          fLat = candLat;
+          fLon = candLon;
+          fHeading = v.cog;
+          fConfidence = Math.max(0.2, +(fConfidence * 0.7).toFixed(2));
+          keep = true;
+        }
+      }
+
+      if (!keep && hoursAhead > 0) continue;
+
+      for (const p of PORTS) {
+        const dKm = haversineKm(fLat, fLon, p.lat, p.lon);
+        if (dKm <= 25) {
+          const stats = portPredictions.get(p.id);
+          stats.future++;
+          if (destPort && destPort.id === p.id && stats.incoming.length < 5) {
+            stats.incoming.push({
+              name: v.name || `VESSEL-${v.mmsi || v.id}`,
+              mmsi: v.mmsi || v.id,
+              eta: v.eta || `+${Math.round(hoursAhead)}h`,
+              confidence: fConfidence,
+              distKm: Math.round(dKm),
+            });
+          }
+        }
+      }
+
+      if (bbox && bbox.length === 4) {
+        if (fLon < bbox[0] || fLon > bbox[2] || fLat < bbox[1] || fLat > bbox[3]) {
+          continue;
+        }
+      }
+
+      const halo = Math.min(48, Math.round(6 + hoursAhead * 0.55));
+
+      res.mmsi.push(v.mmsi || v.id);
+      res.lat.push(+fLat.toFixed(4));
+      res.lon.push(+fLon.toFixed(4));
+      res.sog.push(+avgSog.toFixed(1));
+      res.cog.push(Math.round(fHeading));
+      res.hdg.push(Math.round(fHeading));
+      res.type.push(v.type || 0);
+      res.status.push(hoursAhead > 0 ? "forecast" : (avgSog < 0.5 ? "anchored" : "underway"));
+      res.confidence.push(hoursAhead > 0 ? fConfidence : (v.confidence ?? 1.0));
+      res.source.push(hoursAhead > 0 ? "forecast" : (v.source || "live"));
+      res.isGap.push(0);
+      res.isInterpolated.push(hoursAhead > 0 ? 1 : 0);
+      res.name.push(v.name || `VESSEL-${v.mmsi || v.id}`);
+      res.destination.push(v.destination || "");
+      res.eta.push(v.eta || "");
+      res.haloRadius.push(hoursAhead > 0 ? halo : 0);
+      count++;
+      if (hoursAhead > 0) forecastCount++;
+    }
+  }
+
+  const portArrivals = PORTS.map((p) => {
+    const s = portPredictions.get(p.id);
+    const predictedRatio = s.future > 0 ? (s.future * 0.45) / s.future : 0;
+    const forecastCi = s.future >= 5 ? +(0.6 + 1.6 * predictedRatio).toFixed(2) : null;
+    return {
+      id: p.id,
+      name: p.name,
+      predictedCount: s.future,
+      currentCount: s.current,
+      forecastIndex: forecastCi,
+      forecastLabel: "Forecast, low confidence",
+      topIncoming: s.incoming,
+    };
+  });
+
+  return {
+    at: targetTs,
+    iso: new Date(targetTs).toISOString(),
+    mode: hoursAhead > 0 ? "forecast" : "live",
+    status: "ok",
+    historyAvailableFrom,
+    hoursAhead: +hoursAhead.toFixed(1),
+    count,
+    vessels: res,
+    portArrivals,
+    debug: {
+      recordedSamples: 0,
+      interpolated: 0,
+      gapVessels: 0,
+      forecastVessels: forecastCount,
+    },
+  };
+}
+
+// 1. Time Machine Instant Replay Query Endpoint
+app.get("/api/replay", (req, res) => {
+  const atParam = req.query.at;
+  const targetTs = atParam ? (isNaN(Number(atParam)) ? new Date(atParam).getTime() : Number(atParam)) : Date.now();
+  if (!targetTs || isNaN(targetTs)) {
+    return res.status(400).json({ error: "Invalid 'at' timestamp" });
+  }
+
+  let bbox = null;
+  if (req.query.bbox) {
+    const parts = req.query.bbox.split(",").map(Number);
+    if (parts.length === 4 && !parts.some(isNaN)) {
+      bbox = parts;
+    }
+  }
+
+  const result = computeInstantPositions(targetTs, bbox);
+  res.json(result);
+});
+
+// 2. Time Machine Chunked Range Query Endpoint (for smooth 60fps client-side interpolation)
+app.get("/api/replay/range", (req, res) => {
+  const fromParam = req.query.from;
+  const toParam = req.query.to;
+  const stepMin = Math.max(5, Math.min(60, Number(req.query.stepMinutes) || 15));
+
+  const fromTs = fromParam ? (isNaN(Number(fromParam)) ? new Date(fromParam).getTime() : Number(fromParam)) : Date.now() - 6 * 3600 * 1000;
+  const toTs = toParam ? (isNaN(Number(toParam)) ? new Date(toParam).getTime() : Number(toParam)) : Date.now();
+
+  const frames = [];
+  const stepMs = stepMin * 60 * 1000;
+  const maxFrames = 48;
+  let curr = fromTs;
+  while (curr <= toTs && frames.length < maxFrames) {
+    const frame = computeInstantPositions(curr);
+    frames.push({
+      at: curr,
+      iso: new Date(curr).toISOString(),
+      mode: frame.mode,
+      count: frame.count,
+      vessels: frame.vessels,
+    });
+    curr += stepMs;
+  }
+
+  res.json({
+    from: fromTs,
+    to: toTs,
+    stepMinutes: stepMin,
+    frameCount: frames.length,
+    frames,
+  });
+});
+
+// 3. Time Machine Coverage Endpoint (Hours recorded & availability)
+app.get("/api/replay/coverage", (req, res) => {
+  const days = Math.min(14, Math.max(1, Number(req.query.days) || 7));
+  const cov = store.getHourlyPositionCoverage(days);
+  res.json({
+    ok: true,
+    days,
+    oldestRecordTs: cov.oldestRecordTs,
+    newestRecordTs: cov.newestRecordTs,
+    totalSamples: cov.totalSamples,
+    uniqueVessels: cov.uniqueVessels,
+    hourly: cov.hourly,
+  });
 });
 
 app.get(["/api/history", "/ports/:id/history"], (req, res) => {

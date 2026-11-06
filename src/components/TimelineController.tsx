@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Play,
   Pause,
@@ -9,43 +9,49 @@ import {
   Gauge,
   Calendar,
   Sparkles,
+  Zap,
 } from "lucide-react";
 
 export interface TimelineControllerProps {
   currentTime: number;
   startTime: number;
   endTime: number;
+  nowTime: number;
   isPlaying: boolean;
   playbackSpeed: number;
+  coverageHourly?: Array<{ hour_bucket: string; vessel_count: number; sample_count: number }>;
+  oldestRecordTs?: number | null;
   onTimeChange: (newTime: number) => void;
   onTogglePlay: () => void;
   onReset: () => void;
+  onJumpToNow: () => void;
   onSpeedChange: (speed: number) => void;
-  onStepBackward: () => void;
-  onStepForward: () => void;
-  onSelectTimeWindow?: (start: number, end: number) => void;
-  eventTimestamps?: Array<{ timestamp: number; title: string }>;
+  onStepBackward: () => void; // -15 min
+  onStepForward: () => void;  // +15 min
 }
 
-const PLAYBACK_SPEEDS = [0.25, 0.5, 1, 2, 5, 10];
+const PLAYBACK_SPEEDS = [1, 5, 15, 60, 360];
 
 export function TimelineController({
   currentTime,
   startTime,
   endTime,
+  nowTime,
   isPlaying,
   playbackSpeed,
+  coverageHourly = [],
+  oldestRecordTs,
   onTimeChange,
   onTogglePlay,
   onReset,
+  onJumpToNow,
   onSpeedChange,
   onStepBackward,
   onStepForward,
-  onSelectTimeWindow,
-  eventTimestamps = [],
 }: TimelineControllerProps) {
   const [sliderVal, setSliderVal] = useState(currentTime);
   const isDraggingRef = useRef(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!isDraggingRef.current) {
@@ -53,10 +59,43 @@ export function TimelineController({
     }
   }, [currentTime]);
 
+  // Keyboard navigation (+/- 15 min with Left/Right arrows)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if user is typing in an input
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        onStepBackward();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        onStepForward();
+      } else if (e.key === " ") {
+        e.preventDefault();
+        onTogglePlay();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onStepBackward, onStepForward, onTogglePlay]);
+
+  const totalDuration = Math.max(1, endTime - startTime);
   const progressPercent = Math.min(
     100,
-    Math.max(0, ((currentTime - startTime) / (endTime - startTime)) * 100),
+    Math.max(0, ((currentTime - startTime) / totalDuration) * 100),
   );
+  const nowPercent = Math.min(
+    100,
+    Math.max(0, ((nowTime - startTime) / totalDuration) * 100),
+  );
+
+  const isFuture = currentTime > nowTime + 60000;
+  const isPast = currentTime < nowTime - 60000;
 
   const currentDate = new Date(currentTime);
   const utcDateStr = currentDate.toISOString().slice(0, 10);
@@ -71,81 +110,150 @@ export function TimelineController({
     second: "2-digit",
   });
 
+  // Format datetime-local input string YYYY-MM-DDTHH:MM
+  const toLocalInputValue = (d: Date) => {
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
     setSliderVal(val);
-    onTimeChange(val);
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      onTimeChange(val);
+    }, 100);
+  };
+
+  const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const parsed = new Date(e.target.value);
+    if (!isNaN(parsed.getTime())) {
+      onTimeChange(parsed.getTime());
+    }
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-3 sm:p-4 shadow-md space-y-3">
-      {/* Top Bar: Playback Controls, UTC Replay Clock, and Playback Speed */}
+    <div className="glass-panel rounded-2xl p-4 sm:p-5 shadow-2xl border border-white/10 space-y-4">
+      {/* Top Bar: Controls, Time Picker, Status Pill & Speeds */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Playback Buttons */}
+        {/* Playback Action Buttons */}
         <div className="flex items-center gap-1.5">
           <button
+            type="button"
             onClick={onReset}
-            title="Reset to Start"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-secondary hover:text-foreground transition"
+            title="Jump to Oldest Recorded Data"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-[#0A1019] text-ink-2 hover:bg-white/10 hover:text-ink transition cursor-pointer"
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </button>
           <button
+            type="button"
             onClick={onStepBackward}
-            title="Step Backward (1 hour)"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-secondary hover:text-foreground transition"
+            title="Step Backward 15 Minutes (← arrow key)"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-[#0A1019] text-ink-2 hover:bg-white/10 hover:text-ink transition cursor-pointer"
           >
             <SkipBack className="h-3.5 w-3.5" />
           </button>
           <button
+            type="button"
             onClick={onTogglePlay}
-            title={isPlaying ? "Pause Replay" : "Play Replay"}
-            className="flex h-9 px-3.5 items-center justify-center gap-1.5 rounded-lg bg-primary text-primary-foreground font-semibold text-xs shadow-xs hover:bg-primary/90 transition"
+            title={isPlaying ? "Pause Replay (Space)" : "Play Replay (Space)"}
+            className={`flex h-8 px-3.5 items-center justify-center gap-1.5 rounded-xl font-semibold text-xs transition cursor-pointer shadow-lg ${
+              isPlaying
+                ? "bg-amber-400 text-black hover:bg-amber-300"
+                : "bg-accent text-black hover:bg-accent/90"
+            }`}
           >
             {isPlaying ? (
               <>
-                <Pause className="h-4 w-4" /> Pause
+                <Pause className="h-3.5 w-3.5 fill-current" /> Pause
               </>
             ) : (
               <>
-                <Play className="h-4 w-4" /> Play
+                <Play className="h-3.5 w-3.5 fill-current" /> Play
               </>
             )}
           </button>
           <button
+            type="button"
             onClick={onStepForward}
-            title="Step Forward (1 hour)"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-secondary hover:text-foreground transition"
+            title="Step Forward 15 Minutes (→ arrow key)"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-[#0A1019] text-ink-2 hover:bg-white/10 hover:text-ink transition cursor-pointer"
           >
             <SkipForward className="h-3.5 w-3.5" />
           </button>
+          <button
+            type="button"
+            onClick={onJumpToNow}
+            title="Jump to Current Live Instant"
+            className="flex h-8 px-2.5 items-center justify-center gap-1 rounded-xl border border-accent/40 bg-accent/10 text-accent hover:bg-accent/20 transition cursor-pointer text-xs font-mono font-semibold"
+          >
+            <Zap className="h-3 w-3" /> Jump to Now
+          </button>
         </div>
 
-        {/* Current Replay Timestamp Display */}
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1 font-mono text-xs">
-          <Clock className="h-3.5 w-3.5 text-cyan-500" />
-          <span className="font-bold text-foreground">{utcTimeStr}</span>
-          <span className="text-muted-foreground/40">|</span>
-          <span className="text-muted-foreground">{utcDateStr}</span>
-          <span className="hidden md:inline text-muted-foreground/60 text-[11px]">
+        {/* Status Pill (Replay vs Live vs Forecast) */}
+        <div className="flex items-center gap-2">
+          {isFuture ? (
+            <div className="flex items-center gap-2 rounded-full border border-purple-500/40 bg-purple-500/15 px-3 py-1 text-xs font-mono text-purple-300 backdrop-blur-md">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-purple-500" />
+              </span>
+              <span className="font-bold uppercase tracking-wider">
+                Forecast (+{Math.round((currentTime - nowTime) / 3600000)}h)
+              </span>
+            </div>
+          ) : isPast ? (
+            <div className="flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-xs font-mono text-amber-300 backdrop-blur-md">
+              <span className="h-2 w-2 rounded-full bg-amber-400" />
+              <span className="font-bold uppercase tracking-wider">Historical Replay</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-xs font-mono text-emerald-300 backdrop-blur-md">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              <span className="font-bold uppercase tracking-wider">Live Instant</span>
+            </div>
+          )}
+        </div>
+
+        {/* Exact Date-Time Input & Formatted Timestamp */}
+        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0A1019] px-3 py-1 font-mono text-xs text-ink">
+          <Clock className="h-3.5 w-3.5 text-accent shrink-0" />
+          <span className="font-bold text-accent">{utcTimeStr}</span>
+          <span className="text-white/20">|</span>
+          <span className="text-ink-2">{utcDateStr}</span>
+          <span className="hidden md:inline text-ink-3 text-[11px]">
             ({localTimeStr} Local)
           </span>
+          <input
+            type="datetime-local"
+            value={toLocalInputValue(currentDate)}
+            onChange={handleDateInputChange}
+            className="ml-1 bg-transparent border border-white/10 rounded px-1 text-[11px] text-ink-2 hover:border-accent focus:outline-none cursor-pointer"
+            title="Select exact date and time"
+          />
         </div>
 
-        {/* Playback Speed Selector */}
-        <div className="flex items-center gap-1">
-          <span className="text-[11px] font-medium text-muted-foreground mr-1 hidden sm:inline flex items-center gap-1">
+        {/* Playback Speeds */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-mono text-ink-3 hidden sm:inline flex items-center gap-1">
             <Gauge className="h-3 w-3" /> Speed:
           </span>
-          <div className="flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5 text-xs">
+          <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-[#0A1019] p-0.5 text-xs">
             {PLAYBACK_SPEEDS.map((s) => (
               <button
                 key={s}
+                type="button"
                 onClick={() => onSpeedChange(s)}
-                className={`rounded px-1.5 py-0.5 text-[11px] font-medium transition ${
+                className={`rounded-lg px-2 py-0.5 text-[11px] font-mono transition cursor-pointer ${
                   playbackSpeed === s
-                    ? "bg-primary text-primary-foreground font-bold shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-accent text-black font-extrabold shadow-sm"
+                    : "text-ink-2 hover:text-ink hover:bg-white/10"
                 }`}
               >
                 {s}x
@@ -155,9 +263,48 @@ export function TimelineController({
         </div>
       </div>
 
-      {/* Main Seek Slider & Track */}
-      <div className="space-y-1.5 pt-1">
-        <div className="relative flex items-center">
+      {/* Main Timeline Bar with Shaded Real-Data vs Gap Coverage Band and NOW Marker */}
+      <div className="space-y-2 pt-2">
+        <div className="relative flex items-center select-none">
+          {/* Background Track with Coverage Bands */}
+          <div className="relative w-full h-4 rounded-lg overflow-hidden bg-[#0A1019] border border-white/10">
+            {/* Real Data Shading (Left of NOW) */}
+            <div
+              className="absolute top-0 bottom-0 left-0 bg-emerald-500/15 border-r border-accent"
+              style={{ width: `${nowPercent}%` }}
+              title="Recorded Telemetry Region"
+            />
+            {/* Forecast Shading (Right of NOW) */}
+            <div
+              className="absolute top-0 bottom-0 bg-purple-500/20"
+              style={{ left: `${nowPercent}%`, right: 0 }}
+              title="Forecasting Horizon (+72h)"
+            />
+
+            {/* Coverage Hour Density Marks */}
+            {coverageHourly.map((h, idx) => {
+              const hTs = new Date(h.hour_bucket).getTime();
+              if (hTs < startTime || hTs > endTime) return null;
+              const leftPct = ((hTs - startTime) / totalDuration) * 100;
+              const widthPct = (3600000 / totalDuration) * 100;
+              return (
+                <div
+                  key={idx}
+                  style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                  className="absolute top-0 bottom-0 bg-cyan-400/25 border-l border-cyan-400/30"
+                  title={`${h.hour_bucket}: ${h.vessel_count} recorded vessels`}
+                />
+              );
+            })}
+
+            {/* NOW Marker on the track */}
+            <div
+              style={{ left: `${nowPercent}%` }}
+              className="absolute top-0 bottom-0 w-0.5 bg-accent z-10 shadow-[0_0_8px_#5EE7FF]"
+            />
+          </div>
+
+          {/* Interactive Range Input */}
           <input
             type="range"
             min={startTime}
@@ -169,68 +316,29 @@ export function TimelineController({
             onTouchStart={() => (isDraggingRef.current = true)}
             onTouchEnd={() => (isDraggingRef.current = false)}
             onChange={handleSliderChange}
-            className="w-full h-2.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-cyan-500"
+            className="absolute inset-0 w-full h-4 opacity-0 cursor-pointer z-20"
           />
 
-          {/* Event Tick Marks along the timeline */}
-          {eventTimestamps.map((evt, idx) => {
-            const leftPct = Math.min(
-              100,
-              Math.max(0, ((evt.timestamp - startTime) / (endTime - startTime)) * 100),
-            );
-            return (
-              <div
-                key={idx}
-                style={{ left: `${leftPct}%` }}
-                className="pointer-events-none absolute top-1/2 -translate-y-1/2 h-4 w-1 bg-amber-400 rounded-full shadow-sm"
-                title={evt.title}
-              />
-            );
-          })}
+          {/* Custom Current Position Scrubber Handle */}
+          <div
+            style={{ left: `${progressPercent}%` }}
+            className={`pointer-events-none absolute -top-1.5 -bottom-1.5 w-3.5 -ml-1.75 rounded-full border-2 shadow-xl z-30 transition-transform ${
+              isFuture
+                ? "bg-purple-400 border-white shadow-[0_0_12px_#C084FC]"
+                : "bg-accent border-white shadow-[0_0_12px_#5EE7FF]"
+            }`}
+          />
         </div>
 
-        {/* Timeline Axis Labels (Hour markers 00:00, 06:00, 12:00, 18:00, 24:00) */}
-        <div className="flex justify-between text-[11px] font-mono text-muted-foreground px-1">
-          <span>00:00 UTC</span>
-          <span>06:00 UTC</span>
-          <span>12:00 UTC</span>
-          <span>18:00 UTC</span>
-          <span>24:00 UTC</span>
+        {/* Timeline Axis Labels */}
+        <div className="flex justify-between text-[11px] font-mono text-ink-3 px-1">
+          <span>{new Date(startTime).toISOString().slice(5, 16).replace("T", " ")} UTC</span>
+          <span className="text-emerald-400 font-semibold">◀ Recorded History</span>
+          <span className="text-accent font-bold">● NOW</span>
+          <span className="text-purple-400 font-semibold">Forecast Ahead ▶</span>
+          <span>+{Math.round((endTime - nowTime) / 3600000)}h Forecast</span>
         </div>
       </div>
-
-      {/* Quick Time Window Presets */}
-      {onSelectTimeWindow && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-medium mr-1">Replay Range:</span>
-            <button
-              onClick={() => onSelectTimeWindow(startTime, endTime)}
-              className="rounded border border-border bg-background px-2 py-0.5 text-[11px] hover:bg-secondary text-foreground"
-            >
-              Full 24 Hours
-            </button>
-            <button
-              onClick={() => onSelectTimeWindow(startTime, startTime + 12 * 3600 * 1000)}
-              className="rounded border border-border bg-background px-2 py-0.5 text-[11px] hover:bg-secondary text-foreground"
-            >
-              00:00 – 12:00 UTC
-            </button>
-            <button
-              onClick={() => onSelectTimeWindow(startTime + 12 * 3600 * 1000, endTime)}
-              className="rounded border border-border bg-background px-2 py-0.5 text-[11px] hover:bg-secondary text-foreground"
-            >
-              12:00 – 24:00 UTC
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
-            <span className="text-[11px]">Gold ticks denote recorded port events</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
-
