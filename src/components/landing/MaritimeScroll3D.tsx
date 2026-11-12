@@ -229,17 +229,14 @@ export function MaritimeScroll3D() {
       {/* 800vh Scroll Track */}
       <main id="ms-track" ref={trackRef}>
         <section id="ms-stage">
-          {/* Navigation Controls only on standalone /journey route */}
-          {isJourneyOnlyRoute && (
-            <nav id="ms-exit-nav" aria-label="Journey Navigation">
-              <Link to="/" className="ms-nav-btn">
-                ← Intro
-              </Link>
-              <Link to="/overview" className="ms-nav-btn">
-                Overview →
-              </Link>
-            </nav>
-          )}
+          <nav id="ms-exit-nav" aria-label="Navigation">
+            <Link to="/overview" className="ms-nav-btn">
+              Live Dashboard →
+            </Link>
+            <Link to="/login" className="ms-nav-btn">
+              Terminal Login
+            </Link>
+          </nav>
 
           {/* Loading Screen Overlay (Scoped strictly inside stage) */}
           <div id="ms-loader" ref={loaderRef}>
