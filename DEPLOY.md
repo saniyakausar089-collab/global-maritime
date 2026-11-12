@@ -1,4 +1,4 @@
-# 🚢 Global Maritime Port Monitor — Free Deployment & Operations Guide
+npm uninstall -g n8n# 🚢 Global Maritime Port Monitor — Free Deployment & Operations Guide
 
 This guide details how to deploy the **Node.js AISStream Relay Backend** completely free on **Render** and the **MapLibre GL Live Map Frontend** on **Vercel** (or Netlify), including environment configuration and troubleshooting.
 

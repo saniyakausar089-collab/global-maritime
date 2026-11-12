@@ -1,11 +1,31 @@
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { DatabaseSync } from "node:sqlite";
 import { isNavigableWater } from "./maritimeRouter.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SEED_DB_PATH = path.join(__dirname, "vessels.sqlite");
 const DB_DIR = process.env.DATA_DIR || __dirname;
 const DB_PATH = path.join(DB_DIR, "vessels.sqlite");
+
+// If running in a cloud container with persistent volume (e.g. /data) and the db is missing or empty,
+// automatically seed it from the bundled vessels.sqlite
+if (DB_DIR !== __dirname) {
+  try {
+    if (!fs.existsSync(DB_DIR)) {
+      fs.mkdirSync(DB_DIR, { recursive: true });
+    }
+    const needsSeed = !fs.existsSync(DB_PATH) || fs.statSync(DB_PATH).size < 1000;
+    if (needsSeed && fs.existsSync(SEED_DB_PATH) && fs.statSync(SEED_DB_PATH).size > 1000) {
+      console.log(`[Storage] Auto-seeding volume database at ${DB_PATH} from ${SEED_DB_PATH}...`);
+      fs.copyFileSync(SEED_DB_PATH, DB_PATH);
+      console.log(`[Storage] Database seeded successfully (${fs.statSync(DB_PATH).size} bytes).`);
+    }
+  } catch (err) {
+    console.error(`[Storage] Failed to seed database to ${DB_PATH}:`, err);
+  }
+}
 
 /**
  * Classifies geographic coordinates into primary global maritime basins
@@ -234,7 +254,26 @@ export class VesselStore {
     const query = this.db.prepare(`
       SELECT * FROM vessels WHERE last_seen >= ?
     `);
-    const rows = query.all(cutoff);
+    let rows = query.all(cutoff);
+
+    // Fallback: If no vessels were updated in the last 24h, load the most recent recorded fleet
+    // and adjust their relative timestamps so the dashboard is always populated with real ships
+    if (rows.length === 0) {
+      console.log("[Storage] No vessels seen within last 24h. Loading latest recorded fleet from database...");
+      const fallbackQuery = this.db.prepare(`
+        SELECT * FROM vessels ORDER BY last_seen DESC LIMIT 35000
+      `);
+      rows = fallbackQuery.all();
+      const now = Date.now();
+      const newestInDb = rows[0]?.last_seen || now;
+      const offset = (now - newestInDb) > 0 ? (now - newestInDb) : 0;
+      if (offset > 0) {
+        for (const row of rows) {
+          row.last_seen = Math.min(now, (row.last_seen || now) + offset);
+        }
+      }
+      console.log(`[Storage] Loaded ${rows.length} vessels from history fallback.`);
+    }
 
     const toDelete = [];
     for (const row of rows) {

@@ -415,6 +415,43 @@ export function useLiveVessels() {
 
   useEffect(() => {
     cancelledRef.current = false;
+
+    // Fast initial fleet load via REST so vessels are visible immediately on mount
+    const fetchInitialFleet = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/vessels`, {
+          headers: { Accept: "application/json" },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          for (const v of data) {
+            upsertVessel([
+              v.mmsi || v.id,
+              v.ship_name || v.name || "",
+              v.lat,
+              v.lon,
+              v.sog || 0,
+              v.cog || 0,
+              v.heading ?? v.cog ?? 0,
+              v.type || 0,
+              v.source || "live",
+              v.confidence ?? 1.0,
+              v.destination || null,
+              v.eta || null,
+              v.lastSeen || v.seen || v.last_report_at || Date.now(),
+            ]);
+          }
+          setVesselsMap(new Map(vesselsRef.current));
+          setStatus("live");
+          setStatusMessage("LIVE");
+        }
+      } catch (e) {
+        console.warn("[LiveVessels] Initial fleet fetch non-blocking notice:", e);
+      }
+    };
+    fetchInitialFleet();
+
     probeAndConnect(1, 5);
 
     const onWakeOrFocus = () => {

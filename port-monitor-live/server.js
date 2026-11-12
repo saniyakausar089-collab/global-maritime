@@ -276,7 +276,7 @@ app.use(
 );
 
 // Health Endpoint
-app.get("/health", (_, res) => {
+app.get(["/health", "/api/health"], (_, res) => {
   const all = [...store.getAll().values()];
   const liveCount = all.filter((v) => v.source === "live").length;
   const estCount = all.filter((v) => v.source === "estimated").length;

@@ -1,15 +1,42 @@
 import { queryOptions } from "@tanstack/react-query";
 
-/** Single place to configure the relay backend. */
-export const API_BASE_URL =
-  (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ??
-  (typeof window !== "undefined" ? "" : "http://localhost:3000");
+function resolveApiBaseUrl(): string {
+  if (typeof window === "undefined") {
+    return "http://localhost:3000";
+  }
+  // In any non-localhost environment (such as *.embarko.app or custom domains),
+  // always use relative paths so requests stay same-origin and avoid mixed-content blocks
+  const host = window.location.hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    return "";
+  }
+  // When running locally on the combined backend port (e.g. :3000 or :8080)
+  if (window.location.port === "3000" || window.location.port === "8080") {
+    return "";
+  }
+  const envUrl = (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL;
+  return envUrl ?? "http://localhost:3000";
+}
 
-export const WS_BASE_URL =
-  (import.meta as unknown as { env?: { VITE_WS_URL?: string } }).env?.VITE_WS_URL ??
-  (typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`
-    : "ws://localhost:3000/ws");
+function resolveWsBaseUrl(): string {
+  if (typeof window === "undefined") {
+    return "ws://localhost:3000/ws";
+  }
+  const host = window.location.hostname;
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    return `${proto}//${window.location.host}/ws`;
+  }
+  if (window.location.port === "3000" || window.location.port === "8080") {
+    return `${proto}//${window.location.host}/ws`;
+  }
+  const envWs = (import.meta as unknown as { env?: { VITE_WS_URL?: string } }).env?.VITE_WS_URL;
+  return envWs ?? `${proto}//${window.location.host}/ws`;
+}
+
+/** Single place to configure the relay backend. */
+export const API_BASE_URL = resolveApiBaseUrl();
+export const WS_BASE_URL = resolveWsBaseUrl();
 export const REFRESH_MS = 60_000;
 
 export type Port = {
