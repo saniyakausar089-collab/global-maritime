@@ -1,0 +1,333 @@
+#maritime-scroll {
+  --ms-bg: #04080d;
+  --ms-fg: #e8fbff;
+  --ms-accent: #5ef2e0;
+  --ms-dim: rgba(232, 251, 255, 0.65);
+  position: relative;
+  width: 100%;
+  background: var(--ms-bg);
+  color: var(--ms-fg);
+  font-family: "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  box-sizing: border-box;
+}
+
+#maritime-scroll *,
+#maritime-scroll *::before,
+#maritime-scroll *::after {
+  box-sizing: border-box;
+}
+
+/* 800vh Scroll Track driving stage pinning */
+#maritime-scroll #ms-track {
+  height: 800vh;
+  position: relative;
+  width: 100%;
+}
+
+/* Sticky stage pins to 100vh / 100dvh while inside track */
+#maritime-scroll #ms-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  perspective: 1200px;
+  perspective-origin: 50% 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Loader scoped strictly inside stage: covers only the 3D stage while preloading */
+#maritime-scroll #ms-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: var(--ms-bg);
+  transition: opacity 0.8s, visibility 0.8s;
+}
+
+#maritime-scroll #ms-loader.ms-done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+#maritime-scroll #ms-loader div {
+  text-align: center;
+  letter-spacing: 0.3em;
+  font-size: 0.8rem;
+  color: var(--ms-dim);
+}
+
+#maritime-scroll #ms-bar {
+  width: min(260px, 60vw);
+  height: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 14px auto 0;
+  overflow: hidden;
+}
+
+#maritime-scroll #ms-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--ms-accent);
+  box-shadow: 0 0 12px var(--ms-accent);
+  transition: width 0.1s ease-out;
+}
+
+/* Ambient background glow */
+#maritime-scroll #ms-bgglow {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(40, 140, 160, 0.2), transparent 60%);
+  pointer-events: none;
+  transition: transform 0.2s;
+}
+
+/* Fullscreen world container: fills the whole viewport */
+#maritime-scroll #ms-world {
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* Screen fills 100% of world: border-radius: 0, no box shadow, no border */
+#maritime-scroll #ms-screen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  background: #000;
+  overflow: hidden;
+}
+
+#maritime-scroll canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#maritime-scroll #ms-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.45));
+  pointer-events: none;
+}
+
+#maritime-scroll #ms-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.45;
+}
+
+/* Overlay Layer: HUD, Captions, CTA */
+#maritime-scroll .ms-layer {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  pointer-events: none;
+  z-index: 20;
+}
+
+#maritime-scroll .ms-cap {
+  position: absolute;
+  left: max(6%, env(safe-area-inset-left, 24px));
+  bottom: max(9%, env(safe-area-inset-bottom, 32px));
+  max-width: min(560px, 86%);
+  opacity: 0;
+  transform: translate3d(0, 24px, 40px);
+  transition: opacity 0.6s, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+#maritime-scroll .ms-cap.ms-on {
+  opacity: 1;
+  transform: translate3d(0, 0, 40px);
+  pointer-events: auto;
+}
+
+#maritime-scroll .ms-cap small {
+  display: block;
+  letter-spacing: 0.35em;
+  color: var(--ms-accent);
+  font-size: clamp(0.65rem, 1.4vw, 0.85rem);
+  margin-bottom: 0.5em;
+}
+
+#maritime-scroll .ms-cap h2 {
+  margin: 0;
+  font-weight: 600;
+  font-size: clamp(1.4rem, 4.2vw, 3.2rem);
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#maritime-scroll .ms-cap p {
+  margin: 0.6em 0 0;
+  color: var(--ms-dim);
+  font-size: clamp(0.85rem, 1.8vw, 1.15rem);
+  line-height: 1.45;
+}
+
+/* Explore Live Dashboard CTA Button */
+#maritime-scroll .ms-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 1.25rem;
+  padding: 12px 26px;
+  border-radius: 9999px;
+  background: var(--ms-accent);
+  color: #04080d;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: clamp(0.85rem, 1.4vw, 1rem);
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 0 25px rgba(94, 242, 224, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#maritime-scroll .ms-cta-btn:hover {
+  transform: scale(1.04);
+  box-shadow: 0 0 35px rgba(94, 242, 224, 0.6);
+}
+
+/* Telemetry HUD in top right within safe area */
+#maritime-scroll #ms-hud {
+  position: absolute;
+  right: max(5%, env(safe-area-inset-right, 24px));
+  top: max(4%, env(safe-area-inset-top, 24px));
+  text-align: right;
+  font-size: clamp(0.65rem, 1.3vw, 0.85rem);
+  letter-spacing: 0.25em;
+  color: var(--ms-accent);
+  transform: translateZ(40px);
+  text-shadow: 0 0 12px rgba(94, 242, 224, 0.6);
+  z-index: 30;
+}
+
+#maritime-scroll #ms-hud b {
+  display: block;
+  font-weight: 600;
+  font-size: clamp(1.1rem, 2.6vw, 1.7rem);
+  color: var(--ms-fg);
+}
+
+/* Center-bottom scroll hint */
+#maritime-scroll #ms-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  font-size: 0.7rem;
+  letter-spacing: 0.35em;
+  color: var(--ms-dim);
+  transition: opacity 0.5s;
+  text-align: center;
+  z-index: 30;
+}
+
+#maritime-scroll #ms-hint span {
+  display: block;
+  width: 1px;
+  height: 28px;
+  margin: 8px auto 0;
+  background: linear-gradient(var(--ms-accent), transparent);
+  animation: ms-d 1.6s infinite;
+}
+
+@keyframes ms-d {
+  0% { transform: scaleY(0); transform-origin: top; }
+  50% { transform: scaleY(1); transform-origin: top; }
+  51% { transform-origin: bottom; }
+  100% { transform: scaleY(0); transform-origin: bottom; }
+}
+
+/* Vertical progress rail scoped inside sticky stage */
+#maritime-scroll #ms-prog {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right, 16px));
+  top: 50%;
+  height: 30vh;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateY(-50%);
+  z-index: 30;
+}
+
+#maritime-scroll #ms-prog i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 0;
+  background: var(--ms-accent);
+  box-shadow: 0 0 10px var(--ms-accent);
+}
+
+/* Safe navigation controls inside stage */
+#maritime-scroll #ms-exit-nav {
+  position: absolute;
+  top: max(18px, env(safe-area-inset-top, 18px));
+  left: max(20px, env(safe-area-inset-left, 20px));
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#maritime-scroll .ms-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 15px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  background: rgba(4, 8, 13, 0.75);
+  color: var(--ms-fg);
+  border: 1px solid rgba(94, 242, 224, 0.35);
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+#maritime-scroll .ms-nav-btn:hover {
+  background: rgba(94, 242, 224, 0.15);
+  border-color: var(--ms-accent);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(94, 242, 224, 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #maritime-scroll .ms-cap {
+    transition: none;
+  }
+  #maritime-scroll #ms-hint span {
+    animation: none;
+  }
+}

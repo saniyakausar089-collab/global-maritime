@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Global Maritime – Scroll Journey</title>
+<style>
+:root{--bg:#04080d;--fg:#e8fbff;--accent:#5ef2e0;--dim:rgba(232,251,255,.62);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html{background:var(--bg);color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Rajdhani","Segoe UI",system-ui,sans-serif;overflow-x:hidden}
+#loader{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:var(--bg);transition:opacity .8s,visibility .8s}
+#loader.done{opacity:0;visibility:hidden}
+#loader div{text-align:center;letter-spacing:.3em;font-size:.8rem;color:var(--dim)}
+#bar{width:min(260px,60vw);height:2px;background:rgba(255,255,255,.12);margin:14px auto 0;overflow:hidden}
+#bar i{display:block;height:100%;width:0;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+#track{height:800vh;position:relative}
+#stage{position:sticky;top:0;height:100vh;height:100dvh;overflow:hidden;perspective:1100px;perspective-origin:50% 45%;display:grid;place-items:center}
+#bgglow{position:absolute;inset:-10%;background:radial-gradient(ellipse at 50% 50%,rgba(40,140,160,.22),transparent 60%);transition:transform .2s}
+#world{position:relative;width:min(92vw,calc(86vh*16/9));aspect-ratio:16/9;transform-style:preserve-3d;will-change:transform}
+#screen{position:absolute;inset:0;border-radius:14px;overflow:hidden;background:#000;box-shadow:0 40px 120px rgba(0,0,0,.8),0 0 0 1px rgba(94,242,224,.25),0 0 80px rgba(94,242,224,.12);transform:translateZ(0)}
+canvas{width:100%;height:100%;display:block}
+#screen::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55));pointer-events:none}
+#sheen{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:.5}
+.layer{position:absolute;inset:0;transform-style:preserve-3d;pointer-events:none}
+.frame3d{position:absolute;inset:-3%;border:1px solid rgba(94,242,224,.35);border-radius:18px;transform:translateZ(60px)}
+.frame3d::before,.frame3d::after{content:"";position:absolute;width:26px;height:26px;border:2px solid var(--accent)}
+.frame3d::before{top:-2px;left:-2px;border-right:0;border-bottom:0}
+.frame3d::after{bottom:-2px;right:-2px;border-left:0;border-top:0}
+.cap{position:absolute;left:5%;bottom:9%;max-width:min(520px,80%);opacity:0;transform:translate3d(0,30px,120px);transition:opacity .6s,transform .8s cubic-bezier(.2,.8,.2,1);text-shadow:0 2px 24px rgba(0,0,0,.9)}
+.cap.on{opacity:1;transform:translate3d(0,0,120px)}
+.cap small{display:block;letter-spacing:.35em;color:var(--accent);font-size:clamp(.6rem,1.4vw,.8rem);margin-bottom:.5em}
+.cap h2{margin:0;font-weight:600;font-size:clamp(1.3rem,4.2vw,3rem);line-height:1.05;letter-spacing:.04em;text-transform:uppercase}
+.cap p{margin:.6em 0 0;color:var(--dim);font-size:clamp(.8rem,1.8vw,1.1rem);line-height:1.4}
+#hud{position:absolute;right:5%;top:6%;text-align:right;font-size:clamp(.6rem,1.3vw,.8rem);letter-spacing:.25em;color:var(--accent);transform:translateZ(90px);text-shadow:0 0 12px rgba(94,242,224,.6)}
+#hud b{display:block;font-weight:600;font-size:clamp(1rem,2.6vw,1.6rem);color:var(--fg)}
+#hint{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font-size:.7rem;letter-spacing:.35em;color:var(--dim);transition:opacity .5s;text-align:center}
+#hint span{display:block;width:1px;height:28px;margin:8px auto 0;background:linear-gradient(var(--accent),transparent);animation:d 1.6s infinite}
+@keyframes d{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+#prog{position:fixed;right:14px;top:50%;height:30vh;width:2px;background:rgba(255,255,255,.14);transform:translateY(-50%);z-index:5}
+#prog i{position:absolute;left:0;top:0;width:100%;height:0;background:var(--accent);box-shadow:0 0 10px var(--accent)}
+@media (prefers-reduced-motion:reduce){.cap{transition:none}#hint span{animation:none}}
+</style>
+</head>
+<body>
+<div id="loader"><div>LOADING VOYAGE<div id="bar"><i></i></div></div></div>
+<div id="prog"><i></i></div>
+<main id="track">
+ <section id="stage">
+  <div id="bgglow"></div>
+  <div id="world">
+   <div id="screen"><canvas id="c"></canvas><div id="sheen"></div></div>
+   <div class="layer">
+    <div class="frame3d"></div>
+    <div id="hud">DEPTH LAYER<b id="pct">00%</b></div>
+    <div class="cap" data-a="0.02" data-b="0.22"><small>01 · THE STORM</small><h2>Into the weather</h2><p>Scroll to move through the clouds.</p></div>
+    <div class="cap" data-a="0.27" data-b="0.45"><small>02 · THE VESSEL</small><h2>One ship, one horizon</h2><p>The cargo carrier breaks through open water.</p></div>
+    <div class="cap" data-a="0.5" data-b="0.74"><small>03 · THE SIGNAL</small><h2>Every route, live</h2><p>Speed, heading and risk are mapped in real time.</p></div>
+   </div>
+  </div>
+  <div id="hint">SCROLL<span></span></div>
+ </section>
+</main>
+<script>
+const FRAMES = ["frames/0001.webp", "frames/0002.webp", "frames/0003.webp", "frames/0004.webp", "frames/0005.webp", "frames/0006.webp", "frames/0007.webp", "frames/0008.webp", "frames/0009.webp", "frames/0010.webp", "frames/0011.webp", "frames/0012.webp", "frames/0013.webp", "frames/0014.webp", "frames/0015.webp", "frames/0016.webp", "frames/0017.webp", "frames/0018.webp", "frames/0019.webp", "frames/0020.webp", "frames/0021.webp", "frames/0022.webp", "frames/0023.webp", "frames/0024.webp", "frames/0025.webp", "frames/0026.webp", "frames/0027.webp", "frames/0028.webp", "frames/0029.webp", "frames/0030.webp", "frames/0031.webp", "frames/0032.webp", "frames/0033.webp", "frames/0034.webp", "frames/0035.webp", "frames/0036.webp", "frames/0037.webp", "frames/0038.webp", "frames/0039.webp", "frames/0040.webp", "frames/0041.webp", "frames/0042.webp", "frames/0043.webp", "frames/0044.webp", "frames/0045.webp", "frames/0046.webp", "frames/0047.webp", "frames/0048.webp", "frames/0049.webp", "frames/0050.webp", "frames/0051.webp", "frames/0052.webp", "frames/0053.webp", "frames/0054.webp", "frames/0055.webp", "frames/0056.webp", "frames/0057.webp", "frames/0058.webp", "frames/0059.webp", "frames/0060.webp", "frames/0061.webp", "frames/0062.webp", "frames/0063.webp", "frames/0064.webp", "frames/0065.webp", "frames/0066.webp", "frames/0067.webp", "frames/0068.webp", "frames/0069.webp", "frames/0070.webp", "frames/0071.webp", "frames/0072.webp", "frames/0073.webp", "frames/0074.webp", "frames/0075.webp", "frames/0076.webp", "frames/0077.webp", "frames/0078.webp", "frames/0079.webp", "frames/0080.webp", "frames/0081.webp", "frames/0082.webp", "frames/0083.webp", "frames/0084.webp", "frames/0085.webp", "frames/0086.webp", "frames/0087.webp", "frames/0088.webp", "frames/0089.webp", "frames/0090.webp", "frames/0091.webp", "frames/0092.webp", "frames/0093.webp", "frames/0094.webp", "frames/0095.webp", "frames/0096.webp", "frames/0097.webp", "frames/0098.webp", "frames/0099.webp", "frames/0100.webp", "frames/0101.webp", "frames/0102.webp", "frames/0103.webp", "frames/0104.webp", "frames/0105.webp", "frames/0106.webp", "frames/0107.webp", "frames/0108.webp", "frames/0109.webp", "frames/0110.webp", "frames/0111.webp", "frames/0112.webp", "frames/0113.webp", "frames/0114.webp", "frames/0115.webp", "frames/0116.webp", "frames/0117.webp", "frames/0118.webp", "frames/0119.webp", "frames/0120.webp", "frames/0121.webp", "frames/0122.webp", "frames/0123.webp", "frames/0124.webp", "frames/0125.webp", "frames/0126.webp", "frames/0127.webp", "frames/0128.webp", "frames/0129.webp", "frames/0130.webp", "frames/0131.webp", "frames/0132.webp", "frames/0133.webp", "frames/0134.webp", "frames/0135.webp", "frames/0136.webp", "frames/0137.webp", "frames/0138.webp", "frames/0139.webp", "frames/0140.webp", "frames/0141.webp", "frames/0142.webp", "frames/0143.webp", "frames/0144.webp", "frames/0145.webp", "frames/0146.webp", "frames/0147.webp", "frames/0148.webp", "frames/0149.webp", "frames/0150.webp", "frames/0151.webp", "frames/0152.webp", "frames/0153.webp", "frames/0154.webp", "frames/0155.webp", "frames/0156.webp", "frames/0157.webp", "frames/0158.webp", "frames/0159.webp", "frames/0160.webp", "frames/0161.webp", "frames/0162.webp", "frames/0163.webp", "frames/0164.webp", "frames/0165.webp", "frames/0166.webp", "frames/0167.webp", "frames/0168.webp", "frames/0169.webp", "frames/0170.webp", "frames/0171.webp", "frames/0172.webp", "frames/0173.webp", "frames/0174.webp", "frames/0175.webp", "frames/0176.webp", "frames/0177.webp", "frames/0178.webp", "frames/0179.webp", "frames/0180.webp", "frames/0181.webp", "frames/0182.webp", "frames/0183.webp", "frames/0184.webp", "frames/0185.webp", "frames/0186.webp", "frames/0187.webp", "frames/0188.webp", "frames/0189.webp", "frames/0190.webp", "frames/0191.webp", "frames/0192.webp", "frames/0193.webp", "frames/0194.webp", "frames/0195.webp", "frames/0196.webp", "frames/0197.webp", "frames/0198.webp", "frames/0199.webp", "frames/0200.webp", "frames/0201.webp", "frames/0202.webp", "frames/0203.webp", "frames/0204.webp", "frames/0205.webp", "frames/0206.webp", "frames/0207.webp", "frames/0208.webp", "frames/0209.webp", "frames/0210.webp", "frames/0211.webp", "frames/0212.webp", "frames/0213.webp", "frames/0214.webp", "frames/0215.webp", "frames/0216.webp", "frames/0217.webp", "frames/0218.webp", "frames/0219.webp", "frames/0220.webp", "frames/0221.webp", "frames/0222.webp", "frames/0223.webp", "frames/0224.webp", "frames/0225.webp", "frames/0226.webp", "frames/0227.webp", "frames/0228.webp", "frames/0229.webp", "frames/0230.webp", "frames/0231.webp", "frames/0232.webp", "frames/0233.webp", "frames/0234.webp", "frames/0235.webp", "frames/0236.webp", "frames/0237.webp", "frames/0238.webp", "frames/0239.webp", "frames/0240.webp", "frames/0241.webp", "frames/0242.webp", "frames/0243.webp", "frames/0244.webp", "frames/0245.webp", "frames/0246.webp", "frames/0247.webp", "frames/0248.webp", "frames/0249.webp", "frames/0250.webp", "frames/0251.webp", "frames/0252.webp", "frames/0253.webp", "frames/0254.webp", "frames/0255.webp", "frames/0256.webp", "frames/0257.webp", "frames/0258.webp", "frames/0259.webp", "frames/0260.webp", "frames/0261.webp", "frames/0262.webp", "frames/0263.webp", "frames/0264.webp", "frames/0265.webp", "frames/0266.webp", "frames/0267.webp", "frames/0268.webp", "frames/0269.webp", "frames/0270.webp", "frames/0271.webp", "frames/0272.webp", "frames/0273.webp", "frames/0274.webp", "frames/0275.webp", "frames/0276.webp", "frames/0277.webp", "frames/0278.webp", "frames/0279.webp", "frames/0280.webp", "frames/0281.webp", "frames/0282.webp", "frames/0283.webp", "frames/0284.webp", "frames/0285.webp", "frames/0286.webp", "frames/0287.webp", "frames/0288.webp", "frames/0289.webp", "frames/0290.webp", "frames/0291.webp", "frames/0292.webp", "frames/0293.webp", "frames/0294.webp", "frames/0295.webp", "frames/0296.webp", "frames/0297.webp", "frames/0298.webp", "frames/0299.webp", "frames/0300.webp", "frames/0301.webp", "frames/0302.webp", "frames/0303.webp", "frames/0304.webp", "frames/0305.webp", "frames/0306.webp", "frames/0307.webp", "frames/0308.webp", "frames/0309.webp", "frames/0310.webp", "frames/0311.webp", "frames/0312.webp", "frames/0313.webp", "frames/0314.webp", "frames/0315.webp", "frames/0316.webp", "frames/0317.webp", "frames/0318.webp", "frames/0319.webp", "frames/0320.webp", "frames/0321.webp", "frames/0322.webp", "frames/0323.webp", "frames/0324.webp", "frames/0325.webp", "frames/0326.webp", "frames/0327.webp", "frames/0328.webp", "frames/0329.webp", "frames/0330.webp", "frames/0331.webp", "frames/0332.webp", "frames/0333.webp", "frames/0334.webp", "frames/0335.webp", "frames/0336.webp", "frames/0337.webp", "frames/0338.webp", "frames/0339.webp", "frames/0340.webp", "frames/0341.webp", "frames/0342.webp", "frames/0343.webp", "frames/0344.webp", "frames/0345.webp", "frames/0346.webp", "frames/0347.webp", "frames/0348.webp", "frames/0349.webp", "frames/0350.webp"];
+(function(){
+const N=FRAMES.length, cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const world=document.getElementById('world'), glow=document.getElementById('bgglow'), sheen=document.getElementById('sheen');
+const caps=[...document.querySelectorAll('.cap')], hint=document.getElementById('hint');
+const pct=document.getElementById('pct'), prog=document.querySelector('#prog i'), track=document.getElementById('track');
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const imgs=new Array(N); let loaded=0;
+const bar=document.querySelector('#bar i'), loader=document.getElementById('loader');
+let W=0,H=0;
+function size(){const r=cv.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);W=cv.width=Math.round(r.width*d);H=cv.height=Math.round(r.height*d);draw(cur)}
+function draw(f){const im=imgs[Math.max(0,Math.min(N-1,Math.round(f)))];if(!im||!W)return;
+ const s=Math.max(W/im.width,H/im.height),w=im.width*s,h=im.height*s;ctx.drawImage(im,(W-w)/2,(H-h)/2,w,h)}
+let target=0,cur=0,mx=0,my=0,smx=0,smy=0;
+function onScroll(){const r=track.getBoundingClientRect(),max=track.offsetHeight-innerHeight;target=Math.max(0,Math.min(1,-r.top/max))}
+addEventListener('scroll',onScroll,{passive:true});addEventListener('resize',()=>{size();onScroll()});
+addEventListener('pointermove',e=>{mx=(e.clientX/innerWidth-.5)*2;my=(e.clientY/innerHeight-.5)*2},{passive:true});
+addEventListener('deviceorientation',e=>{if(e.gamma==null)return;mx=Math.max(-1,Math.min(1,e.gamma/30));my=Math.max(-1,Math.min(1,(e.beta-45)/30))},{passive:true});
+function loop(){
+ const p=target; cur+=(p*(N-1)-cur)*(reduce?1:.12);
+ smx+=(mx-smx)*.06;smy+=(my-smy)*.06;
+ draw(cur);
+ const t=cur/(N-1);
+ // 3D choreography driven by scroll + pointer
+ const ry=(reduce?0:Math.sin(t*Math.PI*2)*14+smx*9);
+ const rx=(reduce?0:Math.cos(t*Math.PI*1.5)*7-smy*6+4);
+ const rz=(reduce?0:Math.sin(t*Math.PI*3)*2.2);
+ const tz=-160+Math.sin(t*Math.PI)*260;
+ const sc=1+Math.sin(t*Math.PI)*.04;
+ world.style.transform=`translate3d(${smx*-14}px,${smy*-10}px,${tz}px) rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${rz}deg) scale(${sc})`;
+ glow.style.transform=`translate3d(${-ry*5}px,${rx*5}px,0) scale(${1+t*.3})`;
+ sheen.style.background=`linear-gradient(${110+ry*4}deg,transparent ${30+ry}%,rgba(160,255,245,.16) ${50+ry*1.5}%,transparent ${70+ry}%)`;
+ pct.textContent=String(Math.round(t*100)).padStart(2,'0')+'%';
+ prog.style.height=(t*100)+'%';
+ hint.style.opacity=t<.02?1:0;
+ caps.forEach(c=>c.classList.toggle('on',t>=+c.dataset.a&&t<=+c.dataset.b));
+ requestAnimationFrame(loop)}
+function ready(){size();onScroll();cur=target*(N-1);loader.classList.add('done');loop()}
+FRAMES.forEach((src,i)=>{const im=new Image();im.onload=im.onerror=()=>{imgs[i]=im;loaded++;bar.style.width=(loaded/N*100)+'%';if(loaded===N)ready()};im.src=src});
+})();
+</script>
+</body>
+</html>

@@ -131,6 +131,7 @@ function RootComponent() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isLanding = pathname === "/";
   const isLogin = pathname === "/login";
+  const isJourney = pathname === "/journey";
 
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     if (typeof window !== "undefined") {
@@ -153,7 +154,7 @@ function RootComponent() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated && !isLanding && !isLogin) {
+    if (!isAuthenticated && !isLanding && !isLogin && !isJourney) {
       navigate({
         to: "/login",
         search: { redirect: pathname },
@@ -165,14 +166,14 @@ function RootComponent() {
         replace: true,
       });
     }
-  }, [isAuthenticated, pathname, isLanding, isLogin, navigate]);
+  }, [isAuthenticated, pathname, isLanding, isLogin, isJourney, navigate]);
 
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-bg text-ink relative selection:bg-accent/25 selection:text-ink">
         <div className="film-grain" />
-        {!isLanding && !isLogin && <Header />}
-        {isLanding || isLogin ? (
+        {!isLanding && !isLogin && !isJourney && <Header />}
+        {isLanding || isLogin || isJourney ? (
           <Outlet />
         ) : !isAuthenticated ? (
           <div className="flex min-h-[70vh] items-center justify-center px-4">

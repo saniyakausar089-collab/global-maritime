@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { VideoScrollIntro } from "@/components/landing/VideoScrollIntro";
+import { MaritimeScroll3D } from "@/components/landing/MaritimeScroll3D";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -34,5 +35,10 @@ export const Route = createFileRoute("/")({
 });
 
 function LandingPage() {
-  return <VideoScrollIntro />;
+  return (
+    <>
+      <VideoScrollIntro />
+      <MaritimeScroll3D />
+    </>
+  );
 }
