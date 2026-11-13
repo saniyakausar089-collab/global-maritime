@@ -129,7 +129,7 @@ export function evaluateMaritimeRisk(current, marineHour = null) {
 }
 
 export async function fetchLiveMarineWeather(lat, lon, query = null) {
-  const cacheKey = `marine_${lat.toFixed(2)}_${lon.toFixed(2)}`;
+  const cacheKey = query ? `marine_q_${encodeURIComponent(query.toLowerCase())}` : `marine_${lat.toFixed(2)}_${lon.toFixed(2)}`;
   const database = getDb();
   const now = Date.now();
   const TTL = 15 * 60 * 1000; // 15-minute cache

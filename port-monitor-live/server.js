@@ -24,6 +24,7 @@ import {
   bearingDeg,
   KNOWN_PORTS,
 } from "./maritimeRouter.js";
+
 import {
   fetchLiveMarineWeather,
   getAllStrategicPortsWeather,
@@ -880,35 +881,118 @@ app.get(["/api/history", "/ports/:id/history"], (req, res) => {
 });
 
 // Gemini Vessel Intel Assistant Endpoint
-app.post("/api/vessel-chat", async (req, res) => {
+// Supports both REST paths: POST /api/vessels/:mmsi/chat and POST /api/vessel-chat
+app.post(["/api/vessels/:mmsi/chat", "/api/vessel-chat"], async (req, res) => {
   try {
-    const { vessel, question, history } = req.body;
-    if (!vessel) return res.status(400).json({ error: "Vessel details required" });
+    const rawMmsi = req.params.mmsi || req.body.vesselContext?.id || req.body.vessel?.mmsi;
+    const mmsi = rawMmsi ? Number(rawMmsi) : null;
+    const dbVessel = mmsi ? store.memoryMap.get(mmsi) : null;
+
+    const vessel = {
+      mmsi: mmsi || "UNKNOWN",
+      name: req.body.vesselContext?.name || req.body.vessel?.name || dbVessel?.name || `VESSEL ${mmsi || ""}`.trim(),
+      type: req.body.vesselContext?.type || req.body.vessel?.type || dbVessel?.type || 0,
+      sog: req.body.vesselContext?.sog ?? req.body.vessel?.sog ?? dbVessel?.sog ?? 0,
+      cog: req.body.vesselContext?.cog ?? req.body.vessel?.cog ?? dbVessel?.cog ?? 0,
+      hdg: req.body.vesselContext?.hdg ?? req.body.vessel?.hdg ?? dbVessel?.hdg ?? 0,
+      lat: req.body.vesselContext?.lat ?? req.body.vessel?.lat ?? dbVessel?.lat,
+      lon: req.body.vesselContext?.lon ?? req.body.vessel?.lon ?? dbVessel?.lon,
+      destination: req.body.vesselContext?.destination || req.body.vessel?.destination || dbVessel?.destination || "Not reported",
+      nearestPort: req.body.vesselContext?.nearestPort || req.body.vessel?.nearestPort,
+      source: req.body.vesselContext?.source || req.body.vessel?.source || dbVessel?.source || "live",
+      stationary: (req.body.vesselContext?.sog ?? dbVessel?.sog ?? 0) < 0.5,
+    };
+
+    const question = (req.body.question || "").trim();
+    const history = Array.isArray(req.body.history) ? req.body.history : [];
 
     const apiKey = (process.env.GEMINI_API_KEY || "").trim();
     if (!apiKey) {
-      return res.json({
-        answer: `Tracking **${vessel.name}** (MMSI: ${vessel.mmsi}). Speed: ${vessel.sog} kn, Course: ${vessel.cog}°, Source: ${vessel.source || "live"}.`,
+      return res.status(400).json({
+        error: "GEMINI_API_KEY is not configured in the server environment. Please set GEMINI_API_KEY in your .env file to enable live Gemini AI maritime intelligence.",
         vessel,
       });
     }
 
-    const systemInstruction = `You are an expert maritime intelligence system embedded in the Port Monitor command bridge. Answer queries about vessel kinematics, commercial route profiles, and navigation status concisely and professionally.`;
-    const prompt = `Vessel Name: ${vessel.name}, MMSI: ${vessel.mmsi}, Type: ${getShipTypeLabel(vessel.type)}, Speed: ${vessel.sog} kn, Course: ${vessel.cog}°, Status: ${vessel.stationary ? "Anchored" : "Underway"}, Telemetry Source: ${vessel.source}. Question: ${question || "Provide vessel summary and routing intelligence."}`;
+    const typeLabel = getShipTypeLabel(vessel.type);
+    const systemInstruction = `You are an expert maritime intelligence officer embedded in the Global Maritime Operations Center.
+You have direct real-time telemetry access to the commercial fleet.
+Current Target Telemetry:
+- Vessel Name: ${vessel.name}
+- MMSI: ${vessel.mmsi}
+- Classification: ${typeLabel} (Code ${vessel.type})
+- Speed Over Ground: ${vessel.sog} knots
+- Course Over Ground: ${vessel.cog}° (Heading: ${vessel.hdg}°)
+- Navigational Status: ${vessel.stationary ? "Stationary / Anchored" : "Underway using Engine"}
+- Telemetry Source: ${vessel.source}
+- Coordinates: ${vessel.lat != null ? Number(vessel.lat).toFixed(4) : "—"}, ${vessel.lon != null ? Number(vessel.lon).toFixed(4) : "—"}
+- Destination / Approach: ${vessel.destination}
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const geminiRes = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-      }),
+Provide concise, authoritative, professional maritime intelligence answers. Cover vessel dimensions, cargo capacity, trading routes, machinery, international regulations (SOLAS/MARPOL), and kinematic behavior when asked. Keep answers direct and well-structured with markdown.`;
+
+    const contents = [];
+    for (const h of history) {
+      if (h.role && h.parts && h.parts[0]?.text) {
+        contents.push({
+          role: h.role === "user" ? "user" : "model",
+          parts: [{ text: h.parts[0].text }],
+        });
+      }
+    }
+    contents.push({
+      role: "user",
+      parts: [{ text: question || "Provide a strategic telemetry breakdown and route profile for this vessel." }],
     });
 
+const candidateModels = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash"];
+    let geminiRes = null;
+    let lastErrText = "";
+
+    for (const model of candidateModels) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      try {
+        const res = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            contents,
+            generationConfig: {
+              temperature: 0.35,
+              maxOutputTokens: 1000,
+            },
+          }),
+        });
+
+        if (res.ok) {
+          geminiRes = res;
+          break;
+        } else {
+          lastErrText = await res.text();
+          console.warn(`[Gemini API] Model ${model} returned HTTP ${res.status}:`, lastErrText);
+          if (res.status === 404) {
+            continue;
+          }
+          geminiRes = res;
+          break;
+        }
+      } catch (networkErr) {
+        console.warn(`[Gemini API] Request failed for model ${model}:`, networkErr.message);
+      }
+    }
+
     if (!geminiRes.ok) {
-      return res.json({
-        answer: `I am actively monitoring **${vessel.name}** (MMSI: ${vessel.mmsi}). Speed: ${vessel.sog} knots on course ${vessel.cog}°. Telemetry source: ${vessel.source || "live"}.`,
+      const errText = await geminiRes.text();
+      console.error(`[Gemini API] HTTP ${geminiRes.status}:`, errText);
+      let errMsg = `Gemini API returned HTTP ${geminiRes.status}`;
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed.error?.message) {
+          errMsg = parsed.error.message;
+        }
+      } catch (_) {}
+      return res.status(geminiRes.status >= 500 ? 502 : 400).json({
+        error: `Gemini AI Error: ${errMsg}`,
         vessel,
       });
     }
@@ -916,13 +1000,13 @@ app.post("/api/vessel-chat", async (req, res) => {
     const data = await geminiRes.json();
     const answer =
       data.candidates?.[0]?.content?.parts?.[0]?.text ||
-      `Telemetry for ${vessel.name} recorded successfully.`;
+      "No textual response generated by Gemini model.";
 
     return res.json({ answer, vessel });
   } catch (err) {
-    return res.json({
-      answer: `Telemetry active for ${req.body?.vessel?.name || "vessel"}.`,
-      vessel: req.body?.vessel,
+    console.error("[Gemini Chat Endpoint] Unhandled error:", err);
+    return res.status(500).json({
+      error: `Internal server error during Gemini processing: ${err.message}`,
     });
   }
 });

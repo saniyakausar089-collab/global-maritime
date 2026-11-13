@@ -50,21 +50,43 @@ export function LiveClock({
 
 export function StatusBadge({ ci, showIndex = true }: { ci: number | null; showIndex?: boolean }) {
   const s = statusOf(ci);
+  const colorMap: Record<string, string> = {
+    ok: "#00ffc6",
+    watch: "#ffaa00",
+    congested: "#ff3b5c",
+    unknown: "#94a3b8",
+  };
+  const color = colorMap[s] || STATUS_VAR[s];
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
-      style={{ borderColor: STATUS_VAR[s], color: STATUS_VAR[s] }}
+      className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-0.5 text-xs font-mono font-semibold backdrop-blur-md"
+      style={{
+        borderColor: `${color}40`,
+        backgroundColor: `${color}15`,
+        color: color,
+        boxShadow: `0 0 10px ${color}20`,
+      }}
     >
-      <span className="h-2 w-2 rounded-full" style={{ background: STATUS_VAR[s] }} />
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
       {showIndex && ci != null && <span className="font-mono">{ci.toFixed(2)}</span>}
       {STATUS_LABEL[s]}
     </span>
   );
 }
 
-export function FallbackBanner({ error, reason }: { error?: string | undefined; reason?: string | undefined }) {
-  // Completely suppressed: never show alarming red error banner to end users
-  return null;
+export function FallbackBanner({ reason, error }: { reason?: string | undefined; error?: string | undefined }) {
+  const msg = reason || error;
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs font-mono text-amber-300 shadow-lg backdrop-blur-xl">
+      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 animate-pulse" />
+      <div>
+        <p className="font-bold text-white tracking-wider">OFFLINE FALLBACK TELEMETRY ENGAGED</p>
+        <p className="text-amber-200/80 text-[11px] mt-0.5">
+          Connecting to live AIS stream ({msg || "Syncing with relay..."}). Displaying cached tactical baseline.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export function Skeleton({ className = "" }: { className?: string }) {

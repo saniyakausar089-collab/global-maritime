@@ -183,7 +183,12 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
       });
 
       if (!res.ok) {
-        throw new Error(`Server returned HTTP ${res.status}`);
+        let errMsg = `Server returned HTTP ${res.status}`;
+        try {
+          const errData = await res.json();
+          if (errData.error) errMsg = errData.error;
+        } catch (_) {}
+        throw new Error(errMsg);
       }
 
       const data = await res.json();
@@ -199,11 +204,12 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
       ]);
     } catch (err: unknown) {
       console.error("Gemini chat error:", err);
+      const msg = err instanceof Error ? err.message : "Network error";
       setMessages((prev) => [
         ...prev,
         {
           role: "model",
-          text: `⚠️ **Unable to complete AI query:** ${err instanceof Error ? err.message : "Network error"}. The vessel is navigating at **${speed} knots** on course **${course}°**.`,
+          text: `⚠️ **Maritime AI Assistant Notice:**\n\n${msg}`,
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
@@ -284,29 +290,29 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
 
       {/* Main Slide-Over Drawer / Bottom Sheet */}
       <div
-        className={`fixed z-50 transition-all duration-300 ease-in-out shadow-2xl border border-border bg-card/98 backdrop-blur-xl ${
+        className={`fixed z-50 transition-all duration-300 ease-in-out shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_35px_rgba(0,243,255,0.2)] border border-cyan-500/35 bg-[#07090E]/98 backdrop-blur-2xl ${
           minimized
-            ? "bottom-4 right-4 w-72 rounded-xl p-3 border-primary/40 shadow-primary/10"
-            : "bottom-0 right-0 sm:bottom-4 sm:right-4 w-full sm:w-[480px] md:w-[520px] max-h-[92vh] sm:max-h-[88vh] rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden"
+            ? "bottom-4 right-4 w-72 rounded-2xl p-3 border-cyan-500/40"
+            : "bottom-0 right-0 sm:bottom-4 sm:right-4 w-full sm:w-[480px] md:w-[530px] max-h-[92vh] sm:max-h-[88vh] rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden"
         }`}
       >
         {/* Header Bar */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-cyan-500/25 bg-[#0B0E14]">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-[#00f3ff] shrink-0 shadow-inner">
               <Ship className="w-4 h-4" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm truncate text-foreground tracking-tight">{vesselName}</h3>
+                <h3 className="font-bold text-sm truncate text-white tracking-tight font-sans">{vesselName}</h3>
                 {photoData?.flag && (
                   <span className="text-xs shrink-0" title={`Flag State: ${photoData.flag}`}>
                     {photoData.flag}
                   </span>
                 )}
               </div>
-              <div className="text-[11px] text-muted-foreground flex items-center gap-2">
-                <span>MMSI: <strong className="text-foreground">{mmsi}</strong></span>
+              <div className="text-[11px] font-mono text-slate-400 flex items-center gap-2">
+                <span>MMSI: <strong className="text-[#00f3ff]">{mmsi}</strong></span>
                 <span>•</span>
                 <span className="truncate">{vessel.shipTypeLabel || "Commercial"}</span>
               </div>
@@ -318,7 +324,7 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
               <button
                 onClick={() => onFocusMap(vessel)}
                 title="Focus on map"
-                className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
+                className="p-1.5 text-slate-400 hover:text-[#00f3ff] rounded-lg hover:bg-cyan-500/15 transition-colors"
               >
                 <Crosshair className="w-4 h-4" />
               </button>
@@ -326,14 +332,14 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
             <button
               onClick={() => setMinimized(!minimized)}
               title={minimized ? "Expand" : "Minimize"}
-              className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-cyan-500/15 transition-colors"
             >
               {minimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
             </button>
             <button
               onClick={onClose}
               title="Close panel"
-              className="p-1.5 text-muted-foreground hover:text-destructive rounded-md hover:bg-destructive/10 transition-colors"
+              className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-rose-500/15 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -417,76 +423,76 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
             </div>
 
             {/* SECTION 1: Vessel Overview */}
-            <div className="p-3.5 bg-card space-y-2">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground uppercase tracking-wider">
-                <FileText className="w-3.5 h-3.5 text-primary" /> 1. Vessel Overview
+            <div className="p-3.5 bg-[#0B0E14] space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-white uppercase tracking-wider">
+                <FileText className="w-3.5 h-3.5 text-[#00f3ff]" /> 1. Vessel Dossier Overview
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2 rounded bg-muted/40 border border-border/50">
-                  <span className="text-[10px] text-muted-foreground uppercase">MMSI</span>
-                  <div className="font-mono font-bold text-foreground mt-0.5">{mmsi}</div>
+              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className="p-2 rounded-lg bg-[#07090E] border border-cyan-500/20">
+                  <span className="text-[10px] text-slate-400 uppercase">MMSI</span>
+                  <div className="font-mono font-bold text-[#00f3ff] mt-0.5">{mmsi}</div>
                 </div>
-                <div className="p-2 rounded bg-muted/40 border border-border/50">
-                  <span className="text-[10px] text-muted-foreground uppercase">IMO</span>
-                  <div className="font-mono font-bold text-foreground mt-0.5">{imoNumber}</div>
+                <div className="p-2 rounded-lg bg-[#07090E] border border-cyan-500/20">
+                  <span className="text-[10px] text-slate-400 uppercase">IMO</span>
+                  <div className="font-mono font-bold text-white mt-0.5">{imoNumber}</div>
                 </div>
-                <div className="p-2 rounded bg-muted/40 border border-border/50">
-                  <span className="text-[10px] text-muted-foreground uppercase">Category</span>
-                  <div className="font-medium text-foreground mt-0.5">{vessel.shipTypeLabel || "Commercial"}</div>
+                <div className="p-2 rounded-lg bg-[#07090E] border border-cyan-500/20">
+                  <span className="text-[10px] text-slate-400 uppercase">Category</span>
+                  <div className="font-medium text-white mt-0.5">{vessel.shipTypeLabel || "Commercial"}</div>
                 </div>
-                <div className="p-2 rounded bg-muted/40 border border-border/50">
-                  <span className="text-[10px] text-muted-foreground uppercase">Flag State</span>
-                  <div className="font-medium text-foreground mt-0.5">{photoData?.flag || "International Registry"}</div>
+                <div className="p-2 rounded-lg bg-[#07090E] border border-cyan-500/20">
+                  <span className="text-[10px] text-slate-400 uppercase">Flag State</span>
+                  <div className="font-medium text-white mt-0.5">{photoData?.flag || "International Registry"}</div>
                 </div>
               </div>
             </div>
 
             {/* SECTION 2: Current Position & Nav Telemetry */}
-            <div className="p-3.5 bg-card space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-foreground uppercase tracking-wider">
+            <div className="p-3.5 bg-[#0B0E14] space-y-2">
+              <div className="flex items-center justify-between text-xs font-mono font-bold text-white uppercase tracking-wider">
                 <span className="flex items-center gap-1.5">
-                  <Navigation className="w-3.5 h-3.5 text-cyan-500" /> 2. Position & Nav Telemetry
+                  <Navigation className="w-3.5 h-3.5 text-[#00f3ff]" /> 2. Position &amp; Nav Telemetry
                 </span>
-                <span className="text-[10px] text-muted-foreground font-normal normal-case flex items-center gap-1">
-                  <Radio className="w-3 h-3 text-emerald-500" /> Updated {secondsAgo}s ago
+                <span className="text-[10px] text-slate-400 font-normal normal-case flex items-center gap-1">
+                  <Radio className="w-3 h-3 text-[#00ffc6]" /> Updated {secondsAgo}s ago
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                <div className="p-2 rounded bg-muted/40 border border-border/50">
-                  <span className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-                    <Gauge className="w-3 h-3 text-cyan-500" /> Speed (SOG)
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                <div className="p-2 rounded-lg bg-[#07090E] border border-cyan-500/20">
+                  <span className="text-[10px] text-slate-400 uppercase flex items-center gap-1">
+                    <Gauge className="w-3 h-3 text-[#00f3ff]" /> Speed (SOG)
                   </span>
-                  <div className="text-sm font-bold text-foreground mt-1">{speed} kn</div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                  <div className="text-sm font-bold text-white mt-1">{speed} kn</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">
                     {isMoving ? "Under way" : "Stationary"}
                   </div>
                 </div>
 
-                <div className="p-2 rounded bg-muted/40 border border-border/50">
-                  <span className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-                    <Compass className="w-3 h-3 text-emerald-500" /> Course / Hdg
+                <div className="p-2 rounded-lg bg-[#07090E] border border-cyan-500/20">
+                  <span className="text-[10px] text-slate-400 uppercase flex items-center gap-1">
+                    <Compass className="w-3 h-3 text-[#00ffc6]" /> Course / Hdg
                   </span>
-                  <div className="text-sm font-bold text-foreground mt-1">{course}°</div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">Heading: {heading}°</div>
+                  <div className="text-sm font-bold text-white mt-1">{course}°</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Heading: {heading}°</div>
                 </div>
 
-                <div className="p-2 rounded bg-muted/40 border border-border/50 col-span-2">
+                <div className="p-2 rounded-lg bg-[#07090E] border border-cyan-500/20 col-span-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-                      <MapPin className="w-3 h-3 text-rose-500" /> Coordinates
+                    <span className="text-[10px] text-slate-400 uppercase flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-rose-400" /> Coordinates
                     </span>
                     <button
                       onClick={handleCopyCoords}
-                      className="text-[10px] text-primary hover:underline flex items-center gap-1"
+                      className="text-[10px] text-[#00f3ff] hover:underline flex items-center gap-1"
                     >
-                      {copiedCoords ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
+                      {copiedCoords ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5 text-cyan-400" />}
                       {copiedCoords ? "Copied" : "Copy"}
                     </button>
                   </div>
-                  <div className="text-xs font-mono font-bold text-foreground mt-1">
+                  <div className="text-xs font-mono font-bold text-[#00f3ff] mt-1">
                     {vessel.lat.toFixed(5)}°, {vessel.lon.toFixed(5)}°
                   </div>
-                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-medium">
+                  <div className="text-[10px] text-[#00ffc6] mt-0.5 font-medium">
                     Dead-reckoned live broadcast
                   </div>
                 </div>
@@ -494,29 +500,29 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
             </div>
 
             {/* SECTION 3: Voyage Information */}
-            <div className="p-3.5 bg-card space-y-2">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground uppercase tracking-wider">
-                <Anchor className="w-3.5 h-3.5 text-amber-500" /> 3. Voyage & Approach Information
+            <div className="p-3.5 bg-[#0B0E14] space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-white uppercase tracking-wider">
+                <Anchor className="w-3.5 h-3.5 text-amber-400" /> 3. Voyage &amp; Approach Information
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2 rounded bg-muted/40 border border-border/50">
-                  <span className="text-[10px] text-muted-foreground uppercase">Monitored Approach</span>
-                  <div className="font-semibold text-foreground mt-0.5">
+              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className="p-2 rounded-lg bg-[#07090E] border border-cyan-500/20">
+                  <span className="text-[10px] text-slate-400 uppercase">Monitored Approach</span>
+                  <div className="font-semibold text-white mt-0.5">
                     {vessel.portName ? `${vessel.portName} Approach` : "International Ocean Corridor"}
                   </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                  <div className="text-[10px] text-slate-400 mt-0.5">
                     {vessel.distanceToPortKm != null
                       ? `Within ${Math.round(vessel.distanceToPortKm)} km anchorage zone`
                       : "Transoceanic transit passage"}
                   </div>
                 </div>
 
-                <div className="p-2 rounded bg-muted/40 border border-border/50">
-                  <span className="text-[10px] text-muted-foreground uppercase">Destination & ETA</span>
-                  <div className="font-semibold text-foreground mt-0.5">
+                <div className="p-2 rounded-lg bg-[#07090E] border border-cyan-500/20">
+                  <span className="text-[10px] text-slate-400 uppercase">Destination &amp; ETA</span>
+                  <div className="font-semibold text-white mt-0.5">
                     {vessel.destination || "Not reported by AIS"}
                   </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                  <div className="text-[10px] text-slate-400 mt-0.5">
                     ETA: {vessel.eta || "Standard voyage schedule"}
                   </div>
                 </div>
@@ -524,16 +530,16 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
             </div>
 
             {/* SECTION 4: Gemini AI Maritime Intelligence Assistant */}
-            <div className="p-3.5 space-y-3 bg-muted/20 flex flex-col min-h-[300px]">
+            <div className="p-3.5 space-y-3 bg-[#080B10] flex flex-col min-h-[300px]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="p-1 rounded-md bg-gradient-to-br from-cyan-500 to-teal-600 text-white shadow-sm">
+                  <div className="p-1 rounded-md bg-gradient-to-br from-cyan-500 to-blue-600 text-black shadow-[0_0_10px_rgba(0,243,255,0.3)]">
                     <Sparkles className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                    <h4 className="font-bold text-xs text-white font-mono flex items-center gap-1.5">
                       4. Gemini Maritime Intelligence
-                      <span className="px-1.5 py-0.2 bg-primary/10 text-primary text-[9px] font-semibold rounded">
+                      <span className="px-1.5 py-0.2 bg-cyan-500/15 border border-cyan-500/30 text-[#00f3ff] text-[9px] font-semibold rounded">
                         AI Analyst
                       </span>
                     </h4>
@@ -560,13 +566,13 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
               </div>
 
               {/* Quick Prompts */}
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 font-mono">
                 {quickPrompts.map((p, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSendMessage(p)}
                     disabled={isAskingGemini}
-                    className="text-[10px] px-2.5 py-1 rounded-full bg-background border border-border/80 text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-all text-left disabled:opacity-50"
+                    className="text-[10px] px-2.5 py-1 rounded-lg bg-[#07090E] border border-cyan-500/25 text-slate-300 hover:text-[#00f3ff] hover:border-cyan-500/50 hover:bg-cyan-500/10 transition-all text-left disabled:opacity-50"
                   >
                     {p}
                   </button>
@@ -574,22 +580,22 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
               </div>
 
               {/* Chat Stream */}
-              <div className="flex-1 space-y-2.5 overflow-y-auto max-h-[220px] p-2.5 rounded-xl bg-background/90 border border-border/60 scrollbar-thin">
+              <div className="flex-1 space-y-2.5 overflow-y-auto max-h-[220px] p-2.5 rounded-xl bg-[#07090E] border border-cyan-500/20 scrollbar-thin font-mono">
                 {messages.map((m, idx) => (
                   <div
                     key={idx}
                     className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     {m.role === "model" && (
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-cyan-600 to-teal-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-5 h-5 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-[#00f3ff] flex items-center justify-center shrink-0 mt-0.5">
                         <Bot className="w-3 h-3" />
                       </div>
                     )}
                     <div
                       className={`max-w-[85%] rounded-xl px-3 py-2 text-xs shadow-xs ${
                         m.role === "user"
-                          ? "bg-primary text-primary-foreground font-medium rounded-br-none"
-                          : "bg-muted/60 text-foreground border border-border/40 rounded-bl-none"
+                          ? "bg-gradient-to-r from-[#00f3ff] to-[#0284c7] text-black font-semibold rounded-br-none"
+                          : "bg-[#0B0E14] text-slate-200 border border-cyan-500/20 rounded-bl-none"
                       }`}
                     >
                       {m.role === "user" ? (
@@ -599,14 +605,14 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
                       )}
                       <div
                         className={`text-[9px] mt-1 text-right ${
-                          m.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
+                          m.role === "user" ? "text-black/70 font-bold" : "text-slate-400"
                         }`}
                       >
                         {m.time}
                       </div>
                     </div>
                     {m.role === "user" && (
-                      <div className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-5 h-5 rounded-full bg-cyan-500/20 text-[#00f3ff] flex items-center justify-center shrink-0 mt-0.5">
                         <User className="w-3 h-3" />
                       </div>
                     )}
@@ -614,13 +620,13 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
                 ))}
 
                 {isAskingGemini && (
-                  <div className="flex gap-2 items-center text-xs text-muted-foreground p-1">
-                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-cyan-600 to-teal-600 text-white flex items-center justify-center shrink-0 animate-pulse">
+                  <div className="flex gap-2 items-center text-xs text-slate-400 p-1 font-mono">
+                    <div className="w-5 h-5 rounded-full bg-cyan-500/20 text-[#00f3ff] flex items-center justify-center shrink-0 animate-pulse">
                       <Sparkles className="w-3 h-3" />
                     </div>
                     <div className="flex items-center gap-1.5 italic">
-                      <Loader2 className="w-3 h-3 animate-spin text-primary" />
-                      <span>Gemini is analyzing vessel telemetry & specs...</span>
+                      <Loader2 className="w-3 h-3 animate-spin text-[#00f3ff]" />
+                      <span>Gemini is analyzing vessel telemetry &amp; specs...</span>
                     </div>
                   </div>
                 )}
@@ -633,7 +639,7 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
                   e.preventDefault();
                   handleSendMessage();
                 }}
-                className="flex items-center gap-1.5 pt-1"
+                className="flex items-center gap-1.5 pt-1 font-mono"
               >
                 <input
                   type="text"
@@ -641,15 +647,15 @@ export function VesselDetailModal({ vessel, onClose, onFocusMap }: VesselDetailM
                   onChange={(e) => setInputPrompt(e.target.value)}
                   placeholder={`Ask Gemini anything about ${vesselName}...`}
                   disabled={isAskingGemini}
-                  className="flex-1 text-xs px-3 py-2 rounded-xl bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary disabled:opacity-50 text-foreground"
+                  className="flex-1 text-xs px-3 py-2.5 rounded-xl bg-[#07090E] border border-cyan-500/30 focus:outline-none focus:ring-1 focus:ring-[#00f3ff] focus:border-[#00f3ff] disabled:opacity-50 text-white placeholder:text-slate-500"
                 />
                 <button
                   type="submit"
                   disabled={!inputPrompt.trim() || isAskingGemini}
-                  className="px-3 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs flex items-center gap-1 transition-colors disabled:opacity-50"
+                  className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-[#00f3ff] to-[#0284c7] text-black font-bold text-xs flex items-center gap-1.5 hover:opacity-95 transition-all disabled:opacity-50 shadow-[0_0_12px_rgba(0,243,255,0.3)] cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Ask</span>
+                  <span className="hidden sm:inline">Ask AI</span>
                 </button>
               </form>
             </div>

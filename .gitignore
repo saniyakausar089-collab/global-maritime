@@ -45,11 +45,11 @@ __pycache__/
 *.sqlite
 *.sqlite3
 *.sqlite-journal
-*.sqlite-wal
-*.sqlite-shm
 evaluation_results.csv
 config.local.js
 web/config.local.js
 port_monitor/web/config.local.js
-
-
+*.sqlite-wal
+*.sqlite-shm
+maritime_frames*/
+maritime_frames 1080/

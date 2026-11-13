@@ -1,46 +1,37 @@
 import { queryOptions } from "@tanstack/react-query";
 
 function resolveApiBaseUrl(): string {
-  const envUrl = (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL;
-  if (envUrl) {
-    return envUrl.replace(/\/$/, "");
-  }
-
   if (typeof window === "undefined") {
     return "http://localhost:3000";
   }
-
+  // In any non-localhost environment (such as *.embarko.app or custom domains),
+  // always use relative paths so requests stay same-origin and avoid mixed-content blocks
   const host = window.location.hostname;
-  if (host === "localhost" || host === "127.0.0.1") {
-    if (window.location.port === "3000" || window.location.port === "8080") {
-      return "";
-    }
-    return "http://localhost:3000";
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    return "";
   }
-
-  return "";
+  // When running locally on the combined backend port (e.g. :3000 or :8080)
+  if (window.location.port === "3000" || window.location.port === "8080") {
+    return "";
+  }
+  const envUrl = (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL;
+  return envUrl ?? "http://localhost:3000";
 }
 
 function resolveWsBaseUrl(): string {
-  const envWs = (import.meta as unknown as { env?: { VITE_WS_URL?: string } }).env?.VITE_WS_URL;
-  if (envWs) {
-    return envWs;
-  }
-
   if (typeof window === "undefined") {
     return "ws://localhost:3000/ws";
   }
-
   const host = window.location.hostname;
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  if (host === "localhost" || host === "127.0.0.1") {
-    if (window.location.port === "3000" || window.location.port === "8080") {
-      return `${proto}//${window.location.host}/ws`;
-    }
-    return "ws://localhost:3000/ws";
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    return `${proto}//${window.location.host}/ws`;
   }
-
-  return `${proto}//${window.location.host}/ws`;
+  if (window.location.port === "3000" || window.location.port === "8080") {
+    return `${proto}//${window.location.host}/ws`;
+  }
+  const envWs = (import.meta as unknown as { env?: { VITE_WS_URL?: string } }).env?.VITE_WS_URL;
+  return envWs ?? `${proto}//${window.location.host}/ws`;
 }
 
 /** Single place to configure the relay backend. */
@@ -75,16 +66,11 @@ export type Sourced<T> = {
 async function getJson<T>(path: string, fallback: () => T): Promise<Sourced<T>> {
   let out: Sourced<T>;
   try {
-    const url = `${API_BASE_URL}${path}`;
-    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    const res = await fetch(`${API_BASE_URL}${path}`, { headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    if (text.trim().startsWith("<")) {
-      throw new Error("HTML response received instead of JSON");
-    }
-    const data = JSON.parse(text) as T;
-    out = { data, source: "live", fetchedAt: Date.now() };
+    out = { data: (await res.json()) as T, source: "live", fetchedAt: Date.now() };
   } catch (e) {
+    console.error(`[API Error] Failed to fetch ${API_BASE_URL}${path}:`, e);
     out = {
       data: fallback(),
       source: "live",
@@ -489,3 +475,4 @@ export const allWeatherQuery = () =>
     refetchInterval: 300_000, // Refetch every 5 minutes
     refetchIntervalInBackground: false,
   });
+

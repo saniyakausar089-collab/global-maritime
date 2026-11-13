@@ -26,7 +26,7 @@ function relayServerPlugin(): Plugin {
       const startRelay = () => {
         if (started || relayProcess) return;
         started = true;
-        console.log("[Relay Dev Plugin] Auto-starting relay server on port 3000...");
+        console.log("[Relay Dev Plugin] Auto-starting relay server on port 4000...");
         const serverPath = path.resolve(__dirname, "port-monitor-live", "server.js");
         relayProcess = spawn(process.execPath, [serverPath], {
           stdio: "inherit",
@@ -41,9 +41,9 @@ function relayServerPlugin(): Plugin {
         });
       };
 
-      const req = http.get("http://127.0.0.1:3000/health", { timeout: 800 }, (res) => {
+      const req = http.get("http://127.0.0.1:4000/health", { timeout: 800 }, (res) => {
         if (res.statusCode === 200) {
-          console.log("[Relay Dev Plugin] Port 3000 is already active and healthy.");
+          console.log("[Relay Dev Plugin] Port 4000 is already active and healthy.");
         } else {
           startRelay();
         }
@@ -91,24 +91,24 @@ export default defineConfig({
     server: {
       proxy: {
         "/api": {
-          target: "http://127.0.0.1:3000",
+          target: "http://127.0.0.1:4000",
           changeOrigin: true,
           ws: true,
         },
         "/ports": {
-          target: "http://127.0.0.1:3000",
+          target: "http://127.0.0.1:4000",
           changeOrigin: true,
         },
         "/fleet": {
-          target: "http://127.0.0.1:3000",
+          target: "http://127.0.0.1:4000",
           changeOrigin: true,
         },
         "/health": {
-          target: "http://127.0.0.1:3000",
+          target: "http://127.0.0.1:4000",
           changeOrigin: true,
         },
         "/ws": {
-          target: "ws://127.0.0.1:3000",
+          target: "ws://127.0.0.1:4000",
           ws: true,
         },
       },

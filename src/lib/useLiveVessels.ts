@@ -86,8 +86,15 @@ function calcDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number):
 export function deadReckonPos(s: LiveVessel, now: number): [number, number] {
   let la = s.lat;
   let lo = s.lon;
-  if (s.sog > 0.5) {
-    const el = Math.min(45, (now - s.t) / 1000);
+  if (!la && !lo) return [0, 0];
+
+  // Only project underway vessels with authentic speed and a valid course over ground
+  // (Prevents stationary/moored vessels or vessels with default/unreported 0° COG from forming straight queue lines)
+  const hasValidCog = typeof s.cog === "number" && s.cog > 0 && s.cog < 360;
+  const isFresh = (now - s.t) < 45000;
+
+  if (!s.stationary && s.sog >= 0.8 && hasValidCog && isFresh) {
+    const el = Math.min(30, (now - s.t) / 1000);
     const m = s.sog * 0.514444 * el;
     const r = (s.cog * Math.PI) / 180;
     la += (m * Math.cos(r)) / 111320;

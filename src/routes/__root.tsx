@@ -160,35 +160,30 @@ function RootComponent() {
         search: { redirect: pathname },
         replace: true,
       });
-    } else if (isAuthenticated && isLogin) {
-      navigate({
-        to: "/overview",
-        replace: true,
-      });
     }
   }, [isAuthenticated, pathname, isLanding, isLogin, isJourney, navigate]);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-bg text-ink relative selection:bg-accent/25 selection:text-ink">
+      <div className="min-h-screen bg-[#050608] text-white relative selection:bg-cyan-500/30 selection:text-white tactical-grid-bg">
         <div className="film-grain" />
         {!isLanding && !isLogin && !isJourney && <Header />}
         {isLanding || isLogin || isJourney ? (
           <Outlet />
         ) : !isAuthenticated ? (
           <div className="flex min-h-[70vh] items-center justify-center px-4">
-            <div className="flex flex-col items-center gap-3 text-center p-7 rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl max-w-sm shadow-2xl">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 animate-pulse">
+            <div className="flex flex-col items-center gap-3 text-center p-7 rounded-2xl border border-cyan-500/30 bg-[#07090E]/85 backdrop-blur-xl max-w-sm shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_25px_rgba(0,243,255,0.15)]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/10 border border-cyan-500/40 text-[#00f3ff] animate-pulse">
                 <Lock className="h-6 w-6" />
               </div>
-              <h2 className="text-base font-bold text-white tracking-wide">Operator Clearance Required</h2>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Guest access is disabled. Redirecting to Terminal Login...
+              <h2 className="text-base font-bold text-white tracking-wide uppercase font-sans">Operator Clearance Required</h2>
+              <p className="text-xs text-slate-400 font-mono leading-relaxed">
+                Guest access restricted. Routing to Secure Terminal Login...
               </p>
             </div>
           </div>
         ) : (
-          <main className="mx-auto max-w-7xl px-4 py-6">
+          <main className="mx-auto max-w-[1400px] px-3 sm:px-6 py-4 sm:py-6">
             <Outlet />
           </main>
         )}
@@ -271,54 +266,63 @@ function Header() {
   };
 
   const navLinkClass =
-    "whitespace-nowrap px-3.5 py-1.5 text-xs font-medium rounded-full transition-all text-ink-2 hover:text-ink hover:bg-white/5";
+    "whitespace-nowrap px-3.5 py-1.5 text-xs font-mono font-medium rounded-lg transition-all text-slate-400 hover:text-white hover:bg-cyan-500/10 hover:border-cyan-500/20 border border-transparent";
   const activeNavProps = {
     className:
-      "whitespace-nowrap px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all bg-white/10 text-accent border border-white/10 shadow-xs",
+      "whitespace-nowrap px-3.5 py-1.5 text-xs font-mono font-semibold rounded-lg transition-all bg-cyan-500/15 text-[#00f3ff] border border-cyan-500/40 shadow-[0_0_12px_rgba(0,243,255,0.2)]",
   };
 
   const utcClock = formatUtcClock(now);
 
   return (
-    <header className="sticky top-0 z-[1000] px-3 sm:px-4 pt-3 pb-1 pointer-events-none transition-all duration-300">
-      {/* Centered Apple-Style Floating Glass Pill Nav */}
+    <header className="sticky top-0 z-[1000] px-3 sm:px-6 pt-2.5 pb-1.5 pointer-events-none transition-all duration-300">
+      {/* Tactical Military-Spec Floating Cockpit Nav */}
       <div
-        className={`mx-auto max-w-[960px] h-[56px] rounded-full glass-panel px-3.5 sm:px-5 flex items-center justify-between pointer-events-auto transition-all duration-300 ${
-          scrolled ? "shadow-[0_20px_40px_rgba(0,0,0,0.6)] scale-[0.985] bg-opacity-80" : "shadow-lg"
+        className={`mx-auto max-w-[1280px] h-[60px] rounded-2xl px-4 sm:px-6 flex items-center justify-between pointer-events-auto transition-all duration-300 border border-cyan-500/20 bg-[#07090E]/90 backdrop-blur-2xl ${
+          scrolled
+            ? "shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_20px_rgba(0,243,255,0.15)] scale-[0.99] border-cyan-500/35"
+            : "shadow-[0_12px_30px_rgba(0,0,0,0.8)]"
         }`}
       >
-        {/* Left: Brand Identity with Fixed Line-Height & Overflow Protection */}
-        <div className="flex items-center gap-3 shrink-0">
-          <Link to="/" className="flex items-center gap-2.5 font-bold tracking-tight text-ink group">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 border border-accent/30 text-accent transition-transform group-hover:scale-105 shadow-inner">
-              <Anchor className="h-4 w-4" />
+        {/* Left: Brand Identity with Tactical Radar Ring */}
+        <div className="flex items-center gap-3.5 shrink-0">
+          <Link to="/" className="flex items-center gap-3 group">
+            <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-b from-cyan-500/20 to-blue-600/10 border border-cyan-500/40 text-[#00f3ff] shadow-[0_0_15px_rgba(0,243,255,0.3)] transition-transform group-hover:scale-105">
+              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#00ffc6] opacity-80" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#00ffc6]" />
+              </span>
+              <Anchor className="h-4.5 w-4.5" />
             </div>
             <div className="flex flex-col justify-center">
-              <span className="text-[13px] font-bold tracking-tight text-ink flex items-center gap-1.5 leading-none whitespace-nowrap">
-                Port Monitor
+              <span className="text-[14px] font-bold tracking-wider text-white uppercase font-sans flex items-center gap-2 leading-none">
+                Global Maritime
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 tracking-normal">
+                  AIS-NET
+                </span>
               </span>
-              <span className="hidden min-[1100px]:block text-[10px] font-normal text-ink-3 tracking-wider leading-tight mt-0.5 whitespace-nowrap">
-                Enterprise Maritime Analytics
+              <span className="text-[10px] font-mono text-slate-400 tracking-wider leading-tight mt-1">
+                FLEET SURVEILLANCE &amp; PORT COMMAND
               </span>
             </div>
           </Link>
         </div>
 
-        {/* Center: Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-1 shrink-0">
+        {/* Center: Tactical Navigation Links */}
+        <nav className="hidden lg:flex items-center gap-1.5 shrink-0">
           <Link to="/" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps} activeOptions={{ exact: true }}>
-            <Compass className="h-3.5 w-3.5 text-accent" />
+            <Compass className="h-3.5 w-3.5 text-cyan-400" />
             <span>Intro</span>
           </Link>
           <Link to="/overview" className={navLinkClass} activeProps={activeNavProps}>
-            <span>Overview</span>
+            <span>Command Overview</span>
           </Link>
           <Link to="/timemachine" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps}>
-            <History className="h-3.5 w-3.5 text-accent" />
+            <History className="h-3.5 w-3.5 text-cyan-400" />
             <span>Time Machine</span>
           </Link>
           <Link to="/weather" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps}>
-            <CloudSun className="h-3.5 w-3.5 text-accent" />
+            <CloudSun className="h-3.5 w-3.5 text-cyan-400" />
             <span>Weather & Marine</span>
           </Link>
           <Link to="/compare" className={navLinkClass} activeProps={activeNavProps}>
@@ -329,8 +333,8 @@ function Header() {
           </Link>
 
           {isAuthenticated ? (
-            <div className="flex items-center gap-2 pl-2 ml-1 border-l border-white/10">
-              <div className="flex items-center gap-1.5 rounded-full border border-[#00ffc6]/30 bg-[#00ffc6]/10 px-2.5 py-1 text-xs font-mono text-[#00ffc6]">
+            <div className="flex items-center gap-2 pl-2 ml-1 border-l border-cyan-500/20">
+              <div className="flex items-center gap-1.5 rounded-lg border border-[#00ffc6]/40 bg-[#00ffc6]/10 px-2.5 py-1 text-xs font-mono text-[#00ffc6] shadow-[0_0_10px_rgba(0,255,198,0.15)]">
                 <ShieldCheck className="h-3.5 w-3.5 text-[#00ffc6]" />
                 <span className="max-w-[110px] truncate text-[11px] font-semibold">
                   {authUser.includes("@") ? authUser.split("@")[0] : authUser}
@@ -340,7 +344,7 @@ function Header() {
                 type="button"
                 onClick={handleLogout}
                 title="Log out from console"
-                className="flex items-center gap-1 px-2.5 py-1 text-xs font-mono text-slate-300 hover:text-rose-400 hover:bg-rose-500/10 rounded-full border border-white/15 transition-all cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-mono text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg border border-white/10 hover:border-rose-500/30 transition-all cursor-pointer"
               >
                 <LogOut className="h-3.5 w-3.5" />
                 <span>Logout</span>
@@ -348,29 +352,30 @@ function Header() {
             </div>
           ) : (
             <Link to="/login" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps}>
-              <LogIn className="h-3.5 w-3.5 text-accent" />
-              <span>Terminal Login</span>
+              <LogIn className="h-3.5 w-3.5 text-cyan-400" />
+              <span>Operator Login</span>
             </Link>
           )}
         </nav>
 
         {/* Right: Live Telemetry, UTC Clock, Refresh & Theme Toggle */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-          {/* Pulsing LIVE Chip */}
+          {/* Tactical Pulsing LIVE Chip */}
           <div
-            className="flex items-center gap-1.5 rounded-full border border-[#34D399]/30 bg-[#34D399]/12 px-2.5 py-1 text-xs font-mono"
+            className="flex items-center gap-1.5 rounded-lg border border-[#00ffc6]/40 bg-[#00ffc6]/10 px-2.5 py-1 text-xs font-mono shadow-[0_0_12px_rgba(0,255,198,0.2)]"
             title={`AIS Stream Status: ${feedHealth.message}`}
           >
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-[#34D399]" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#34D399]" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-[#00ffc6]" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00ffc6]" />
             </span>
-            <span className="text-[10px] font-bold text-[#34D399] tracking-wider">LIVE</span>
+            <span className="text-[10px] font-bold text-[#00ffc6] tracking-wider">LIVE AIS</span>
           </div>
 
-          {/* Real-time UTC Clock */}
-          <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 font-mono text-[10px] text-slate-200">
-            <span className="text-accent font-semibold">{utcClock}</span>
+          {/* Real-time UTC Zulu Clock */}
+          <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-[#0B0E14] px-2.5 py-1 font-mono text-[11px] text-cyan-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <span className="text-slate-400 text-[10px]">ZULU</span>
+            <span className="text-[#00f3ff] font-semibold">{utcClock}</span>
           </div>
 
           {/* Manual Refresh Button */}
@@ -379,9 +384,9 @@ function Header() {
             disabled={isFetching}
             title={isFetching ? "Refreshing telemetry..." : "Refresh telemetry"}
             aria-label="Refresh data"
-            className="flex items-center justify-center h-8 w-8 rounded-full border border-white/20 bg-white/10 text-slate-200 hover:text-white hover:bg-white/20 disabled:opacity-50 transition-all cursor-pointer shadow-sm"
+            className="flex items-center justify-center h-8 w-8 rounded-lg border border-cyan-500/30 bg-[#0B0E14] text-slate-300 hover:text-[#00f3ff] hover:border-cyan-500/60 hover:bg-cyan-500/10 disabled:opacity-50 transition-all cursor-pointer shadow-sm"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-accent" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-cyan-400" : ""}`} />
           </button>
 
           {/* Theme Toggle */}
@@ -389,15 +394,15 @@ function Header() {
             onClick={toggle}
             aria-label="Toggle theme"
             title={dark ? "Switch to light mode" : "Switch to dark mode"}
-            className="flex items-center justify-center h-8 w-8 rounded-full border border-white/20 bg-white/10 text-slate-200 hover:text-white hover:bg-white/20 transition-all cursor-pointer shadow-sm"
+            className="flex items-center justify-center h-8 w-8 rounded-lg border border-cyan-500/30 bg-[#0B0E14] text-slate-300 hover:text-[#00f3ff] hover:border-cyan-500/60 hover:bg-cyan-500/10 transition-all cursor-pointer shadow-sm"
           >
-            {dark ? <Sun className="h-4 w-4 text-amber-300" /> : <Moon className="h-4 w-4 text-accent" />}
+            {dark ? <Sun className="h-4 w-4 text-amber-300" /> : <Moon className="h-4 w-4 text-cyan-400" />}
           </button>
 
           {/* Mobile Menu Hamburger */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden flex items-center justify-center h-8 w-8 rounded-full border border-white/20 bg-white/10 text-white cursor-pointer shadow-sm"
+            className="lg:hidden flex items-center justify-center h-8 w-8 rounded-lg border border-cyan-500/30 bg-[#0B0E14] text-white cursor-pointer shadow-sm"
             aria-label="Toggle mobile menu"
           >
             <span className="text-xs font-bold font-mono">☰</span>
@@ -407,12 +412,12 @@ function Header() {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden mx-auto max-w-[960px] mt-2 p-3 glass-panel rounded-2xl flex flex-col gap-1 pointer-events-auto">
+        <div className="lg:hidden mx-auto max-w-[1280px] mt-2 p-3.5 rounded-2xl flex flex-col gap-1.5 pointer-events-auto border border-cyan-500/30 bg-[#07090E]/95 backdrop-blur-2xl shadow-[0_20px_40px_rgba(0,0,0,0.9)]">
           <Link to="/" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
             Intro
           </Link>
           <Link to="/overview" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
-            Overview
+            Command Overview
           </Link>
           <Link to="/timemachine" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
             Time Machine
@@ -428,7 +433,7 @@ function Header() {
           </Link>
 
           {isAuthenticated ? (
-            <div className="pt-2 mt-1 border-t border-white/10 flex items-center justify-between px-2">
+            <div className="pt-2 mt-1 border-t border-cyan-500/20 flex items-center justify-between px-2">
               <div className="flex items-center gap-1.5 text-xs font-mono text-[#00ffc6]">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 <span className="truncate max-w-[140px] font-semibold">{authUser}</span>
@@ -439,7 +444,7 @@ function Header() {
                   setMobileMenuOpen(false);
                   handleLogout();
                 }}
-                className="flex items-center gap-1 px-3 py-1 text-xs font-mono text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-full border border-rose-500/20 transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-3 py-1 text-xs font-mono text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg border border-rose-500/30 transition-colors cursor-pointer"
               >
                 <LogOut className="h-3.5 w-3.5" />
                 <span>Logout</span>
@@ -447,7 +452,7 @@ function Header() {
             </div>
           ) : (
             <Link to="/login" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
-              Terminal Login
+              Operator Login
             </Link>
           )}
         </div>

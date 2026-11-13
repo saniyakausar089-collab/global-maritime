@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Share+Tech+Mono&display=swap");
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
@@ -7,43 +7,45 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Apple-Calm Maritime Design System Tokens
- * Dark, deep-ocean cinematic, restrained cyan signal color.
+ * BLACK LUXURY & FUTURISTIC MARITIME COMMAND DESIGN SYSTEM
+ * Deep obsidian black (#050608), dark charcoal panels (#0B0E14),
+ * electric cyan accents (#00f3ff), neon blue highlights (#3b82f6),
+ * emerald live telemetry (#00ffc6), and fine glowing HUD borders.
  */
 @theme inline {
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
   --radius-xl: 24px;
-  --radius-2xl: 28px;
-  --radius-full: 999px;
+  --radius-2xl: 30px;
+  --radius-full: 9999px;
 
-  --color-bg-base: var(--bg);
-  --color-bg-raised: var(--bg-raised);
-  --color-bg-glass: var(--bg-glass);
+  --color-bg-base: #050608;
+  --color-bg-raised: #0B0E14;
+  --color-bg-glass: rgba(11, 14, 20, 0.82);
   
-  --color-ink: var(--ink);
-  --color-ink-1: var(--ink);
-  --color-ink-2: var(--ink-2);
-  --color-ink-3: var(--ink-3);
-  --color-ink-primary: var(--ink);
-  --color-ink-secondary: var(--ink-2);
-  --color-ink-tertiary: var(--ink-3);
+  --color-ink: #F8FAFC;
+  --color-ink-1: #F8FAFC;
+  --color-ink-2: #94A3B8;
+  --color-ink-3: #64748B;
+  --color-ink-primary: #F8FAFC;
+  --color-ink-secondary: #94A3B8;
+  --color-ink-tertiary: #64748B;
 
-  --color-accent-signal: var(--accent);
-  --color-accent-glow: var(--accent-glow);
+  --color-accent-signal: #00f3ff;
+  --color-accent-glow: rgba(0, 243, 255, 0.25);
 
-  --color-status-ok: var(--status-ok);
-  --color-status-watch: var(--status-watch);
-  --color-status-congested: var(--status-congested);
+  --color-status-ok: #00ffc6;
+  --color-status-watch: #ffaa00;
+  --color-status-congested: #ff3b5c;
 
-  --color-border-hairline: var(--border-hairline);
-  --color-border-hover: var(--border-hover);
+  --color-border-hairline: rgba(0, 243, 255, 0.12);
+  --color-border-hover: rgba(0, 243, 255, 0.4);
 
   --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-mono: "Geist Mono", "Share Tech Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Standard Tailwind mapped colors for backwards compatibility */
+  /* Standard Tailwind mapped colors */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -73,122 +75,112 @@
 }
 
 :root {
-  /* Light Theme (Preserved with Toggle) */
-  --bg: #F5F7FA;
-  --bg-raised: #FFFFFF;
-  --bg-glass: rgba(255, 255, 255, 0.75);
-  
-  --ink: #0A1220;
-  --ink-2: #4A5568;
-  --ink-3: #718096;
+  /* Canonical Dark Black Luxury Theme */
+  --bg: #050608;
+  --bg-raised: #0B0E14;
+  --bg-glass: rgba(11, 14, 20, 0.85);
 
-  --accent: #0891B2;
-  --accent-glow: rgba(8, 145, 178, 0.18);
+  --ink: #F8FAFC;
+  --ink-2: #94A3B8;
+  --ink-3: #64748B;
 
-  --border-hairline: rgba(0, 0, 0, 0.08);
-  --border-hover: rgba(8, 145, 178, 0.35);
+  --accent: #00f3ff;
+  --accent-blue: #3b82f6;
+  --accent-glow: rgba(0, 243, 255, 0.22);
 
-  --status-ok: #10B981;
-  --status-watch: #F59E0B;
-  --status-congested: #EF4444;
+  --border-hairline: rgba(0, 243, 255, 0.12);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(0, 243, 255, 0.45);
 
-  --background: #F5F7FA;
-  --foreground: #0A1220;
-  --card: #FFFFFF;
-  --card-foreground: #0A1220;
-  --popover: #FFFFFF;
-  --popover-foreground: #0A1220;
-  --primary: #0891B2;
-  --primary-foreground: #FFFFFF;
-  --secondary: #EDF2F7;
-  --secondary-foreground: #0A1220;
-  --muted: #E2E8F0;
-  --muted-foreground: #64748B;
-  --border: rgba(0, 0, 0, 0.08);
-  --input: rgba(0, 0, 0, 0.1);
-  --ring: #0891B2;
+  --status-ok: #00ffc6;
+  --status-watch: #ffaa00;
+  --status-congested: #ff3b5c;
 
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #0A1220;
-  --sidebar-primary: #0891B2;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F1F5F9;
-  --sidebar-accent-foreground: #0A1220;
-  --sidebar-border: rgba(0, 0, 0, 0.08);
-  --sidebar-ring: #0891B2;
+  --background: #050608;
+  --foreground: #F8FAFC;
+  --card: #0B0E14;
+  --card-foreground: #F8FAFC;
+  --popover: #0B0E14;
+  --popover-foreground: #F8FAFC;
+  --primary: #00f3ff;
+  --primary-foreground: #050608;
+  --secondary: #111622;
+  --secondary-foreground: #F8FAFC;
+  --muted: #111622;
+  --muted-foreground: #94A3B8;
+  --border: rgba(0, 243, 255, 0.12);
+  --input: rgba(0, 243, 255, 0.15);
+  --ring: #00f3ff;
+
+  --sidebar: rgba(11, 14, 20, 0.92);
+  --sidebar-foreground: #F8FAFC;
+  --sidebar-primary: #00f3ff;
+  --sidebar-primary-foreground: #050608;
+  --sidebar-accent: rgba(0, 243, 255, 0.08);
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgba(0, 243, 255, 0.15);
+  --sidebar-ring: #00f3ff;
 
   --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-mono: "Geist Mono", "Share Tech Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
-/* Dark Mode is the Canonical Default */
 .dark, :root {
-  --bg: #09090b;
-  --bg-raised: #121215;
-  --bg-glass: rgba(18, 18, 20, 0.75);
+  --bg: #050608;
+  --bg-raised: #0B0E14;
+  --bg-glass: rgba(11, 14, 20, 0.85);
 
-  --ink: #F4F4F6;
-  --ink-2: #A1A1A8;
-  --ink-3: #686870;
+  --ink: #F8FAFC;
+  --ink-2: #94A3B8;
+  --ink-3: #64748B;
 
-  --accent: #5EE7FF;
-  --accent-glow: rgba(94, 231, 255, 0.2);
+  --accent: #00f3ff;
+  --accent-glow: rgba(0, 243, 255, 0.25);
 
-  --border-hairline: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.22);
+  --border-hairline: rgba(0, 243, 255, 0.12);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(0, 243, 255, 0.45);
 
-  --status-ok: #34D399;
-  --status-watch: #FBBF24;
-  --status-congested: #FF5C70;
+  --status-ok: #00ffc6;
+  --status-watch: #ffaa00;
+  --status-congested: #ff3b5c;
 
-  --background: #09090b;
-  --foreground: #F4F4F6;
-  --card: #121215;
-  --card-foreground: #F4F4F6;
-  --popover: #121215;
-  --popover-foreground: #F4F4F6;
-  --primary: #5EE7FF;
-  --primary-foreground: #09090b;
-  --secondary: #18181b;
-  --secondary-foreground: #F4F4F6;
-  --muted: #18181b;
-  --muted-foreground: #A1A1A8;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: rgba(255, 255, 255, 0.1);
-  --ring: #5EE7FF;
-
-  --sidebar: rgba(18, 18, 20, 0.85);
-  --sidebar-foreground: #F4F4F6;
-  --sidebar-primary: #5EE7FF;
-  --sidebar-primary-foreground: #09090b;
-  --sidebar-accent: rgba(255, 255, 255, 0.06);
-  --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #5EE7FF;
+  --background: #050608;
+  --foreground: #F8FAFC;
+  --card: #0B0E14;
+  --card-foreground: #F8FAFC;
+  --popover: #0B0E14;
+  --popover-foreground: #F8FAFC;
+  --primary: #00f3ff;
+  --primary-foreground: #050608;
+  --secondary: #111622;
+  --secondary-foreground: #F8FAFC;
+  --muted: #111622;
+  --muted-foreground: #94A3B8;
+  --border: rgba(0, 243, 255, 0.12);
+  --input: rgba(0, 243, 255, 0.15);
+  --ring: #00f3ff;
 }
 
-/* Explicit Light Mode Override when html does NOT have .dark */
+/* Light Mode Graceful Adaptation (Preserves functionality if user toggles) */
 html:not(.dark) {
-  --bg: #F5F7FA;
-  --bg-raised: #FFFFFF;
-  --bg-glass: rgba(255, 255, 255, 0.78);
-  --ink: #0A1220;
-  --ink-2: #4A5568;
-  --ink-3: #718096;
-  --accent: #0891B2;
-  --accent-glow: rgba(8, 145, 178, 0.18);
-  --border-hairline: rgba(0, 0, 0, 0.08);
-  --border-hover: rgba(8, 145, 178, 0.35);
-  --status-ok: #10B981;
-  --status-watch: #F59E0B;
-  --status-congested: #EF4444;
-  --background: #F5F7FA;
-  --foreground: #0A1220;
-  --card: #FFFFFF;
-  --card-foreground: #0A1220;
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #0A1220;
-  --sidebar-border: rgba(0, 0, 0, 0.08);
+  --bg: #0d1117;
+  --bg-raised: #161b22;
+  --bg-glass: rgba(22, 27, 34, 0.88);
+  --ink: #F8FAFC;
+  --ink-2: #94A3B8;
+  --ink-3: #64748B;
+  --accent: #00f3ff;
+  --accent-glow: rgba(0, 243, 255, 0.2);
+  --border-hairline: rgba(0, 243, 255, 0.15);
+  --border-hover: rgba(0, 243, 255, 0.45);
+  --status-ok: #00ffc6;
+  --status-watch: #ffaa00;
+  --status-congested: #ff3b5c;
+  --background: #0d1117;
+  --foreground: #F8FAFC;
+  --card: #161b22;
+  --card-foreground: #F8FAFC;
 }
 
 @layer base {
@@ -203,11 +195,12 @@ html:not(.dark) {
     letter-spacing: -0.011em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
   }
 
   ::selection {
-    background: rgba(94, 231, 255, 0.28);
-    color: var(--ink);
+    background: rgba(0, 243, 255, 0.3);
+    color: #ffffff;
   }
 }
 
@@ -216,78 +209,158 @@ html:not(.dark) {
 .text-ink-3 { color: var(--ink-3) !important; }
 .border-hairline { border-color: var(--border-hairline) !important; }
 
-/* Apple-style Glass Panel & Pill Utilities */
+/* Futuristic Command Glass Panel & Pill Utilities */
 .glass-panel {
   background: var(--bg-glass);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid var(--border-hairline);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 20px 40px -15px rgba(0, 0, 0, 0.5);
-  border-radius: 20px;
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(0, 243, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 24px 48px -12px rgba(0, 0, 0, 0.75);
+  border-radius: 18px;
+  position: relative;
 }
 
 .glass-pill {
-  background: var(--bg-glass);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid var(--border-hairline);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  border-radius: 999px;
+  background: rgba(11, 14, 20, 0.88);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(0, 243, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 12px 30px -8px rgba(0, 0, 0, 0.6);
+  border-radius: 9999px;
+}
+
+/* Tactical HUD Card with Corner Accents */
+.hud-panel {
+  background: linear-gradient(180deg, rgba(14, 18, 26, 0.88) 0%, rgba(10, 13, 19, 0.94) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(0, 243, 255, 0.12);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  position: relative;
+}
+
+.hud-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(0, 243, 255, 0.5) 50%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Tactical Corner Crosshairs & Brackets */
+.tactical-corner {
+  position: relative;
+}
+
+.tactical-corner::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid #00f3ff;
+  border-right: 2px solid #00f3ff;
+  pointer-events: none;
 }
 
 .card-hover-lift {
-  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), border-color 200ms ease, box-shadow 240ms ease;
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1), border-color 220ms ease, box-shadow 260ms ease;
 }
 
 .card-hover-lift:hover {
   transform: translateY(-4px);
-  border-color: var(--border-hover);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 24px 48px -12px rgba(0, 0, 0, 0.6), 0 0 35px -5px var(--accent-glow);
+  border-color: rgba(0, 243, 255, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 28px 56px -12px rgba(0, 0, 0, 0.85), 0 0 35px -8px rgba(0, 243, 255, 0.25);
 }
 
-/* Headline subtle Apple gradient fill */
-.text-gradient-apple {
-  background: linear-gradient(180deg, var(--ink) 0%, var(--ink-2) 100%);
+/* Headline Cinematic Electric Cyan Gradient */
+.text-gradient-cyan {
+  background: linear-gradient(180deg, #FFFFFF 0%, #A5F3FC 50%, #00F3FF 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-/* Very subtle background light bloom */
+.text-gradient-apple {
+  background: linear-gradient(180deg, #FFFFFF 20%, #94A3B8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Tactical Grid & Radar Bloom Backgrounds */
+.tactical-grid-bg {
+  background-image: 
+    linear-gradient(to right, rgba(0, 243, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 243, 255, 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
 .hero-radial-bloom {
   position: absolute;
-  top: -100px;
+  top: -120px;
   left: 50%;
   transform: translateX(-50%);
-  width: 900px;
-  height: 480px;
-  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.04) 0%, rgba(20, 20, 24, 0.01) 65%, transparent 80%);
+  width: 1000px;
+  height: 520px;
+  background: radial-gradient(ellipse at center, rgba(0, 243, 255, 0.08) 0%, rgba(59, 130, 246, 0.03) 45%, transparent 75%);
   pointer-events: none;
-  filter: blur(40px);
+  filter: blur(60px);
   z-index: 0;
 }
 
-/* Quiet Film Grain Overlay */
+/* Neon Glow Accents */
+.glow-cyan {
+  box-shadow: 0 0 20px -3px rgba(0, 243, 255, 0.35);
+}
+
+.glow-emerald {
+  box-shadow: 0 0 20px -3px rgba(0, 255, 198, 0.35);
+}
+
+.glow-amber {
+  box-shadow: 0 0 20px -3px rgba(255, 170, 0, 0.35);
+}
+
+.glow-rose {
+  box-shadow: 0 0 20px -3px rgba(255, 59, 92, 0.35);
+}
+
+/* Radar Scanline & Grain */
 .film-grain {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 9999;
-  opacity: 0.025;
+  opacity: 0.02;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
 }
 
-/* Custom Thin Elegant Scrollbar */
+/* Custom Tactical Monospace Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #050608;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
+  background: rgba(0, 243, 255, 0.2);
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(94, 231, 255, 0.35);
+  background: rgba(0, 243, 255, 0.5);
+}
+
+/* Pulsing radar dot */
+@keyframes radar-ping {
+  0% { transform: scale(0.9); opacity: 0.9; }
+  50% { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(0.9); opacity: 0; }
+}
+
+.radar-ping {
+  animation: radar-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
 }

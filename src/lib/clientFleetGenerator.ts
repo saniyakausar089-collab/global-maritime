@@ -1,7 +1,15 @@
 // Blazing-fast client-side maritime fleet generator
-// Guarantees immediate zero-latency vessel population even on static hosting / serverless environments
+// Realistic non-linear corridor dispersion, Traffic Separation Scheme (TSS) starboard separation,
+// authentic anchorage roadsteads, and natural maritime traffic clustering.
 
-const MARITIME_TRUNKS: { name: string; coords: [number, number][]; density: number }[] = [
+export interface MaritimeTrunk {
+  name: string;
+  coords: [number, number][];
+  density: number;
+  openOcean?: boolean;
+}
+
+const MARITIME_TRUNKS: MaritimeTrunk[] = [
   // 1. Silk Maritime Highway (Asia <-> Suez <-> Med <-> Europe)
   {
     name: "Silk Maritime Highway",
@@ -24,6 +32,7 @@ const MARITIME_TRUNKS: { name: string; coords: [number, number][]; density: numb
       [-70.0, 40.5], [-74.05, 40.67]
     ],
     density: 16,
+    openOcean: true,
   },
   // 3. Mid-Atlantic & Caribbean Express (Gibraltar <-> Caribbean <-> Gulf of Mexico)
   {
@@ -33,6 +42,7 @@ const MARITIME_TRUNKS: { name: string; coords: [number, number][]; density: numb
       [-65.0, 22.0], [-74.0, 23.5], [-80.0, 24.5], [-86.0, 25.5], [-94.0, 28.5]
     ],
     density: 18,
+    openOcean: true,
   },
   // 4. South Atlantic Corridor (Santos / Brazil <-> Europe)
   {
@@ -43,6 +53,7 @@ const MARITIME_TRUNKS: { name: string; coords: [number, number][]; density: numb
       [-10.2, 43.5], [-6.0, 48.8], [-5.0, 49.5], [1.8, 51.1], [4.17, 51.92]
     ],
     density: 18,
+    openOcean: true,
   },
   // 5. Cape of Good Hope Trunk (Asia / Singapore <-> South Africa <-> Europe)
   {
@@ -54,6 +65,7 @@ const MARITIME_TRUNKS: { name: string; coords: [number, number][]; density: numb
       [-20.0, 24.0], [-18.0, 28.0], [-10.2, 37.0]
     ],
     density: 20,
+    openOcean: true,
   },
   // 6. Trans-Pacific Northern Trunk (Shanghai / Japan -> Antimeridian -> LA)
   {
@@ -63,6 +75,7 @@ const MARITIME_TRUNKS: { name: string; coords: [number, number][]; density: numb
       [180.0, 48.5]
     ],
     density: 18,
+    openOcean: true,
   },
   {
     name: "Trans-Pacific Trunk East",
@@ -71,6 +84,7 @@ const MARITIME_TRUNKS: { name: string; coords: [number, number][]; density: numb
       [-121.5, 34.0], [-118.26, 33.73]
     ],
     density: 18,
+    openOcean: true,
   },
   // 7. Persian Gulf - Asia Supertanker Highway (Hormuz <-> India <-> Malacca <-> East Asia)
   {
@@ -109,6 +123,25 @@ const MARITIME_TRUNKS: { name: string; coords: [number, number][]; density: numb
       [135.0, -36.5], [144.5, -38.5], [148.0, -39.0], [151.5, -34.0], [153.5, -27.0]
     ],
     density: 18,
+    openOcean: true,
+  },
+  // 11. North Sea / Baltic Commercial Feeder
+  {
+    name: "North Sea - Baltic Feeder",
+    coords: [
+      [4.17, 51.92], [4.5, 53.5], [8.0, 54.0], [9.97, 53.54], [10.2, 54.4],
+      [12.5, 55.0], [18.5, 55.5], [24.0, 57.0], [28.0, 59.5]
+    ],
+    density: 14,
+  },
+  // 12. East Asia Coastal Trunk (Busan <-> Shanghai <-> Kaohsiung <-> HK)
+  {
+    name: "East Asia Coastal Highway",
+    coords: [
+      [129.04, 35.1], [128.8, 34.2], [124.5, 32.5], [121.8, 31.23], [122.5, 28.5],
+      [120.5, 24.5], [118.0, 23.0], [114.15, 22.28], [110.5, 20.0], [108.5, 17.5]
+    ],
+    density: 14,
   },
 ];
 
@@ -133,6 +166,11 @@ function bearingDeg(lat1: number, lon1: number, lat2: number, lon2: number): num
   return Math.round(((Math.atan2(y, x) * 180) / Math.PI + 360) % 360);
 }
 
+function pseudoRandom(seed: number): number {
+  const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 export function generateClientFleet(): any[][] {
   const vessels: any[][] = [];
   let mmsiCounter = 820000000;
@@ -140,43 +178,87 @@ export function generateClientFleet(): any[][] {
 
   for (const trunk of MARITIME_TRUNKS) {
     const coords = trunk.coords;
+    const isOpenOcean = Boolean(trunk.openOcean);
+
     for (let i = 0; i < coords.length - 1; i++) {
       const [lon1, lat1] = coords[i]!;
       const [lon2, lat2] = coords[i + 1]!;
       const legDist = haversineKm(lat1, lon1, lat2, lon2);
-      const steps = Math.max(1, Math.floor(legDist / trunk.density));
+
+      // Realistic density: ~1 vessel per 40-70km on trunks, dispersed naturally
+      const spacingKm = isOpenOcean ? Math.max(trunk.density * 2.8, 48) : Math.max(trunk.density * 2.0, 32);
+      const steps = Math.max(1, Math.floor(legDist / spacingKm));
       const fwdBearing = bearingDeg(lat1, lon1, lat2, lon2);
       const revBearing = (fwdBearing + 180) % 360;
 
       for (let s = 0; s < steps; s++) {
-        for (const dir of [1, -1]) {
-          const t = (s + 0.5 + ((s * 17) % 7) / 14) / steps;
+        // Natural traffic flow: non-uniform presence
+        const hasOutbound = pseudoRandom(s * 71 + i * 13) > 0.18;
+        const hasInbound = pseudoRandom(s * 89 + i * 29) > 0.22;
+
+        const directions: number[] = [];
+        if (hasOutbound) directions.push(1);
+        if (hasInbound) directions.push(-1);
+
+        for (const dir of directions) {
+          mmsiCounter++;
+          const seed = mmsiCounter;
+
+          // 1. Natural progress along corridor with non-uniform Poisson spacing (no rigid single-file queue)
+          const clusterJitter = (pseudoRandom(seed * 3) - 0.5) * 0.9;
+          const t = Math.max(0.015, Math.min(0.985, (s + 0.5 + clusterJitter) / steps));
           const baseLon = lon1 + (lon2 - lon1) * t;
           const baseLat = lat1 + (lat2 - lat1) * t;
 
-          // Cross-track dispersion
-          const perpAngle = ((fwdBearing + 90) * Math.PI) / 180;
-          const crossDistKm = (((s * 13) % 9) - 4.5) * 1.5;
-          const dLat = (crossDistKm * Math.cos(perpAngle)) / 111.32;
-          const dLon = (crossDistKm * Math.sin(perpAngle)) / (111.32 * Math.cos((baseLat * Math.PI) / 180) || 1);
+          // 2. Realistic Traffic Separation Scheme (TSS) & Fairway Fanning:
+          // Starboard separation: Outbound vessels stay on starboard side (+), Inbound on port side (-).
+          // Open oceans have wide corridor fairway spread (±10 to ±35 km), while straits adhere to ±2.5 to ±6 km.
+          const legBearing = dir === 1 ? fwdBearing : revBearing;
+          const perpAngle = ((legBearing + 90) * Math.PI) / 180;
+
+          let laneOffsetKm = 3.5 + pseudoRandom(seed * 7) * 4.5;
+          let lateralScatterKm = (pseudoRandom(seed * 11) - 0.5) * 3.5;
+
+          if (isOpenOcean || legDist > 600) {
+            laneOffsetKm = 6.0 + pseudoRandom(seed * 7) * 14.0;
+            lateralScatterKm = (pseudoRandom(seed * 11) - 0.5) * 16.0;
+          }
+
+          // Total lateral displacement perpendicular to track
+          const totalCrossDistKm = (laneOffsetKm + lateralScatterKm) * (dir === 1 ? 1 : 1); // Starboard relative to ship heading
+
+          const dLat = (totalCrossDistKm * Math.cos(perpAngle)) / 111.32;
+          const dLon = (totalCrossDistKm * Math.sin(perpAngle)) / (111.32 * Math.cos((baseLat * Math.PI) / 180) || 1);
 
           const finalLat = +(baseLat + dLat).toFixed(4);
           const finalLon = +(baseLon + dLon).toFixed(4);
 
-          mmsiCounter++;
-          const course = dir === 1 ? fwdBearing : revBearing;
-          const speed = +(12.5 + ((mmsiCounter % 15) * 0.7)).toFixed(1);
+          // 3. Authentic course yaw / drift (crabbing ±2° to 6° relative to course over ground)
+          const driftYaw = (pseudoRandom(seed * 13) - 0.5) * 8.0;
+          const course = Math.round((legBearing + driftYaw + 360) % 360);
 
-          // Type distribution: 65% Cargo (70), 22% Tanker (80), 8% Passenger (60), 5% Other (50)
-          const mod = mmsiCounter % 100;
+          // 4. Categorical type distribution & realistic speeds:
+          // 62% Cargo (70-79), 24% Tanker (80-89), 8% Passenger (60-69), 6% Tug/Special (50)
+          const mod = seed % 100;
           let type = 70;
-          if (mod < 22) type = 80;
-          else if (mod < 30) type = 60;
-          else if (mod < 35) type = 50;
-          else type = 70 + (mmsiCounter % 9);
+          let speed = 16.2;
 
-          const pre = PREFIXES[mmsiCounter % PREFIXES.length];
-          const suf = SUFFIXES[(mmsiCounter * 3) % SUFFIXES.length];
+          if (mod < 24) {
+            type = 80 + (seed % 5); // Tanker
+            speed = +(11.8 + pseudoRandom(seed * 5) * 3.8).toFixed(1);
+          } else if (mod < 32) {
+            type = 60 + (seed % 4); // Passenger
+            speed = +(18.2 + pseudoRandom(seed * 5) * 4.5).toFixed(1);
+          } else if (mod < 38) {
+            type = 50; // Tug / Tender
+            speed = +(9.2 + pseudoRandom(seed * 5) * 3.0).toFixed(1);
+          } else {
+            type = 70 + (seed % 9); // Container / Bulk Cargo
+            speed = +(14.5 + pseudoRandom(seed * 5) * 6.5).toFixed(1);
+          }
+
+          const pre = PREFIXES[seed % PREFIXES.length];
+          const suf = SUFFIXES[(seed * 3) % SUFFIXES.length];
           const name = `${pre} ${suf}`;
 
           vessels.push([
@@ -188,18 +270,18 @@ export function generateClientFleet(): any[][] {
             course,
             course,
             type,
-            "live",
-            0.98,
+            "estimated",
+            0.92,
             trunk.name.toUpperCase(),
             "IN TRANSIT",
-            now - (mmsiCounter % 3600000),
+            now - (seed % 3600000),
           ]);
         }
       }
     }
   }
 
-  // Also add harbor density clusters at the 6 strategic ports
+  // Strategic port approach anchorages distributed realistically across nautical roadsteads
   const STRATEGIC_PORTS = [
     { name: "Rotterdam Maasvlakte", lat: 51.92, lon: 4.17 },
     { name: "Singapore Keppel", lat: 1.26, lon: 103.84 },
@@ -210,15 +292,20 @@ export function generateClientFleet(): any[][] {
   ];
 
   for (const port of STRATEGIC_PORTS) {
-    for (let k = 0; k < 65; k++) {
+    // 35-45 authentic vessels in anchorage fairway sectors
+    for (let k = 0; k < 40; k++) {
       mmsiCounter++;
-      const angle = (k * 36) * (Math.PI / 180);
-      const dist = 0.03 + (k % 8) * 0.02;
-      const pLat = +(port.lat + Math.cos(angle) * dist).toFixed(4);
-      const pLon = +(port.lon + Math.sin(angle) * dist * 1.5).toFixed(4);
-      const isSlow = k % 3 !== 0;
-      const speed = isSlow ? +(0.1 + (k % 4) * 0.1).toFixed(1) : +(3.5 + (k % 6) * 1.2).toFixed(1);
-      const heading = (k * 45) % 360;
+      const seed = mmsiCounter;
+      // Elliptical roadstead distribution mimicking real port approaches
+      const theta = pseudoRandom(seed * 9) * 2 * Math.PI;
+      const radius = 0.05 + Math.sqrt(pseudoRandom(seed * 17)) * 0.18;
+      const pLat = +(port.lat + Math.sin(theta) * radius * 0.75).toFixed(4);
+      const pLon = +(port.lon + Math.cos(theta) * radius * 1.35).toFixed(4);
+
+      // 60% of harbor approach vessels are anchored/stationary (<0.5 kn)
+      const isAnchored = pseudoRandom(seed * 23) > 0.40;
+      const speed = isAnchored ? +(0.1 + pseudoRandom(seed) * 0.3).toFixed(1) : +(4.0 + pseudoRandom(seed) * 4.5).toFixed(1);
+      const heading = isAnchored ? 0 : Math.round((theta * 180) / Math.PI + 90) % 360;
       const type = k % 4 === 0 ? 50 : k % 3 === 0 ? 80 : 70;
 
       vessels.push([
@@ -230,10 +317,10 @@ export function generateClientFleet(): any[][] {
         heading,
         heading,
         type,
-        "live",
-        1.0,
+        "estimated",
+        0.95,
         port.name.toUpperCase(),
-        "BERTHED",
+        isAnchored ? "AT ANCHOR" : "APPROACHING",
         now - (k * 60000),
       ]);
     }
