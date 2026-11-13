@@ -245,10 +245,22 @@ export function MapView({
     return { uniqueVessels: list, liveCount: live, estimatedCount: est };
   }, [vessels]);
 
+  const activeStyleRef = useRef<"dark" | "vibrant" | "clean">("dark");
+  activeStyleRef.current = activeStyle;
+  const updateGeoJsonRef = useRef<() => void>(() => {});
+  const setupLayersRef = useRef<() => void>(() => {});
+
   const switchStyle = (styleKey: "dark" | "vibrant" | "clean") => {
+    if (styleKey === activeStyleRef.current) return;
     setActiveStyle(styleKey);
-    if (mapRef.current) {
-      mapRef.current.setStyle(MAP_STYLES[styleKey]);
+    activeStyleRef.current = styleKey;
+    const map = mapRef.current;
+    if (map) {
+      map.setStyle(MAP_STYLES[styleKey]);
+      map.once("style.load", () => {
+        setupLayersRef.current();
+        updateGeoJsonRef.current();
+      });
     }
   };
 
@@ -313,251 +325,266 @@ export function MapView({
     window.addEventListener("resize", handleResize);
     const resizeTimeout = setTimeout(() => map.resize(), 150);
 
+    let isSettingUp = false;
     function setupLayers() {
-      applyBasemapTuning(map);
+      if (isSettingUp) return;
+      isSettingUp = true;
+      try {
+        // Only darken basemap in 'dark' mode. In 'vibrant' and 'clean', keep natural daylight colors!
+        if (activeStyleRef.current === "dark") {
+          applyBasemapTuning(map);
+        }
 
-      // Register the unified SDF ship silhouette icon (one sprite recolors dynamically via GPU)
-      if (map.hasImage("ship_sdf")) map.removeImage("ship_sdf");
-      map.addImage("ship_sdf", createSdfShipIcon(), { sdf: true });
+        // Register the unified SDF ship silhouette icon (one sprite recolors dynamically via GPU)
+        if (!map.hasImage("ship_sdf")) {
+          map.addImage("ship_sdf", createSdfShipIcon(), { sdf: true });
+        }
 
-      // 1. Authentic Sea Lanes Source & Layers
-      if (!map.getSource("sea_lanes")) {
-        map.addSource("sea_lanes", {
-          type: "geojson",
-          data: "/api/routes",
-        });
-      }
+        // 1. Authentic Sea Lanes Source & Layers
+        if (!map.getSource("sea_lanes")) {
+          map.addSource("sea_lanes", {
+            type: "geojson",
+            data: "/api/routes",
+          });
+        }
 
-      if (!map.getLayer("sea_lanes_layer")) {
-        map.addLayer({
-          id: "sea_lanes_layer",
-          type: "line",
-          source: "sea_lanes",
-          paint: {
-            "line-color": "#22D3EE",
-            "line-width": 1.0,
-            "line-opacity": 0.15,
-          },
-        });
-      }
-
-      // 1b. Observed Traffic Density Source & Heatmap Layer (Last 7 Days)
-      if (!map.getSource("traffic_density")) {
-        map.addSource("traffic_density", {
-          type: "geojson",
-          data: "/api/traffic-density",
-        });
-      }
-
-      if (!map.getLayer("traffic_density_layer")) {
-        map.addLayer(
-          {
-            id: "traffic_density_layer",
-            type: "heatmap",
-            source: "traffic_density",
-            layout: {
-              visibility: showTrafficDensity ? "visible" : "none",
-            },
+        if (!map.getLayer("sea_lanes_layer")) {
+          map.addLayer({
+            id: "sea_lanes_layer",
+            type: "line",
+            source: "sea_lanes",
             paint: {
-              "heatmap-weight": ["interpolate", ["linear"], ["zoom"], 1, 0.4, 6, 1.0],
-              "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 1, 0.5, 6, 1.0],
+              "line-color": activeStyleRef.current === "dark" ? "#22D3EE" : "#0284C7",
+              "line-width": 1.0,
+              "line-opacity": activeStyleRef.current === "dark" ? 0.15 : 0.35,
+            },
+          });
+        }
+
+        // 1b. Observed Traffic Density Source & Heatmap Layer (Last 7 Days)
+        if (!map.getSource("traffic_density")) {
+          map.addSource("traffic_density", {
+            type: "geojson",
+            data: "/api/traffic-density",
+          });
+        }
+
+        if (!map.getLayer("traffic_density_layer")) {
+          map.addLayer(
+            {
+              id: "traffic_density_layer",
+              type: "heatmap",
+              source: "traffic_density",
+              layout: {
+                visibility: showTrafficDensity ? "visible" : "none",
+              },
+              paint: {
+                "heatmap-weight": ["interpolate", ["linear"], ["zoom"], 1, 0.4, 6, 1.0],
+                "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 1, 0.5, 6, 1.0],
+                "heatmap-color": [
+                  "interpolate",
+                  ["linear"],
+                  ["heatmap-density"],
+                  0, "rgba(0, 0, 0, 0)",
+                  0.2, "rgba(14, 116, 144, 0.15)",
+                  0.5, "rgba(6, 182, 212, 0.3)",
+                  0.8, "rgba(34, 211, 238, 0.5)",
+                  1.0, "rgba(34, 211, 238, 0.8)",
+                ],
+                "heatmap-radius": [
+                  "interpolate",
+                  ["linear"],
+                  ["zoom"],
+                  1, 4,
+                  4, 10,
+                  8, 20,
+                ],
+                "heatmap-opacity": 0.2,
+              },
+            },
+            "vessel_breadcrumbs"
+          );
+        }
+
+        // 2. Selected Vessel Track & Breadcrumbs Source
+        if (!map.getSource("vessel_track")) {
+          map.addSource("vessel_track", {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          });
+        }
+
+        if (!map.getLayer("vessel_breadcrumbs")) {
+          map.addLayer({
+            id: "vessel_breadcrumbs",
+            type: "line",
+            source: "vessel_track",
+            filter: ["==", ["get", "type"], "breadcrumb"],
+            minzoom: 7,
+            paint: {
+              "line-color": "#38BDF8",
+              "line-width": 1.0,
+              "line-opacity": 0.5,
+            },
+          });
+        }
+
+        if (!map.getLayer("vessel_estimated_route")) {
+          map.addLayer({
+            id: "vessel_estimated_route",
+            type: "line",
+            source: "vessel_track",
+            filter: ["==", ["get", "type"], "route"],
+            paint: {
+              "line-color": "#FBBF24",
+              "line-width": 1.8,
+              "line-dasharray": [3, 2],
+              "line-opacity": 0.6,
+            },
+          });
+        }
+
+        // 3. Vessel Positions Source
+        if (!map.getSource("ships")) {
+          map.addSource("ships", {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          });
+        }
+
+        // 4. UNDERNEATH: Vessel Heatmap Layer
+        if (!map.getLayer("vessels_heatmap")) {
+          map.addLayer({
+            id: "vessels_heatmap",
+            type: "heatmap",
+            source: "ships",
+            maxzoom: 6,
+            paint: {
+              "heatmap-weight": 1,
+              "heatmap-intensity": 0.85,
+              "heatmap-radius": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                1, 7,
+                4, 14,
+                6, 20,
+              ],
               "heatmap-color": [
                 "interpolate",
                 ["linear"],
                 ["heatmap-density"],
                 0, "rgba(0, 0, 0, 0)",
-                0.2, "rgba(14, 116, 144, 0.15)",
-                0.5, "rgba(6, 182, 212, 0.3)",
-                0.8, "rgba(34, 211, 238, 0.5)",
-                1.0, "rgba(34, 211, 238, 0.8)",
+                0.2, "#0b3a5c",
+                0.5, "#0ea5e9",
+                0.8, "#22d3ee",
+                1.0, "#e0f2fe",
               ],
-              "heatmap-radius": [
+              "heatmap-opacity": [
                 "interpolate",
                 ["linear"],
                 ["zoom"],
-                1, 4,
-                4, 10,
-                8, 20,
+                1, 0.85,
+                5, 0.7,
+                6, 0,
               ],
-              "heatmap-opacity": 0.2,
             },
-          },
-          "vessel_breadcrumbs"
-        );
-      }
+          });
+        }
 
-      // 2. Selected Vessel Track & Breadcrumbs Source
-      if (!map.getSource("vessel_track")) {
-        map.addSource("vessel_track", {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
-        });
-      }
+        // 5. SMALL CIRCLE DOTS: clear at all zooms; radius grows with zoom
+        if (!map.getLayer("vessels_dot")) {
+          map.addLayer({
+            id: "vessels_dot",
+            type: "circle",
+            source: "ships",
+            paint: {
+              "circle-radius": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                1, 1.8,
+                3, 2.4,
+                6, 3.2,
+                7, 3.8,
+              ],
+              "circle-color": TYPE_COLOR_EXPRESSION,
+              "circle-opacity": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                1, 0.95,
+                6.8, 0.95,
+                7.5, 0,
+              ],
+              "circle-stroke-width": 0.5,
+              "circle-stroke-color": activeStyleRef.current === "dark" ? "rgba(0, 0, 0, 0.5)" : "rgba(255, 255, 255, 0.8)",
+            },
+          });
+        }
 
-      if (!map.getLayer("vessel_breadcrumbs")) {
-        map.addLayer({
-          id: "vessel_breadcrumbs",
-          type: "line",
-          source: "vessel_track",
-          filter: ["==", ["get", "type"], "breadcrumb"],
-          minzoom: 7,
-          paint: {
-            "line-color": "#38BDF8",
-            "line-width": 1.0,
-            "line-opacity": 0.5,
-          },
-        });
-      }
-
-      if (!map.getLayer("vessel_estimated_route")) {
-        map.addLayer({
-          id: "vessel_estimated_route",
-          type: "line",
-          source: "vessel_track",
-          filter: ["==", ["get", "type"], "route"],
-          paint: {
-            "line-color": "#FBBF24",
-            "line-width": 1.8,
-            "line-dasharray": [3, 2],
-            "line-opacity": 0.6,
-          },
-        });
-      }
-
-      // 3. Vessel Positions Source
-      if (!map.getSource("ships")) {
-        map.addSource("ships", {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
-        });
-      }
-
-      // 4. UNDERNEATH: Vessel Heatmap Layer (zoom < 6: radius 1→6, 4→12, 6→18; gradient transparent → #0b3a5c → #0ea5e9 → #22d3ee → #e0f2fe)
-      if (!map.getLayer("vessels_heatmap")) {
-        map.addLayer({
-          id: "vessels_heatmap",
-          type: "heatmap",
-          source: "ships",
-          maxzoom: 6,
-          paint: {
-            "heatmap-weight": 1,
-            "heatmap-intensity": 0.9,
-            "heatmap-radius": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              1, 6,
-              4, 12,
-              6, 18,
-            ],
-            "heatmap-color": [
-              "interpolate",
-              ["linear"],
-              ["heatmap-density"],
-              0, "rgba(0, 0, 0, 0)",
-              0.2, "#0b3a5c",
-              0.5, "#0ea5e9",
-              0.8, "#22d3ee",
-              1.0, "#e0f2fe",
-            ],
-            "heatmap-opacity": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              1, 0.9,
-              5, 0.75,
-              6, 0,
-            ],
-          },
-        });
-      }
-
-      // 5. SMALL CIRCLE DOTS: visible at all zooms; radius grows with zoom; opacity fades out above zoom 7.2
-      if (!map.getLayer("vessels_dot")) {
-        map.addLayer({
-          id: "vessels_dot",
-          type: "circle",
-          source: "ships",
-          paint: {
-            "circle-radius": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              1, 1.5,
-              3, 2.2,
-              6, 3.0,
-              7, 3.5,
-            ],
-            "circle-color": TYPE_COLOR_EXPRESSION,
-            "circle-opacity": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              1, 0.9,
-              6.8, 0.9,
-              7.5, 0,
-            ],
-            "circle-stroke-width": 0,
-          },
-        });
-      }
-
-      // 6. SHIPS SYMBOL LAYER: Ship icons (SDF, icon-color by type) only at zoom >= 7
-      if (!map.getLayer("ships")) {
-        map.addLayer({
-          id: "ships",
-          type: "symbol",
-          source: "ships",
-          minzoom: 7.0,
-          layout: {
-            "icon-image": "ship_sdf",
-            "icon-rotate": ["get", "hdg"],
-            "icon-rotation-alignment": "map",
-            "icon-allow-overlap": true,
-            "icon-ignore-placement": true,
-            "icon-size": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              7, 0.45,
-              9, 0.6,
-              12, 0.75,
-            ],
-            "text-field": [
-              "step",
-              ["zoom"],
-              "",
-              10, ["get", "name"],
-            ],
-            "text-size": 10,
-            "text-offset": [0, 1.3],
-            "text-anchor": "top",
-            "text-allow-overlap": false,
-            "text-optional": true,
-          },
-          paint: {
-            "icon-color": TYPE_COLOR_EXPRESSION,
-            "icon-opacity": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              7.0, 0.85,
-              7.5, 1.0,
-            ],
-            "text-color": "#E2E8F0",
-            "text-halo-color": "#05080C",
-            "text-halo-width": 1.5,
-            "text-opacity": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              9.8, 0,
-              10.5, 0.9,
-            ],
-          },
-        });
+        // 6. SHIPS SYMBOL LAYER: Ship icons (SDF, icon-color by type) only at zoom >= 7
+        if (!map.getLayer("ships")) {
+          map.addLayer({
+            id: "ships",
+            type: "symbol",
+            source: "ships",
+            minzoom: 7.0,
+            layout: {
+              "icon-image": "ship_sdf",
+              "icon-rotate": ["get", "hdg"],
+              "icon-rotation-alignment": "map",
+              "icon-allow-overlap": true,
+              "icon-ignore-placement": true,
+              "icon-size": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                7, 0.45,
+                9, 0.6,
+                12, 0.75,
+              ],
+              "text-field": [
+                "step",
+                ["zoom"],
+                "",
+                10, ["get", "name"],
+              ],
+              "text-size": 10,
+              "text-offset": [0, 1.3],
+              "text-anchor": "top",
+              "text-allow-overlap": false,
+              "text-optional": true,
+            },
+            paint: {
+              "icon-color": TYPE_COLOR_EXPRESSION,
+              "icon-opacity": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                7.0, 0.85,
+                7.5, 1.0,
+              ],
+              "text-color": activeStyleRef.current === "dark" ? "#E2E8F0" : "#0F172A",
+              "text-halo-color": activeStyleRef.current === "dark" ? "#05080C" : "#FFFFFF",
+              "text-halo-width": 1.5,
+              "text-opacity": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                9.8, 0,
+                10.5, 0.9,
+              ],
+            },
+          });
+        }
+      } catch (err) {
+        console.warn("[MapLibre] setupLayers notice:", err);
+      } finally {
+        isSettingUp = false;
       }
     }
+    setupLayersRef.current = setupLayers;
 
     map.on("load", () => {
       setupLayers();
@@ -712,6 +739,7 @@ export function MapView({
       };
 
       // Run on initial load and movement completion
+      updateGeoJsonRef.current = updateGeoJson;
       updateGeoJson();
       map.on("moveend", updateGeoJson);
 
@@ -726,29 +754,6 @@ export function MapView({
       };
     });
 
-    map.on("styledata", () => {
-      setupLayers();
-      // Re-populate vessel data after style switch (sources are wiped on setStyle)
-      const src = map.getSource("ships") as maplibregl.GeoJSONSource | undefined;
-      if (src && vesselsRef.current.length > 0) {
-        setTimeout(() => {
-          const s2 = map.getSource("ships") as maplibregl.GeoJSONSource | undefined;
-          if (!s2) return;
-          const feats = vesselsRef.current.slice(0, 25000).map((s) => {
-            const cat = s.category || getShipCategory(s);
-            const lon = Math.max(-180, Math.min(180, s.lon));
-            const lat = Math.max(-85, Math.min(85, s.lat));
-            return {
-              type: "Feature" as const,
-              properties: { id: s.mmsi || s.id, name: s.name || "", category: cat, source: s.source || "live", sog: s.sog || 0, hdg: s.hdg ?? s.cog ?? 0 },
-              geometry: { type: "Point" as const, coordinates: [lon, lat] },
-            };
-          });
-          s2.setData({ type: "FeatureCollection", features: feats });
-        }, 400);
-      }
-    });
-
     return () => {
       window.removeEventListener("resize", handleResize);
       clearTimeout(resizeTimeout);
@@ -759,6 +764,11 @@ export function MapView({
       mapRef.current = null;
     };
   }, [showAnchored, showEstimated]);
+
+  // Immediate sync when vessels prop updates
+  useEffect(() => {
+    updateGeoJsonRef.current();
+  }, [vessels]);
 
   // Toggle traffic density heatmap visibility
   useEffect(() => {
@@ -1025,8 +1035,10 @@ export function MapView({
       {/* MapLibre GL DOM container */}
       <div className="h-full w-full" />
 
-      {/* Deep Dark Vignette Overlay */}
-      <div className="pointer-events-none absolute inset-0 z-[5] rounded-[20px] md:rounded-[28px] shadow-[inset_0_0_120px_rgba(0,0,0,0.92)]" />
+      {/* Deep Dark Vignette Overlay - Dark style only */}
+      {activeStyle === "dark" && (
+        <div className="pointer-events-none absolute inset-0 z-[5] rounded-[20px] md:rounded-[28px] shadow-[inset_0_0_120px_rgba(0,0,0,0.92)]" />
+      )}
 
       {/* Floating Status & Quick Jump Controls (Top Left) */}
       <div className="absolute left-4 top-4 z-10 flex flex-col gap-2 max-w-[calc(100%-80px)] sm:max-w-md pointer-events-none">
