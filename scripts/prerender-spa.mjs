@@ -16,6 +16,13 @@ const outputPublic = path.join(projectRoot, '.output', 'public');
 const vercelStatic = path.join(projectRoot, '.vercel', 'output', 'static');
 
 async function prerender() {
+  // On Netlify, Nitro's netlify preset emits an SSR function (.netlify/functions-internal)
+  // and static assets (dist/). Pages are server-rendered, so no prerender step is needed.
+  if (process.env.NETLIFY === 'true') {
+    console.log('Netlify build detected: SSR handled by Netlify Functions, skipping SPA prerender.');
+    return;
+  }
+
   const serverEntry = candidateServerEntries.find((p) => fs.existsSync(p));
 
   // Ensure output directories exist
