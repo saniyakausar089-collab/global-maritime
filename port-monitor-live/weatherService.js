@@ -436,3 +436,4 @@ export async function getAllStrategicPortsWeather() {
   );
   return results;
 }
+

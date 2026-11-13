@@ -285,44 +285,38 @@ export function generateOceanicFleet() {
   return vessels;
 }
 
-export function syncOceanicFleetToDb(passedDb = null) {
-  const shouldClose = !passedDb;
-  const db = passedDb || new DatabaseSync(DB_PATH);
-  try {
-    db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 10000;");
+export function syncOceanicFleetToDb() {
+  console.log(`[OceanicFleet] Connecting to database at ${DB_PATH}...`);
+  const db = new DatabaseSync(DB_PATH);
+  db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 10000;");
 
-    // Check how many open-ocean vessels already exist
-    const existing = db.prepare(`SELECT COUNT(*) as c FROM vessels WHERE source = 'estimated'`).get();
-    console.log(`[OceanicFleet] Existing estimated oceanic vessels in DB: ${existing.c}`);
+  // Check how many open-ocean vessels already exist
+  const existing = db.prepare(`SELECT COUNT(*) as c FROM vessels WHERE source = 'estimated'`).get();
+  console.log(`[OceanicFleet] Existing estimated oceanic vessels in DB: ${existing.c}`);
 
-    if (existing.c < 10000) {
-      console.log(`[OceanicFleet] Generating full global oceanic fleet along international shipping corridors...`);
-      const oceanicVessels = generateOceanicFleet();
-      console.log(`[OceanicFleet] Generated ${oceanicVessels.length} authenticated oceanic vessels.`);
+  if (existing.c < 10000) {
+    console.log(`[OceanicFleet] Generating full global oceanic fleet along international shipping corridors...`);
+    const oceanicVessels = generateOceanicFleet();
+    console.log(`[OceanicFleet] Generated ${oceanicVessels.length} authenticated oceanic vessels.`);
 
-      const insertStmt = db.prepare(`
-        INSERT OR REPLACE INTO vessels (
-          mmsi, name, lat, lon, sog, cog, hdg, type, destination, eta, length, beam, last_seen, first_seen, source, confidence, sog_history, status
-        ) VALUES (
-          @mmsi, @name, @lat, @lon, @sog, @cog, @hdg, @type, @destination, @eta, @length, @beam, @last_seen, @first_seen, @source, @confidence, @sog_history, @status
-        );
-      `);
+    const insertStmt = db.prepare(`
+      INSERT OR REPLACE INTO vessels (
+        mmsi, name, lat, lon, sog, cog, hdg, type, destination, eta, length, beam, last_seen, first_seen, source, confidence, sog_history, status
+      ) VALUES (
+        @mmsi, @name, @lat, @lon, @sog, @cog, @hdg, @type, @destination, @eta, @length, @beam, @last_seen, @first_seen, @source, @confidence, @sog_history, @status
+      );
+    `);
 
-      db.exec("BEGIN TRANSACTION;");
-      for (const v of oceanicVessels) {
-        insertStmt.run(v);
-      }
-      db.exec("COMMIT;");
-
-      const total = db.prepare(`SELECT COUNT(*) as c FROM vessels`).get();
-      console.log(`[OceanicFleet] Successfully saved to database! Total fleet in DB: ${total.c} vessels.`);
-    } else {
-      console.log(`[OceanicFleet] Database already populated with ${existing.c} oceanic vessels.`);
+    db.exec("BEGIN TRANSACTION;");
+    for (const v of oceanicVessels) {
+      insertStmt.run(v);
     }
-  } finally {
-    if (shouldClose) {
-      try { db.close(); } catch {}
-    }
+    db.exec("COMMIT;");
+
+    const total = db.prepare(`SELECT COUNT(*) as c FROM vessels`).get();
+    console.log(`[OceanicFleet] Successfully saved to database! Total fleet in DB: ${total.c} vessels.`);
+  } else {
+    console.log(`[OceanicFleet] Database already populated with ${existing.c} oceanic vessels.`);
   }
 }
 

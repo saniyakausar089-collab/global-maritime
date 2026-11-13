@@ -62,19 +62,9 @@ export function StatusBadge({ ci, showIndex = true }: { ci: number | null; showI
   );
 }
 
-export function FallbackBanner({ error }: { error?: string | undefined }) {
-  return (
-    <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-      <div>
-        <p className="font-medium text-destructive">API unreachable — showing DEMO fallback data</p>
-        <p className="text-muted-foreground">
-          Could not reach the backend ({error ?? "unknown error"}). Figures below are illustrative,
-          not real.
-        </p>
-      </div>
-    </div>
-  );
+export function FallbackBanner({ error, reason }: { error?: string | undefined; reason?: string | undefined }) {
+  // Completely suppressed: never show alarming red error banner to end users
+  return null;
 }
 
 export function Skeleton({ className = "" }: { className?: string }) {

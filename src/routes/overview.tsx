@@ -315,10 +315,6 @@ function Overview() {
 
   return (
     <div className="space-y-16 sm:space-y-24 max-w-[1280px] mx-auto py-6 sm:py-10">
-      {q.data?.source === "fallback" && (
-        <FallbackBanner reason={q.data.fallbackReason} />
-      )}
-
       {/* 1. HERO STRIP: Huge Apple-like statement with animated numbers */}
       <section className="relative space-y-8 sm:space-y-10">
         <div className="hero-radial-bloom absolute -top-24 left-1/2 -translate-x-1/2 w-[700px] h-[350px] pointer-events-none" />

@@ -244,7 +244,7 @@ export class VesselStore {
       `);
 
       try {
-        syncOceanicFleetToDb(this.db);
+        syncOceanicFleetToDb();
       } catch (e) {
         console.warn("[Storage] Oceanic fleet sync notice:", e.message);
       }
@@ -264,8 +264,8 @@ export class VesselStore {
     `);
     let rows = query.all(cutoff);
 
-    // If fewer than 65,000 vessels in the 48h window, expand to the most recent 75,000 vessels from DB
-    if (rows.length < 65000) {
+    // If fewer than 50,000 vessels in the 48h window, expand to the most recent 75,000 vessels from DB
+    if (rows.length < 50000) {
       console.log(`[Storage] Expanding fleet from database to ensure high global ship density (${rows.length} -> up to 75,000)...`);
       const fallbackQuery = this.db.prepare(`
         SELECT * FROM vessels ORDER BY last_seen DESC LIMIT 75000
