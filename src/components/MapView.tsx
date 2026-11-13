@@ -46,16 +46,33 @@ export type MapViewProps = {
   className?: string;
 };
 
+// Premium Neon / Radar Vessel Colors
 const SHIP_COLORS: Record<string, { fill: string; label: string }> = {
-  cargo: { fill: "#5EE7FF", label: "Cargo (Container/Bulk)" },
-  tanker: { fill: "#FFB547", label: "Tanker (Oil/Gas)" },
+  cargo: { fill: "#22D3EE", label: "Cargo (Container/Bulk)" },
+  tanker: { fill: "#FB923C", label: "Tanker (Oil/Gas)" },
   passenger: { fill: "#A78BFA", label: "Passenger / Cruise" },
-  tug: { fill: "#FBBF24", label: "Tug / Workboat" },
+  tug: { fill: "#FACC15", label: "Tug / Workboat" },
   fast: { fill: "#38BDF8", label: "Fast (>14 kn)" },
   fishing: { fill: "#34D399", label: "Fishing" },
-  other: { fill: "#94A3B8", label: "Commercial" },
-  anchored: { fill: "#64748b", label: "Anchored (<0.5 kn)" },
+  other: { fill: "#FACC15", label: "Special Craft" },
+  unknown: { fill: "#94A3B8", label: "Unknown / Commercial" },
+  anchored: { fill: "#64748B", label: "Anchored (<0.5 kn)" },
 };
+
+// MapLibre expression for type colors across all zoom layers
+const TYPE_COLOR_EXPRESSION: any = [
+  "match",
+  ["get", "category"],
+  "cargo", "#22D3EE",
+  "tanker", "#FB923C",
+  "passenger", "#A78BFA",
+  "tug", "#FACC15",
+  "fishing", "#34D399",
+  "fast", "#38BDF8",
+  "anchored", "#64748B",
+  "other", "#FACC15",
+  "#94A3B8", // Unknown / default
+];
 
 const PORT_FLAGS: Record<string, string> = {
   rotterdam: "🇳🇱",
@@ -72,105 +89,96 @@ const MAP_STYLES = {
   clean: "https://tiles.openfreemap.org/styles/positron",
 };
 
-// Generates both solid (live) and hollow/dimmer with '~' (estimated) ship icons
-function createRealisticShipIcon(type: string, color: string, isEstimated = false): ImageData {
+// Generates a crisp, streamlined SDF arrow/hull silhouette for GPU-colored symbol rendering
+function createSdfShipIcon(): ImageData {
+  const size = 32;
   const c = document.createElement("canvas");
-  c.width = 54;
-  c.height = 54;
+  c.width = size;
+  c.height = size;
   const x = c.getContext("2d")!;
-  const cx = 27;
+  const cx = size / 2; // 16
 
-  let bowY = 5;
-  let sternY = 47;
-  let hw = 7.5;
-
-  if (type === "tug") {
-    bowY = 12;
-    sternY = 42;
-    hw = 8.5;
-  } else if (type === "fast") {
-    bowY = 4;
-    sternY = 48;
-    hw = 6.2;
-  } else if (type === "tanker") {
-    bowY = 6;
-    sternY = 48;
-    hw = 8.2;
-  } else if (type === "passenger") {
-    bowY = 5;
-    sternY = 48;
-    hw = 7.2;
-  }
-
-  // Hydrodynamic wake for moving ships
-  if (type !== "anchored") {
-    x.strokeStyle = isEstimated ? "rgba(255, 255, 255, 0.2)" : "rgba(255, 255, 255, 0.45)";
-    x.lineWidth = 1.5;
-    x.beginPath();
-    x.moveTo(cx - hw * 0.7, sternY - 2);
-    x.lineTo(cx - hw * 1.5, sternY + 6);
-    x.moveTo(cx + hw * 0.7, sternY - 2);
-    x.lineTo(cx + hw * 1.5, sternY + 6);
-    x.stroke();
-  }
-
-  // Hull Silhouette
+  // Pure white opaque mask for SDF recoloring in MapLibre shaders
+  x.fillStyle = "#ffffff";
   x.beginPath();
-  x.moveTo(cx, bowY);
-  x.bezierCurveTo(cx + hw * 0.6, bowY + 3, cx + hw, bowY + 11, cx + hw, bowY + 16);
-  x.lineTo(cx + hw, sternY - 4);
-  x.quadraticCurveTo(cx + hw, sternY, cx + hw - 2, sternY);
-  x.lineTo(cx - hw + 2, sternY);
-  x.quadraticCurveTo(cx - hw, sternY, cx - hw, sternY - 4);
-  x.lineTo(cx - hw, bowY + 16);
-  x.bezierCurveTo(cx - hw, bowY + 11, cx - hw * 0.6, bowY + 3, cx, bowY);
+  x.moveTo(cx, 3);
+  x.bezierCurveTo(cx + 5.5, 7.5, cx + 7.5, 17, cx + 7.5, 25);
+  x.quadraticCurveTo(cx + 7.5, 29, cx + 5, 29);
+  x.lineTo(cx - 5, 29);
+  x.quadraticCurveTo(cx - 7.5, 29, cx - 7.5, 25);
+  x.bezierCurveTo(cx - 7.5, 17, cx - 5.5, 7.5, cx, 3);
   x.closePath();
+  x.fill();
 
-  if (isEstimated) {
-    // Hollow dimmer icon for estimated positions
-    x.fillStyle = "rgba(20, 20, 24, 0.6)";
-    x.fill();
-    x.lineWidth = 2.0;
-    x.strokeStyle = color;
-    x.stroke();
-
-    // Small '~' symbol indicating dead-reckoned estimation
-    x.font = "bold 13px system-ui, -apple-system, sans-serif";
-    x.fillStyle = color;
-    x.textAlign = "center";
-    x.textBaseline = "middle";
-    x.fillText("~", cx, (bowY + sternY) / 2 + 1);
-  } else {
-    // Solid filled glowing icon for live vessels
-    x.shadowColor = "rgba(0, 0, 0, 0.5)";
-    x.shadowBlur = 4;
-    x.fillStyle = color;
-    x.fill();
-
-    x.shadowBlur = 0;
-    x.lineWidth = 1.6;
-    x.strokeStyle = "#ffffff";
-    x.stroke();
-
-    // Inner Bridge
-    const deckHw = hw - 2.2;
-    x.fillStyle = "#ffffff";
-    x.fillRect(cx - deckHw * 0.7, sternY - 14, deckHw * 1.4, 4);
-  }
-
-  return x.getImageData(0, 0, 54, 54);
+  return x.getImageData(0, 0, size, size);
 }
 
-function getShipIconKey(s: LiveVessel): string {
+function getShipCategory(s: LiveVessel): string {
   if (s.stationary) return "anchored";
-  if ((s.sog || 0) > 14) return "fast";
   const t = s.type || s.shipType || 0;
   if (t >= 70 && t <= 79) return "cargo";
   if (t >= 80 && t <= 89) return "tanker";
   if (t >= 60 && t <= 69) return "passenger";
   if (t >= 50 && t <= 59) return "tug";
   if (t === 30 || t === 31 || t === 32) return "fishing";
-  return "other";
+  if ((s.sog || 0) > 14) return "fast";
+  if (t > 0) return "other";
+  return "unknown";
+}
+
+// Tuned basemap: Darken land (#0b0f14) & water (#05080c), reduce label opacity
+function applyBasemapTuning(map: maplibregl.Map) {
+  try {
+    const style = map.getStyle();
+    if (!style || !style.layers) return;
+
+    for (const layer of style.layers) {
+      // Water
+      if (layer.id.includes("water") || layer.id.includes("ocean") || layer.id === "waterway") {
+        if (layer.type === "fill") {
+          try { map.setPaintProperty(layer.id, "fill-color", "#05080c"); } catch {}
+        } else if (layer.type === "background") {
+          try { map.setPaintProperty(layer.id, "background-color", "#05080c"); } catch {}
+        }
+      }
+      // Land
+      if (
+        layer.id.includes("land") ||
+        layer.id.includes("background") ||
+        layer.id.includes("earth") ||
+        layer.id.includes("sand")
+      ) {
+        if (layer.type === "fill") {
+          try { map.setPaintProperty(layer.id, "fill-color", "#0b0f14"); } catch {}
+        } else if (layer.type === "background") {
+          try { map.setPaintProperty(layer.id, "background-color", "#0b0f14"); } catch {}
+        }
+      }
+      // Country & place labels: subtle at low zoom, fade in smoothly at high zoom
+      if (
+        layer.type === "symbol" &&
+        (layer.id.includes("label") ||
+          layer.id.includes("place") ||
+          layer.id.includes("country") ||
+          layer.id.includes("continent"))
+      ) {
+        try {
+          map.setPaintProperty(layer.id, "text-opacity", [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            1, 0,
+            2.9, 0,
+            3.5, 0.2,
+            5, 0.35,
+            8, 0.55,
+          ]);
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.warn("[MapLibre] Basemap tuning notice:", err);
+  }
 }
 
 function toLngLat(c: [number, number]): [number, number] {
@@ -306,22 +314,12 @@ export function MapView({
     const resizeTimeout = setTimeout(() => map.resize(), 150);
 
     function setupLayers() {
-      // Register both solid (live) and hollow (estimated) vessel icons
-      Object.entries(SHIP_COLORS).forEach(([key, conf]) => {
-        const liveId = `ship_${key}_live`;
-        const estId = `ship_${key}_est`;
+      applyBasemapTuning(map);
 
-        if (!map.hasImage(liveId)) {
-          map.addImage(liveId, createRealisticShipIcon(key, conf.fill, false), {
-            pixelRatio: 2,
-          });
-        }
-        if (!map.hasImage(estId)) {
-          map.addImage(estId, createRealisticShipIcon(key, conf.fill, true), {
-            pixelRatio: 2,
-          });
-        }
-      });
+      // Register the unified SDF ship silhouette icon (one sprite recolors dynamically via GPU)
+      if (!map.hasImage("ship_sdf")) {
+        map.addImage("ship_sdf", createSdfShipIcon(), { sdf: true });
+      }
 
       // 1. Authentic Sea Lanes Source & Layers
       if (!map.getSource("sea_lanes")) {
@@ -337,9 +335,9 @@ export function MapView({
           type: "line",
           source: "sea_lanes",
           paint: {
-            "line-color": "#5EE7FF",
-            "line-width": 1.2,
-            "line-opacity": 0.18,
+            "line-color": "#22D3EE",
+            "line-width": 1.0,
+            "line-opacity": 0.15,
           },
         });
       }
@@ -363,16 +361,16 @@ export function MapView({
             },
             paint: {
               "heatmap-weight": ["interpolate", ["linear"], ["zoom"], 1, 0.4, 6, 1.0],
-              "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 1, 0.7, 6, 1.2],
+              "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 1, 0.5, 6, 1.0],
               "heatmap-color": [
                 "interpolate",
                 ["linear"],
                 ["heatmap-density"],
-                0, "rgba(4, 7, 13, 0)",
-                0.2, "rgba(34, 211, 238, 0.1)",
-                0.5, "rgba(94, 231, 255, 0.28)",
-                0.8, "rgba(56, 189, 248, 0.55)",
-                1.0, "rgba(94, 231, 255, 0.85)",
+                0, "rgba(0, 0, 0, 0)",
+                0.2, "rgba(14, 116, 144, 0.15)",
+                0.5, "rgba(6, 182, 212, 0.3)",
+                0.8, "rgba(34, 211, 238, 0.5)",
+                1.0, "rgba(34, 211, 238, 0.8)",
               ],
               "heatmap-radius": [
                 "interpolate",
@@ -382,7 +380,7 @@ export function MapView({
                 4, 10,
                 8, 20,
               ],
-              "heatmap-opacity": 0.22,
+              "heatmap-opacity": 0.2,
             },
           },
           "vessel_breadcrumbs"
@@ -403,10 +401,11 @@ export function MapView({
           type: "line",
           source: "vessel_track",
           filter: ["==", ["get", "type"], "breadcrumb"],
+          minzoom: 7,
           paint: {
             "line-color": "#38BDF8",
-            "line-width": 2.2,
-            "line-opacity": 0.65,
+            "line-width": 1.0,
+            "line-opacity": 0.5,
           },
         });
       }
@@ -419,7 +418,7 @@ export function MapView({
           filter: ["==", ["get", "type"], "route"],
           paint: {
             "line-color": "#FBBF24",
-            "line-width": 2.0,
+            "line-width": 1.8,
             "line-dasharray": [3, 2],
             "line-opacity": 0.6,
           },
@@ -434,14 +433,86 @@ export function MapView({
         });
       }
 
-      // Symbol layer for vessels (switches between live solid & estimated hollow)
+      // 4. UNDERNEATH: Vessel Heatmap Layer (zoom < 6: radius 1→6, 4→12, 6→18; gradient transparent → #0b3a5c → #0ea5e9 → #22d3ee → #e0f2fe)
+      if (!map.getLayer("vessels_heatmap")) {
+        map.addLayer({
+          id: "vessels_heatmap",
+          type: "heatmap",
+          source: "ships",
+          maxzoom: 6,
+          paint: {
+            "heatmap-weight": 1,
+            "heatmap-intensity": 0.6,
+            "heatmap-radius": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              1, 6,
+              4, 12,
+              6, 18,
+            ],
+            "heatmap-color": [
+              "interpolate",
+              ["linear"],
+              ["heatmap-density"],
+              0, "rgba(0, 0, 0, 0)",
+              0.2, "#0b3a5c",
+              0.5, "#0ea5e9",
+              0.8, "#22d3ee",
+              1.0, "#e0f2fe",
+            ],
+            "heatmap-opacity": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              1, 0.8,
+              5, 0.6,
+              6, 0,
+            ],
+          },
+        });
+      }
+
+      // 5. SMALL CIRCLE DOTS: radius 1px at zoom 1, 1.6 at zoom 3, 2.4 at zoom 6; opacity 0.9; color by type
+      if (!map.getLayer("vessels_dot")) {
+        map.addLayer({
+          id: "vessels_dot",
+          type: "circle",
+          source: "ships",
+          maxzoom: 7.5,
+          paint: {
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              1, 1.0,
+              3, 1.6,
+              6, 2.4,
+              7, 2.8,
+            ],
+            "circle-color": TYPE_COLOR_EXPRESSION,
+            "circle-opacity": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              1, 0.9,
+              6.8, 0.9,
+              7.2, 0,
+            ],
+            "circle-stroke-width": 0,
+          },
+        });
+      }
+
+      // 6. SHIPS SYMBOL LAYER: Ship icons (SDF, icon-color by type) only at zoom >= 7
       if (!map.getLayer("ships")) {
         map.addLayer({
           id: "ships",
           type: "symbol",
           source: "ships",
+          minzoom: 7.0,
           layout: {
-            "icon-image": ["get", "iconImage"],
+            "icon-image": "ship_sdf",
             "icon-rotate": ["get", "hdg"],
             "icon-rotation-alignment": "map",
             "icon-allow-overlap": true,
@@ -450,14 +521,41 @@ export function MapView({
               "interpolate",
               ["linear"],
               ["zoom"],
-              1, ["*", 0.7, ["coalesce", ["get", "iconScale"], 1.0]],
-              4, ["*", 0.9, ["coalesce", ["get", "iconScale"], 1.0]],
-              8, ["*", 1.15, ["coalesce", ["get", "iconScale"], 1.0]],
-              12, ["*", 1.45, ["coalesce", ["get", "iconScale"], 1.0]],
+              7, 0.45,
+              9, 0.6,
+              12, 0.75,
             ],
+            "text-field": [
+              "step",
+              ["zoom"],
+              "",
+              10, ["get", "name"],
+            ],
+            "text-size": 10,
+            "text-offset": [0, 1.3],
+            "text-anchor": "top",
+            "text-allow-overlap": false,
+            "text-optional": true,
           },
           paint: {
-            "icon-opacity": ["get", "opacity"],
+            "icon-color": TYPE_COLOR_EXPRESSION,
+            "icon-opacity": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              7.0, 0.85,
+              7.5, 1.0,
+            ],
+            "text-color": "#E2E8F0",
+            "text-halo-color": "#05080C",
+            "text-halo-width": 1.5,
+            "text-opacity": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              9.8, 0,
+              10.5, 0.9,
+            ],
           },
         });
       }
@@ -466,7 +564,58 @@ export function MapView({
     map.on("load", () => {
       setupLayers();
 
-      map.on("click", "ships", (e) => {
+      // Tooltip for vessel hover at any zoom level
+      const hoverTooltip = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        offset: 12,
+        className: "radar-hover-tooltip",
+      });
+
+      const handleVesselHover = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+        const feat = e.features?.[0];
+        if (!feat || !feat.properties) {
+          map.getCanvas().style.cursor = "";
+          hoverTooltip.remove();
+          return;
+        }
+
+        map.getCanvas().style.cursor = "pointer";
+        const props = feat.properties;
+        const name = props.name || "Unknown Vessel";
+        const cat = props.category || "commercial";
+        const sog = Number(props.sog || 0).toFixed(1);
+        const sourceLabel = props.source === "estimated" ? "Estimated (~)" : "Live AIS";
+        const catColor = SHIP_COLORS[cat]?.fill || "#94A3B8";
+
+        const coords = (feat.geometry as any).coordinates;
+        if (coords && coords.length >= 2) {
+          hoverTooltip
+            .setLngLat(coords as [number, number])
+            .setHTML(`
+              <div style="background: rgba(11, 15, 20, 0.92); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 6px 10px; font-family: system-ui, -apple-system, sans-serif; font-size: 11px; color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.6); pointer-events: none;">
+                <div style="font-weight: 600; color: ${catColor}; font-size: 12px; white-space: nowrap;">
+                  ${name}
+                </div>
+                <div style="display: flex; gap: 6px; margin-top: 3px; font-size: 10px; color: #94A3B8; font-family: monospace; white-space: nowrap;">
+                  <span style="text-transform: capitalize; color: ${catColor}; font-weight: 600;">${cat}</span>
+                  <span>·</span>
+                  <span>${sog} kn</span>
+                  <span>·</span>
+                  <span style="color: ${props.source === 'estimated' ? '#FBBF24' : '#34D399'}; font-weight: 600;">${sourceLabel}</span>
+                </div>
+              </div>
+            `)
+            .addTo(map);
+        }
+      };
+
+      const handleVesselLeave = () => {
+        map.getCanvas().style.cursor = "";
+        hoverTooltip.remove();
+      };
+
+      const handleVesselClick = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         const feat = e.features?.[0];
         if (!feat) return;
         const id = Number(feat.properties?.id);
@@ -475,83 +624,107 @@ export function MapView({
           if (onSelectVessel) onSelectVessel(s);
           showShipPopup(s);
         }
-      });
+      };
 
-      map.on("mouseenter", "ships", () => {
-        map.getCanvas().style.cursor = "pointer";
-      });
-      map.on("mouseleave", "ships", () => {
-        map.getCanvas().style.cursor = "";
-      });
+      // Register interactions on both dot and symbol layers
+      map.on("mouseenter", "vessels_dot", handleVesselHover);
+      map.on("mousemove", "vessels_dot", handleVesselHover);
+      map.on("mouseleave", "vessels_dot", handleVesselLeave);
+      map.on("click", "vessels_dot", handleVesselClick);
+
+      map.on("mouseenter", "ships", handleVesselHover);
+      map.on("mousemove", "ships", handleVesselHover);
+      map.on("mouseleave", "ships", handleVesselLeave);
+      map.on("click", "ships", handleVesselClick);
 
       setMapLoaded(true);
 
-      // Animation loop with MMSI deduplication & coordinate clamping
-      let last = 0;
-      const frame = (ts: number) => {
-        animRef.current = requestAnimationFrame(frame);
-        if (ts - last < 75) return;
-        last = ts;
+      // Throttled high-efficiency GeoJSON sync (at most 1x per second)
+      const updateGeoJson = () => {
+        const src = map.getSource("ships") as maplibregl.GeoJSONSource | undefined;
+        if (!src) return;
 
         const now = Date.now();
         const curShips = vesselsRef.current;
-        const features = [];
+        const currentZoom = map.getZoom();
+        const bounds = currentZoom >= 5 ? map.getBounds() : null;
+
+        const minLon = bounds ? bounds.getWest() - 0.5 : -180;
+        const maxLon = bounds ? bounds.getEast() + 0.5 : 180;
+        const minLat = bounds ? bounds.getSouth() - 0.5 : -85;
+        const maxLat = bounds ? bounds.getNorth() + 0.5 : 85;
+
+        const features: any[] = [];
         const seenMmsi = new Set<number>();
+        let count = 0;
+        const MAX_SYMBOLS = 4500;
 
         for (let i = 0; i < curShips.length; i++) {
           const s = curShips[i]!;
           const mmsi = s.mmsi || s.id;
-          // MMSI deduplication
           if (!mmsi || seenMmsi.has(mmsi)) continue;
           seenMmsi.add(mmsi);
 
           if (!showAnchored && s.stationary) continue;
           if (!showEstimated && s.source === "estimated") continue;
 
-          const p = deadReckonPos(s, now); // [lon, lat]
+          // Viewport culling at zoom >= 5
+          if (bounds) {
+            if (s.lon < minLon || s.lon > maxLon || s.lat < minLat || s.lat > maxLat) {
+              continue;
+            }
+          }
+
+          // Compute dead reckoning only for vessels in view
+          const p = bounds ? deadReckonPos(s, now) : [s.lon, s.lat];
           if (isNaN(p[0]) || isNaN(p[1])) continue;
 
-          // Clamp longitudes to [-180, 180] and latitudes to [-85, 85]
           const clampedLon = Math.max(-180, Math.min(180, p[0]));
           const clampedLat = Math.max(-85, Math.min(85, p[1]));
-
-          const isEst = s.source === "estimated";
-          const elapsedHours = s.last_report_at ? (now - s.last_report_at) / 3600000 : 0;
-          const isOld = isEst && elapsedHours > 6.0;
-          const iconKey = getShipIconKey(s);
-          const iconImage = `ship_${iconKey}_${isEst ? "est" : "live"}`;
-          const opacity = isEst ? Math.max(0.2, (s.confidence ?? 0.8) * (isOld ? 0.6 : 1.0)) : 1.0;
-          const iconScale = isOld ? 0.72 : (isEst ? 0.88 : 1.0);
+          const cat = s.category || getShipCategory(s);
 
           features.push({
-            type: "Feature" as const,
+            type: "Feature",
             properties: {
               id: mmsi,
-              name: s.name,
-              iconImage,
+              name: s.name || `VESSEL-${mmsi}`,
+              category: cat,
+              source: s.source || "live",
+              confidence: s.confidence ?? 1.0,
               sog: s.sog || 0,
+              cog: s.cog || 0,
               hdg: s.hdg ?? s.heading ?? s.cog ?? 0,
-              source: s.source,
-              opacity,
-              iconScale,
+              isDemo: isDemoMode,
             },
             geometry: {
-              type: "Point" as const,
+              type: "Point",
               coordinates: [clampedLon, clampedLat],
             },
           });
+
+          count++;
+          if (bounds && count >= MAX_SYMBOLS) break;
         }
 
-        const src = map.getSource("ships") as maplibregl.GeoJSONSource | undefined;
-        if (src) {
-          src.setData({
-            type: "FeatureCollection",
-            features,
-          });
-        }
+        src.setData({
+          type: "FeatureCollection",
+          features,
+        });
       };
 
-      animRef.current = requestAnimationFrame(frame);
+      // Run on initial load and movement completion
+      updateGeoJson();
+      map.on("moveend", updateGeoJson);
+
+      // Throttled interval for real-time vessel updates (1 second)
+      const dataSyncInterval = setInterval(updateGeoJson, 1000);
+
+      // Store cleanup handler in map object
+      (map as any)._cleanupCustom = () => {
+        clearInterval(dataSyncInterval);
+        map.off("moveend", updateGeoJson);
+        hoverTooltip.remove();
+      };
     });
 
     map.on("styledata", () => {
@@ -563,6 +736,7 @@ export function MapView({
       clearTimeout(resizeTimeout);
       if (animRef.current) cancelAnimationFrame(animRef.current);
       if (popupRef.current) popupRef.current.remove();
+      if ((map as any)?._cleanupCustom) (map as any)._cleanupCustom();
       map.remove();
       mapRef.current = null;
     };
@@ -602,14 +776,15 @@ export function MapView({
         const curPos = deadReckonPos(selectedVessel, Date.now());
         const features: any[] = [];
 
-        // Historic real breadcrumbs (chronological order up to current position)
+        // Historic real breadcrumbs (chronological order up to current position, max 6 points at zoom >= 7)
         if (Array.isArray(data.breadcrumbs) && data.breadcrumbs.length > 0) {
+          const trimmedBreadcrumbs = data.breadcrumbs.slice(-6);
           features.push({
             type: "Feature",
             properties: { type: "breadcrumb" },
             geometry: {
               type: "LineString",
-              coordinates: [...data.breadcrumbs, curPos],
+              coordinates: [...trimmedBreadcrumbs, curPos],
             },
           });
         }
@@ -646,37 +821,88 @@ export function MapView({
 
     ports.forEach((p) => {
       const el = document.createElement("div");
-      el.className = "cursor-pointer select-none";
+      el.className = "cursor-pointer select-none group";
 
       const ci = p.congestion_index;
       let statusColor = "#34D399";
-      let statusBg = "rgba(52, 211, 153, 0.2)";
+      let statusBg = "rgba(52, 211, 153, 0.18)";
+      let statusGlow = "rgba(52, 211, 153, 0.25)";
       if (ci != null) {
-        if (ci > 1.2) {
+        if (ci > 1.6) {
           statusColor = "#FF5C70";
-          statusBg = "rgba(255, 92, 112, 0.2)";
-        } else if (ci >= 0.8) {
+          statusBg = "rgba(255, 92, 112, 0.18)";
+          statusGlow = "rgba(255, 92, 112, 0.35)";
+        } else if (ci >= 1.2) {
           statusColor = "#FBBF24";
-          statusBg = "rgba(251, 191, 36, 0.2)";
+          statusBg = "rgba(251, 191, 36, 0.18)";
+          statusGlow = "rgba(251, 191, 36, 0.3)";
         }
       }
 
       const flag = PORT_FLAGS[p.id] || "⚓";
 
       el.innerHTML = `
-        <div style="transform: translate(-50%, -50%); position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; font-family: system-ui, -apple-system, sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,0.6); border: 1.5px solid ${statusColor}; background: #121215; color: #F4F4F6;">
-          <span style="font-size: 13px;">${flag}</span>
-          <span style="letter-spacing: -0.01em;">${p.name}</span>
-          <span style="padding: 1px 5px; border-radius: 4px; background: ${statusBg}; color: ${statusColor}; font-family: monospace; font-size: 10px; font-weight: 700;">CI ${ci != null ? Number(ci).toFixed(2) : "—"}</span>
+        <div style="position: relative; display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
+          <!-- Glassmorphism Pill -->
+          <div style="
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 8px;
+            border-radius: 9999px;
+            background: rgba(11, 15, 20, 0.78);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid ${statusColor};
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 10px ${statusGlow};
+            color: #F4F4F6;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 10px;
+            font-weight: 600;
+            white-space: nowrap;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+          ">
+            <span style="font-size: 11px;">${flag}</span>
+            <span style="letter-spacing: -0.01em;">${p.name.split(" ")[0]}</span>
+            <span style="
+              padding: 1px 4px;
+              border-radius: 3px;
+              background: ${statusBg};
+              color: ${statusColor};
+              font-family: ui-monospace, monospace;
+              font-size: 9px;
+              font-weight: 700;
+            ">CI ${ci != null ? Number(ci).toFixed(2) : "—"}</span>
+          </div>
+
+          <!-- Small leader stem pointing directly down to port coord -->
+          <div style="
+            width: 1px;
+            height: 10px;
+            background: ${statusColor};
+            opacity: 0.75;
+          "></div>
+          <!-- Exact port anchor dot -->
+          <div style="
+            width: 5px;
+            height: 5px;
+            margin-top: -1px;
+            border-radius: 50%;
+            background: ${statusColor};
+            box-shadow: 0 0 6px ${statusColor};
+          "></div>
         </div>
       `;
 
-      el.onclick = () => {
+      el.onclick = (e) => {
+        e.stopPropagation();
         if (onSelectPort) onSelectPort(p);
         map.flyTo({ center: [p.lon, p.lat], zoom: 9.5, essential: true });
       };
 
-      const marker = new maplibregl.Marker({ element: el }).setLngLat([p.lon, p.lat]).addTo(map);
+      const marker = new maplibregl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat([p.lon, p.lat])
+        .addTo(map);
       portMarkersRef.current.push(marker);
     });
   }, [ports, mapLoaded, onSelectPort, showPortLabels]);
@@ -763,10 +989,21 @@ export function MapView({
   return (
     <div
       ref={containerRef}
-      className={`relative overflow-hidden rounded-[20px] md:rounded-[28px] border border-white/10 bg-[#09090b] shadow-2xl transition-all ${
+      className={`relative overflow-hidden rounded-[20px] md:rounded-[28px] border border-white/10 bg-[#05080c] shadow-2xl transition-all ${
         isFullscreen ? "fixed inset-0 z-[2000] h-screen w-screen rounded-none" : className ?? "h-[78vh] min-h-[580px] w-full"
       }`}
     >
+      <style>{`
+        .radar-hover-tooltip .maplibregl-popup-content {
+          background: transparent !important;
+          padding: 0 !important;
+          box-shadow: none !important;
+          border: none !important;
+        }
+        .radar-hover-tooltip .maplibregl-popup-tip {
+          border-top-color: rgba(11, 15, 20, 0.92) !important;
+        }
+      `}</style>
       {/* MapLibre GL DOM container */}
       <div className="h-full w-full" />
 
@@ -959,16 +1196,19 @@ export function MapView({
           )}
           <span className="text-white/15">|</span>
           <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
-            <span className="h-2 w-2 rounded-full bg-[#5EE7FF]" /> Cargo
+            <span className="h-2 w-2 rounded-full bg-[#22D3EE] shadow-[0_0_6px_#22D3EE]" /> Cargo
           </span>
           <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
-            <span className="h-2 w-2 rounded-full bg-[#FFB547]" /> Tanker
+            <span className="h-2 w-2 rounded-full bg-[#FB923C] shadow-[0_0_6px_#FB923C]" /> Tanker
           </span>
           <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
-            <span className="h-2 w-2 rounded-full bg-[#A78BFA]" /> Passenger
+            <span className="h-2 w-2 rounded-full bg-[#A78BFA] shadow-[0_0_6px_#A78BFA]" /> Passenger
           </span>
           <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
-            <span className="h-2 w-2 rounded-full bg-[#FBBF24]" /> Tug
+            <span className="h-2 w-2 rounded-full bg-[#FACC15] shadow-[0_0_6px_#FACC15]" /> Tug / Special
+          </span>
+          <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
+            <span className="h-2 w-2 rounded-full bg-[#94A3B8]" /> Unknown
           </span>
         </div>
 

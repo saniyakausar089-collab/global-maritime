@@ -49,12 +49,51 @@ export class AisStreamProvider extends AisProvider {
 
       this.ws.on("open", () => {
         this.retry = 0;
-        console.log("[AISStream] WebSocket connected. Subscribing to full-world bounding box...");
+        console.log("[AISStream] WebSocket connected. Subscribing to 18 regional & port bounding boxes...");
 
-        // Full-world subscription [[90, -180], [-90, 180]] (NW to SE corners)
+        // 18 bounding boxes: 12 strategic oceanic/coastal regions + 6 monitored ports
+        const boundingBoxes = [
+          // 1. North Sea / Baltic / English Channel
+          [[65.0, -5.0], [49.0, 30.0]],
+          // 2. Mediterranean
+          [[46.0, -6.0], [30.0, 36.5]],
+          // 3. US East Coast + Gulf of Mexico
+          [[45.0, -98.0], [24.0, -65.0]],
+          // 4. US West Coast
+          [[50.0, -130.0], [30.0, -115.0]],
+          // 5. Caribbean
+          [[28.0, -90.0], [10.0, -60.0]],
+          // 6. Brazil Coast
+          [[5.0, -52.0], [-35.0, -34.0]],
+          // 7. West Africa
+          [[15.0, -20.0], [-10.0, 15.0]],
+          // 8. Red Sea + Persian Gulf
+          [[30.5, 32.0], [11.0, 60.0]],
+          // 9. India Coast & Arabian Sea
+          [[25.0, 65.0], [6.0, 90.0]],
+          // 10. SE Asia (Malacca Strait, Singapore, South China Sea)
+          [[25.0, 95.0], [-11.0, 125.0]],
+          // 11. East Asia (China, Korea, Japan)
+          [[45.0, 115.0], [20.0, 145.0]],
+          // 12. Australia Coast
+          [[-10.0, 110.0], [-45.0, 155.0]],
+          // 13. Port: Rotterdam
+          [[52.4, 3.6], [51.4, 4.7]],
+          // 14. Port: Singapore
+          [[1.6, 103.3], [0.9, 104.3]],
+          // 15. Port: Shanghai
+          [[31.7, 121.2], [30.7, 122.4]],
+          // 16. Port: Los Angeles
+          [[34.2, -118.7], [33.2, -117.8]],
+          // 17. Port: Hamburg
+          [[54.0, 9.4], [53.1, 10.5]],
+          // 18. Port: Santos
+          [[-23.5, -46.8], [-24.5, -45.8]],
+        ];
+
         const subscription = {
           APIKey: this.apiKey,
-          BoundingBoxes: [[[90, -180], [-90, 180]]],
+          BoundingBoxes: boundingBoxes,
           FilterMessageTypes: [
             "PositionReport",
             "StandardClassBPositionReport",
@@ -64,7 +103,7 @@ export class AisStreamProvider extends AisProvider {
         };
 
         this.ws.send(JSON.stringify(subscription));
-        this.emit("status", { state: "connected", message: "Subscribed to full-world AISStream" });
+        this.emit("status", { state: "connected", message: `Subscribed to ${boundingBoxes.length} AISStream bounding boxes` });
       });
 
       this.ws.on("message", (raw) => {
