@@ -54,7 +54,7 @@ const SHIP_COLORS: Record<string, { fill: string; label: string }> = {
   tug: { fill: "#FACC15", label: "Tug / Workboat" },
   fast: { fill: "#38BDF8", label: "Fast (>14 kn)" },
   fishing: { fill: "#34D399", label: "Fishing" },
-  other: { fill: "#FACC15", label: "Special Craft" },
+  other: { fill: "#64748B", label: "Special Craft" },
   unknown: { fill: "#94A3B8", label: "Unknown / Commercial" },
   anchored: { fill: "#64748B", label: "Anchored (<0.5 kn)" },
 };
@@ -70,7 +70,7 @@ const TYPE_COLOR_EXPRESSION: any = [
   "fishing", "#34D399",
   "fast", "#38BDF8",
   "anchored", "#64748B",
-  "other", "#FACC15",
+  "other", "#64748B",
   "#94A3B8", // Unknown / default
 ];
 
@@ -317,9 +317,8 @@ export function MapView({
       applyBasemapTuning(map);
 
       // Register the unified SDF ship silhouette icon (one sprite recolors dynamically via GPU)
-      if (!map.hasImage("ship_sdf")) {
-        map.addImage("ship_sdf", createSdfShipIcon(), { sdf: true });
-      }
+      if (map.hasImage("ship_sdf")) map.removeImage("ship_sdf");
+      map.addImage("ship_sdf", createSdfShipIcon(), { sdf: true });
 
       // 1. Authentic Sea Lanes Source & Layers
       if (!map.getSource("sea_lanes")) {
@@ -442,7 +441,7 @@ export function MapView({
           maxzoom: 6,
           paint: {
             "heatmap-weight": 1,
-            "heatmap-intensity": 0.6,
+            "heatmap-intensity": 0.9,
             "heatmap-radius": [
               "interpolate",
               ["linear"],
@@ -465,30 +464,29 @@ export function MapView({
               "interpolate",
               ["linear"],
               ["zoom"],
-              1, 0.8,
-              5, 0.6,
+              1, 0.9,
+              5, 0.75,
               6, 0,
             ],
           },
         });
       }
 
-      // 5. SMALL CIRCLE DOTS: radius 1px at zoom 1, 1.6 at zoom 3, 2.4 at zoom 6; opacity 0.9; color by type
+      // 5. SMALL CIRCLE DOTS: visible at all zooms; radius grows with zoom; opacity fades out above zoom 7.2
       if (!map.getLayer("vessels_dot")) {
         map.addLayer({
           id: "vessels_dot",
           type: "circle",
           source: "ships",
-          maxzoom: 7.5,
           paint: {
             "circle-radius": [
               "interpolate",
               ["linear"],
               ["zoom"],
-              1, 1.0,
-              3, 1.6,
-              6, 2.4,
-              7, 2.8,
+              1, 1.5,
+              3, 2.2,
+              6, 3.0,
+              7, 3.5,
             ],
             "circle-color": TYPE_COLOR_EXPRESSION,
             "circle-opacity": [
@@ -497,7 +495,7 @@ export function MapView({
               ["zoom"],
               1, 0.9,
               6.8, 0.9,
-              7.2, 0,
+              7.5, 0,
             ],
             "circle-stroke-width": 0,
           },
@@ -657,7 +655,8 @@ export function MapView({
         const features: any[] = [];
         const seenMmsi = new Set<number>();
         let count = 0;
-        const MAX_SYMBOLS = 4500;
+        // No cap at world zoom so heatmap shows all vessels globally
+        const MAX_SYMBOLS = currentZoom < 4 ? 25000 : currentZoom < 6 ? 15000 : 6000;
 
         for (let i = 0; i < curShips.length; i++) {
           const s = curShips[i]!;
@@ -729,6 +728,25 @@ export function MapView({
 
     map.on("styledata", () => {
       setupLayers();
+      // Re-populate vessel data after style switch (sources are wiped on setStyle)
+      const src = map.getSource("ships") as maplibregl.GeoJSONSource | undefined;
+      if (src && vesselsRef.current.length > 0) {
+        setTimeout(() => {
+          const s2 = map.getSource("ships") as maplibregl.GeoJSONSource | undefined;
+          if (!s2) return;
+          const feats = vesselsRef.current.slice(0, 25000).map((s) => {
+            const cat = s.category || getShipCategory(s);
+            const lon = Math.max(-180, Math.min(180, s.lon));
+            const lat = Math.max(-85, Math.min(85, s.lat));
+            return {
+              type: "Feature" as const,
+              properties: { id: s.mmsi || s.id, name: s.name || "", category: cat, source: s.source || "live", sog: s.sog || 0, hdg: s.hdg ?? s.cog ?? 0 },
+              geometry: { type: "Point" as const, coordinates: [lon, lat] },
+            };
+          });
+          s2.setData({ type: "FeatureCollection", features: feats });
+        }, 400);
+      }
     });
 
     return () => {
