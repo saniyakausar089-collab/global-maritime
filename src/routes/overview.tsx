@@ -19,6 +19,7 @@ import {
   RefreshCw,
   AlertCircle,
   ArrowRight,
+  CloudSun,
 } from "lucide-react";
 import { MapView } from "@/components/MapView";
 import { FallbackBanner, Skeleton, StatusBadge } from "@/components/ui-bits";
@@ -425,8 +426,35 @@ function Overview() {
         </div>
       </section>
 
-      {/* 2. THE MAP CENTERPIECE: Full-bleed 80vh with floating glass panels */}
-      <section className="relative">
+      {/* 2. THE MAP CENTERPIECE: Global Vessel Monitor */}
+      <section className="relative space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white uppercase font-sans">
+              GLOBAL VESSEL MONITOR
+            </h2>
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-mono font-semibold tracking-wider text-emerald-400 bg-emerald-500/15 border border-emerald-500/30">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              LIVE MAP
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/weather"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 transition-all font-sans text-xs font-semibold"
+            >
+              <CloudSun className="h-3.5 w-3.5" />
+              <span>Weather & Marine</span>
+            </Link>
+            <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-ink-3">
+              <span className="text-white/20">·</span>
+              <span>AIS TELEMETRY</span>
+              <span className="text-white/20">·</span>
+              <span className="text-emerald-400 font-semibold">CONNECTED</span>
+            </div>
+          </div>
+        </div>
+
         <MapView
           center={mapCenter}
           zoom={mapZoom}

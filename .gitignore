@@ -45,6 +45,8 @@ __pycache__/
 *.sqlite
 *.sqlite3
 *.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 evaluation_results.csv
 config.local.js
 web/config.local.js

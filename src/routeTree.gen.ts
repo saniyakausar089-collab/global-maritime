@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as MethodologyRouteImport } from './routes/methodology'
 import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as TimemachineRouteImport } from './routes/timemachine'
+import { Route as WeatherRouteImport } from './routes/weather'
 import { Route as PortsIdRouteImport } from './routes/ports.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -53,6 +54,11 @@ const TimemachineRoute = TimemachineRouteImport.update({
   path: '/timemachine',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WeatherRoute = WeatherRouteImport.update({
+  id: '/weather',
+  path: '/weather',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PortsIdRoute = PortsIdRouteImport.update({
   id: '/ports/$id',
   path: '/ports/$id',
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/methodology': typeof MethodologyRoute
   '/overview': typeof OverviewRoute
   '/timemachine': typeof TimemachineRoute
+  '/weather': typeof WeatherRoute
   '/ports/$id': typeof PortsIdRoute
 }
 export interface FileRoutesByTo {
@@ -77,6 +84,7 @@ export interface FileRoutesByTo {
   '/methodology': typeof MethodologyRoute
   '/overview': typeof OverviewRoute
   '/timemachine': typeof TimemachineRoute
+  '/weather': typeof WeatherRoute
   '/ports/$id': typeof PortsIdRoute
 }
 export interface FileRoutesById {
@@ -88,6 +96,7 @@ export interface FileRoutesById {
   '/methodology': typeof MethodologyRoute
   '/overview': typeof OverviewRoute
   '/timemachine': typeof TimemachineRoute
+  '/weather': typeof WeatherRoute
   '/ports/$id': typeof PortsIdRoute
 }
 export interface FileRouteTypes {
@@ -100,6 +109,7 @@ export interface FileRouteTypes {
     | '/methodology'
     | '/overview'
     | '/timemachine'
+    | '/weather'
     | '/ports/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -110,6 +120,7 @@ export interface FileRouteTypes {
     | '/methodology'
     | '/overview'
     | '/timemachine'
+    | '/weather'
     | '/ports/$id'
   id:
     | '__root__'
@@ -120,6 +131,7 @@ export interface FileRouteTypes {
     | '/methodology'
     | '/overview'
     | '/timemachine'
+    | '/weather'
     | '/ports/$id'
   fileRoutesById: FileRoutesById
 }
@@ -131,6 +143,7 @@ export interface RootRouteChildren {
   MethodologyRoute: typeof MethodologyRoute
   OverviewRoute: typeof OverviewRoute
   TimemachineRoute: typeof TimemachineRoute
+  WeatherRoute: typeof WeatherRoute
   PortsIdRoute: typeof PortsIdRoute
 }
 
@@ -185,6 +198,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TimemachineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/weather': {
+      id: '/weather'
+      path: '/weather'
+      fullPath: '/weather'
+      preLoaderRoute: typeof WeatherRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ports/$id': {
       id: '/ports/$id'
       path: '/ports/$id'
@@ -203,6 +223,7 @@ const rootRouteChildren: RootRouteChildren = {
   MethodologyRoute: MethodologyRoute,
   OverviewRoute: OverviewRoute,
   TimemachineRoute: TimemachineRoute,
+  WeatherRoute: WeatherRoute,
   PortsIdRoute: PortsIdRoute,
 }
 export const routeTree = rootRouteImport

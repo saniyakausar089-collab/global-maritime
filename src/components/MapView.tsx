@@ -47,15 +47,16 @@ export type MapViewProps = {
 };
 
 // Premium Neon / Radar Vessel Colors
+// Premium Radar / AIS Vessel Colors (Matching Global Vessel Monitor Reference)
 const SHIP_COLORS: Record<string, { fill: string; label: string }> = {
-  cargo: { fill: "#22D3EE", label: "Cargo (Container/Bulk)" },
+  cargo: { fill: "#FACC15", label: "Cargo (Container/Bulk)" },
   tanker: { fill: "#FB923C", label: "Tanker (Oil/Gas)" },
-  passenger: { fill: "#A78BFA", label: "Passenger / Cruise" },
-  tug: { fill: "#FACC15", label: "Tug / Workboat" },
-  fast: { fill: "#38BDF8", label: "Fast (>14 kn)" },
+  passenger: { fill: "#38BDF8", label: "Passenger / Cruise" },
+  fast: { fill: "#60A5FA", label: "Fast (>14 kn)" },
   fishing: { fill: "#34D399", label: "Fishing" },
-  other: { fill: "#64748B", label: "Special Craft" },
-  unknown: { fill: "#94A3B8", label: "Unknown / Commercial" },
+  tug: { fill: "#C084FC", label: "Tug / Workboat" },
+  other: { fill: "#FDE047", label: "Commercial" },
+  unknown: { fill: "#E2E8F0", label: "Unknown / Commercial" },
   anchored: { fill: "#64748B", label: "Anchored (<0.5 kn)" },
 };
 
@@ -63,15 +64,15 @@ const SHIP_COLORS: Record<string, { fill: string; label: string }> = {
 const TYPE_COLOR_EXPRESSION: any = [
   "match",
   ["get", "category"],
-  "cargo", "#22D3EE",
+  "cargo", "#FACC15",
   "tanker", "#FB923C",
-  "passenger", "#A78BFA",
-  "tug", "#FACC15",
+  "passenger", "#38BDF8",
+  "fast", "#60A5FA",
   "fishing", "#34D399",
-  "fast", "#38BDF8",
+  "tug", "#C084FC",
   "anchored", "#64748B",
-  "other", "#64748B",
-  "#94A3B8", // Unknown / default
+  "other", "#FDE047",
+  "#FACC15", // Default: golden yellow matching global radar map
 ];
 
 const PORT_FLAGS: Record<string, string> = {
@@ -89,7 +90,7 @@ const MAP_STYLES = {
   clean: "https://tiles.openfreemap.org/styles/positron",
 };
 
-// Generates a crisp, streamlined SDF arrow/hull silhouette for GPU-colored symbol rendering
+// Generates a crisp, streamlined directional chevron / delta arrowhead for GPU-colored symbol rendering
 function createSdfShipIcon(): ImageData {
   const size = 32;
   const c = document.createElement("canvas");
@@ -98,15 +99,13 @@ function createSdfShipIcon(): ImageData {
   const x = c.getContext("2d")!;
   const cx = size / 2; // 16
 
-  // Pure white opaque mask for SDF recoloring in MapLibre shaders
+  // Crisp directional arrowhead / chevron matching professional vessel radar displays
   x.fillStyle = "#ffffff";
   x.beginPath();
-  x.moveTo(cx, 3);
-  x.bezierCurveTo(cx + 5.5, 7.5, cx + 7.5, 17, cx + 7.5, 25);
-  x.quadraticCurveTo(cx + 7.5, 29, cx + 5, 29);
-  x.lineTo(cx - 5, 29);
-  x.quadraticCurveTo(cx - 7.5, 29, cx - 7.5, 25);
-  x.bezierCurveTo(cx - 7.5, 17, cx - 5.5, 7.5, cx, 3);
+  x.moveTo(cx, 1.5); // Sharp bow tip
+  x.lineTo(cx + 9.5, 27); // Starboard aft fin
+  x.lineTo(cx, 19.5); // Stern notch / keel recess
+  x.lineTo(cx - 9.5, 27); // Port aft fin
   x.closePath();
   x.fill();
 
@@ -492,7 +491,7 @@ export function MapView({
           });
         }
 
-        // 5. SMALL CIRCLE DOTS: clear at all zooms; radius grows with zoom
+        // 5. UNDERNEATH BLOOM / SOFT GLOW LAYER beneath the directional ship arrows
         if (!map.getLayer("vessels_dot")) {
           map.addLayer({
             id: "vessels_dot",
@@ -503,33 +502,33 @@ export function MapView({
                 "interpolate",
                 ["linear"],
                 ["zoom"],
-                1, 2.2,
+                1, 2.0,
                 3, 2.8,
                 6, 3.6,
-                7, 4.2,
+                7, 4.4,
               ],
               "circle-color": TYPE_COLOR_EXPRESSION,
               "circle-opacity": [
                 "interpolate",
                 ["linear"],
                 ["zoom"],
-                1, 0.95,
-                6.8, 0.95,
-                7.5, 0,
+                1, 0.35,
+                4, 0.45,
+                7, 0.55,
               ],
-              "circle-stroke-width": 0.5,
-              "circle-stroke-color": activeStyleRef.current === "dark" ? "rgba(0, 0, 0, 0.5)" : "rgba(255, 255, 255, 0.8)",
+              "circle-blur": 0.8,
+              "circle-stroke-width": 0,
             },
           });
         }
 
-        // 6. SHIPS SYMBOL LAYER: Ship icons (SDF, icon-color by type) only at zoom >= 7
+        // 6. SHIPS SYMBOL LAYER: Crisp Directional Ship Arrowheads AT ALL ZOOM LEVELS (Matches Global Vessel Monitor)
         if (!map.getLayer("ships")) {
           map.addLayer({
             id: "ships",
             type: "symbol",
             source: "ships",
-            minzoom: 7.0,
+            minzoom: 1.0, // SHOWN AT ALL ZOOMS, INCLUDING WORLD OVERVIEW!
             layout: {
               "icon-image": "ship_sdf",
               "icon-rotate": ["get", "hdg"],
@@ -540,9 +539,12 @@ export function MapView({
                 "interpolate",
                 ["linear"],
                 ["zoom"],
-                7, 0.45,
-                9, 0.6,
-                12, 0.75,
+                1, 0.36,
+                2, 0.44,
+                4, 0.54,
+                6, 0.68,
+                9, 0.88,
+                12, 1.15,
               ],
               "text-field": [
                 "step",
@@ -562,8 +564,9 @@ export function MapView({
                 "interpolate",
                 ["linear"],
                 ["zoom"],
-                7.0, 0.85,
-                7.5, 1.0,
+                1.0, 0.92,
+                3.0, 0.96,
+                7.0, 1.0,
               ],
               "text-color": activeStyleRef.current === "dark" ? "#E2E8F0" : "#0F172A",
               "text-halo-color": activeStyleRef.current === "dark" ? "#05080C" : "#FFFFFF",
@@ -682,8 +685,8 @@ export function MapView({
         const features: any[] = [];
         const seenMmsi = new Set<number>();
         let count = 0;
-        // World zoom: render up to 50,000 vessels across all global shipping lanes
-        const MAX_SYMBOLS = currentZoom < 4 ? 50000 : currentZoom < 6 ? 30000 : 12000;
+        // World zoom: render up to 75,000 vessels across all global shipping lanes simultaneously
+        const MAX_SYMBOLS = currentZoom < 4 ? 75000 : currentZoom < 6 ? 45000 : 18000;
 
         for (let i = 0; i < curShips.length; i++) {
           const s = curShips[i]!;
@@ -1204,6 +1207,14 @@ export function MapView({
         </div>
       </div>
 
+      {/* Sleek live-ais badge (Matching Reference Image) */}
+      <div className="absolute bottom-16 left-4 z-10 pointer-events-none hidden sm:block">
+        <div className="rounded-2xl px-4 py-2 bg-black/80 backdrop-blur-md border border-white/15 shadow-2xl flex items-center gap-2.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#34D399] shadow-[0_0_8px_#34D399]" />
+          <span className="text-sm font-bold tracking-tight text-white font-mono lowercase">live-ais</span>
+        </div>
+      </div>
+
       {/* Floating Bottom Legend Bar */}
       <div className="absolute bottom-4 left-4 right-4 z-10 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
         <div className="glass-pill flex flex-wrap items-center gap-3 px-3.5 py-1.5 text-xs pointer-events-auto shadow-lg">
@@ -1226,19 +1237,19 @@ export function MapView({
           )}
           <span className="text-white/15">|</span>
           <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
-            <span className="h-2 w-2 rounded-full bg-[#22D3EE] shadow-[0_0_6px_#22D3EE]" /> Cargo
+            <span className="h-2 w-2 rounded-full bg-[#FACC15] shadow-[0_0_6px_#FACC15]" /> Cargo
           </span>
           <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
             <span className="h-2 w-2 rounded-full bg-[#FB923C] shadow-[0_0_6px_#FB923C]" /> Tanker
           </span>
           <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
-            <span className="h-2 w-2 rounded-full bg-[#A78BFA] shadow-[0_0_6px_#A78BFA]" /> Passenger
+            <span className="h-2 w-2 rounded-full bg-[#38BDF8] shadow-[0_0_6px_#38BDF8]" /> Passenger
           </span>
           <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
-            <span className="h-2 w-2 rounded-full bg-[#FACC15] shadow-[0_0_6px_#FACC15]" /> Tug / Special
+            <span className="h-2 w-2 rounded-full bg-[#C084FC] shadow-[0_0_6px_#C084FC]" /> Tug / Special
           </span>
           <span className="flex items-center gap-1.5 text-[11px] text-ink-2">
-            <span className="h-2 w-2 rounded-full bg-[#94A3B8]" /> Unknown
+            <span className="h-2 w-2 rounded-full bg-[#64748B]" /> Anchored
           </span>
         </div>
 

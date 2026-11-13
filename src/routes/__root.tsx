@@ -11,7 +11,7 @@ import {
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { Anchor, Moon, Sun, RefreshCw, Radio, CheckCircle2, AlertCircle, WifiOff, History, Compass, Sparkles, LogIn, LogOut, ShieldCheck, Lock } from "lucide-react";
+import { Anchor, Moon, Sun, RefreshCw, Radio, CheckCircle2, AlertCircle, WifiOff, History, Compass, Sparkles, LogIn, LogOut, ShieldCheck, Lock, CloudSun } from "lucide-react";
 import { useFeedHealth, type FeedHealthState } from "@/lib/feedHealth";
 import { useLiveTime, formatUtcClock, formatTimeAgo } from "@/lib/time";
 
@@ -317,6 +317,10 @@ function Header() {
             <History className="h-3.5 w-3.5 text-accent" />
             <span>Time Machine</span>
           </Link>
+          <Link to="/weather" className={`${navLinkClass} flex items-center gap-1.5`} activeProps={activeNavProps}>
+            <CloudSun className="h-3.5 w-3.5 text-accent" />
+            <span>Weather & Marine</span>
+          </Link>
           <Link to="/compare" className={navLinkClass} activeProps={activeNavProps}>
             <span>Compare</span>
           </Link>
@@ -412,6 +416,9 @@ function Header() {
           </Link>
           <Link to="/timemachine" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
             Time Machine
+          </Link>
+          <Link to="/weather" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
+            Weather & Marine
           </Link>
           <Link to="/compare" onClick={() => setMobileMenuOpen(false)} className={`${navLinkClass} py-2`} activeProps={activeNavProps}>
             Compare

@@ -24,6 +24,11 @@ import {
   bearingDeg,
   KNOWN_PORTS,
 } from "./maritimeRouter.js";
+import {
+  fetchLiveMarineWeather,
+  getAllStrategicPortsWeather,
+  STRATEGIC_PORTS,
+} from "./weatherService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config();
@@ -369,6 +374,49 @@ app.get(["/api/ports/:id", "/ports/:id"], (req, res) => {
   const p = stats.find((x) => x.id === req.params.id);
   if (!p) return res.status(404).json({ error: "Port not found" });
   res.json(p);
+});
+
+// Live Marine & Meteorological Weather Endpoints (Powered by WeatherAPI.com)
+app.get("/api/weather/all", async (_, res) => {
+  try {
+    const all = await getAllStrategicPortsWeather();
+    res.json(all);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get(["/api/weather", "/api/weather/:portId", "/ports/:id/weather"], async (req, res) => {
+  try {
+    const portId = req.params.portId || req.params.id || req.query.port;
+    if (portId) {
+      const port = STRATEGIC_PORTS.find((p) => p.id === portId.toLowerCase());
+      if (port) {
+        const data = await fetchLiveMarineWeather(port.lat, port.lon, port.name);
+        return res.json({ port, ...data });
+      }
+    }
+
+    const lat = req.query.lat ? Number(req.query.lat) : null;
+    const lon = req.query.lon ? Number(req.query.lon) : null;
+    const q = req.query.q || req.query.query;
+
+    if (lat != null && lon != null) {
+      const data = await fetchLiveMarineWeather(lat, lon, q);
+      return res.json(data);
+    }
+
+    if (q) {
+      const data = await fetchLiveMarineWeather(51.92, 4.17, q);
+      return res.json(data);
+    }
+
+    // Default to Rotterdam
+    const defaultData = await fetchLiveMarineWeather(51.92, 4.17, "Rotterdam");
+    return res.json(defaultData);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Real Vessels List Endpoint with Honest Source & Confidence

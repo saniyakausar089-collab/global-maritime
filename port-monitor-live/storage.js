@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { DatabaseSync } from "node:sqlite";
 import { isNavigableWater } from "./maritimeRouter.js";
+import { syncOceanicFleetToDb } from "./seedOceanicFleet.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SEED_DB_PATH = path.join(__dirname, "vessels.sqlite");
@@ -242,6 +243,12 @@ export class VesselStore {
         ) next_sample ON p.mmsi = next_sample.mmsi AND p.ts = next_sample.min_ts;
       `);
 
+      try {
+        syncOceanicFleetToDb(this.db);
+      } catch (e) {
+        console.warn("[Storage] Oceanic fleet sync notice:", e.message);
+      }
+
       this.loadActiveVesselsFromDb();
       console.log(`[Storage] SQLite initialized at ${DB_PATH}. Loaded ${this.memoryMap.size} vessels from database.`);
     } catch (err) {
@@ -250,18 +257,18 @@ export class VesselStore {
   }
 
   loadActiveVesselsFromDb() {
-    // Load up to 50,000 active vessels across all oceans (48h window)
+    // Load up to 75,000 active vessels across all oceans (48h window)
     const cutoff = Date.now() - 48 * 60 * 60 * 1000;
     const query = this.db.prepare(`
-      SELECT * FROM vessels WHERE last_seen >= ? ORDER BY last_seen DESC LIMIT 50000
+      SELECT * FROM vessels WHERE last_seen >= ? ORDER BY last_seen DESC LIMIT 75000
     `);
     let rows = query.all(cutoff);
 
-    // If fewer than 35,000 vessels in the 48h window, expand to the most recent 50,000 vessels from DB
-    if (rows.length < 35000) {
-      console.log(`[Storage] Expanding fleet from database to ensure high global ship density (${rows.length} -> up to 50,000)...`);
+    // If fewer than 65,000 vessels in the 48h window, expand to the most recent 75,000 vessels from DB
+    if (rows.length < 65000) {
+      console.log(`[Storage] Expanding fleet from database to ensure high global ship density (${rows.length} -> up to 75,000)...`);
       const fallbackQuery = this.db.prepare(`
-        SELECT * FROM vessels ORDER BY last_seen DESC LIMIT 50000
+        SELECT * FROM vessels ORDER BY last_seen DESC LIMIT 75000
       `);
       rows = fallbackQuery.all();
       const now = Date.now();
