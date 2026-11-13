@@ -503,10 +503,10 @@ export function MapView({
                 "interpolate",
                 ["linear"],
                 ["zoom"],
-                1, 1.8,
-                3, 2.4,
-                6, 3.2,
-                7, 3.8,
+                1, 2.2,
+                3, 2.8,
+                6, 3.6,
+                7, 4.2,
               ],
               "circle-color": TYPE_COLOR_EXPRESSION,
               "circle-opacity": [
@@ -682,8 +682,8 @@ export function MapView({
         const features: any[] = [];
         const seenMmsi = new Set<number>();
         let count = 0;
-        // No cap at world zoom so heatmap shows all vessels globally
-        const MAX_SYMBOLS = currentZoom < 4 ? 25000 : currentZoom < 6 ? 15000 : 6000;
+        // World zoom: render up to 50,000 vessels across all global shipping lanes
+        const MAX_SYMBOLS = currentZoom < 4 ? 50000 : currentZoom < 6 ? 30000 : 12000;
 
         for (let i = 0; i < curShips.length; i++) {
           const s = curShips[i]!;

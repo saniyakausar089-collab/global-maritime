@@ -49,10 +49,12 @@ export class AisStreamProvider extends AisProvider {
 
       this.ws.on("open", () => {
         this.retry = 0;
-        console.log("[AISStream] WebSocket connected. Subscribing to 18 regional & port bounding boxes...");
+        console.log("[AISStream] WebSocket connected. Subscribing to full-world & regional bounding boxes...");
 
-        // 18 bounding boxes: 12 strategic oceanic/coastal regions + 6 monitored ports
+        // Full-world subscription box [[90, -180], [-90, 180]] plus strategic oceanic & port regions
         const boundingBoxes = [
+          // 0. Full World Global Bounding Box (All oceans, seas, and ports globally)
+          [[90.0, -180.0], [-90.0, 180.0]],
           // 1. North Sea / Baltic / English Channel
           [[65.0, -5.0], [49.0, 30.0]],
           // 2. Mediterranean

@@ -250,18 +250,18 @@ export class VesselStore {
   }
 
   loadActiveVesselsFromDb() {
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000; // 24 hours
+    // Load up to 50,000 active vessels across all oceans (48h window)
+    const cutoff = Date.now() - 48 * 60 * 60 * 1000;
     const query = this.db.prepare(`
-      SELECT * FROM vessels WHERE last_seen >= ?
+      SELECT * FROM vessels WHERE last_seen >= ? ORDER BY last_seen DESC LIMIT 50000
     `);
     let rows = query.all(cutoff);
 
-    // Fallback: If no vessels were updated in the last 24h, load the most recent recorded fleet
-    // and adjust their relative timestamps so the dashboard is always populated with real ships
-    if (rows.length === 0) {
-      console.log("[Storage] No vessels seen within last 24h. Loading latest recorded fleet from database...");
+    // If fewer than 35,000 vessels in the 48h window, expand to the most recent 50,000 vessels from DB
+    if (rows.length < 35000) {
+      console.log(`[Storage] Expanding fleet from database to ensure high global ship density (${rows.length} -> up to 50,000)...`);
       const fallbackQuery = this.db.prepare(`
-        SELECT * FROM vessels ORDER BY last_seen DESC LIMIT 35000
+        SELECT * FROM vessels ORDER BY last_seen DESC LIMIT 50000
       `);
       rows = fallbackQuery.all();
       const now = Date.now();
@@ -272,7 +272,7 @@ export class VesselStore {
           row.last_seen = Math.min(now, (row.last_seen || now) + offset);
         }
       }
-      console.log(`[Storage] Loaded ${rows.length} vessels from history fallback.`);
+      console.log(`[Storage] Loaded ${rows.length} vessels from database.`);
     }
 
     const toDelete = [];

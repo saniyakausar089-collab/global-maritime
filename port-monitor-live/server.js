@@ -196,9 +196,16 @@ setInterval(() => {
         allVessels.set(mmsi, estimated);
         store.dirtyMmsis.add(mmsi);
       } else {
-        // Drop vessel if stale (>24h) or rejected by maritime land collision check
-        allVessels.delete(mmsi);
-        gone.push(mmsi);
+        // If within 48h, retain in last known position as stationary/anchored instead of discarding
+        if (elapsed <= 48 * 3600 * 1000) {
+          v.sog = 0;
+          v.stationary = true;
+          v.source = "estimated";
+          allVessels.set(mmsi, v);
+        } else {
+          allVessels.delete(mmsi);
+          gone.push(mmsi);
+        }
       }
     }
   }
