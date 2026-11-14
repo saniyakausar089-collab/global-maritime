@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { Card, Empty, FallbackBanner, RefreshControl, Skeleton, StatusBadge } from "@/components/ui-bits";
 import { historyQuery, median, portsQuery, type Port } from "@/lib/api";
+import { useLiveVessels } from "@/lib/useLiveVessels";
 
 export const Route = createFileRoute("/compare")({
   head: () => ({
@@ -66,7 +67,11 @@ type PortSortKey = "name" | "ci";
 
 function Compare() {
   const ports = useQuery(portsQuery());
-  const list = ports.data?.data ?? [];
+  const live = useLiveVessels();
+  const list = useMemo(() => {
+    if (live.livePorts && live.livePorts.length > 0) return live.livePorts;
+    return ports.data?.data ?? [];
+  }, [live.livePorts, ports.data?.data]);
   const navigate = useNavigate();
 
   const [sel, setSel] = useState<string[]>([]);

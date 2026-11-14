@@ -60,13 +60,34 @@ export type PortStat = {
 
 export type ConnectionStatus = "probing" | "waking_up" | "live" | "reconnecting" | "offline";
 
-const MONITORED_PORTS_COORDS: { id: string; name: string; lat: number; lon: number }[] = [
-  { id: "rotterdam", name: "Rotterdam", lat: 51.92, lon: 4.17 },
-  { id: "singapore", name: "Singapore", lat: 1.26, lon: 103.84 },
-  { id: "shanghai", name: "Shanghai", lat: 31.23, lon: 121.8 },
-  { id: "los-angeles", name: "Los Angeles", lat: 33.73, lon: -118.26 },
-  { id: "hamburg", name: "Hamburg", lat: 53.54, lon: 9.97 },
-  { id: "santos", name: "Santos", lat: -23.98, lon: -46.3 },
+export type LivePort = Port & {
+  total: number;
+  total_vessels: number;
+  slow: number;
+  waiting: number;
+  stationary_vessels: number;
+  moving: number;
+  moving_vessels: number;
+  baselineSlow: number;
+  country: string;
+  flag: string;
+};
+
+export const MONITORED_PORTS_DEF: {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  baselineSlow: number;
+  country: string;
+  flag: string;
+}[] = [
+  { id: "rotterdam", name: "Rotterdam", lat: 51.92, lon: 4.17, baselineSlow: 40, country: "NL", flag: "🇳🇱" },
+  { id: "singapore", name: "Singapore", lat: 1.26, lon: 103.84, baselineSlow: 55, country: "SG", flag: "🇸🇬" },
+  { id: "shanghai", name: "Shanghai", lat: 31.23, lon: 121.8, baselineSlow: 45, country: "CN", flag: "🇨🇳" },
+  { id: "los-angeles", name: "Los Angeles", lat: 33.73, lon: -118.26, baselineSlow: 65, country: "US", flag: "🇺🇸" },
+  { id: "hamburg", name: "Hamburg", lat: 53.54, lon: 9.97, baselineSlow: 60, country: "DE", flag: "🇩🇪" },
+  { id: "santos", name: "Santos", lat: -23.98, lon: -46.3, baselineSlow: 50, country: "BR", flag: "🇧🇷" },
 ];
 
 function calcDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -148,7 +169,7 @@ export function useLiveVessels() {
       let matchedPortName: string | undefined = undefined;
       let minDistance: number | undefined = undefined;
 
-      for (const p of MONITORED_PORTS_COORDS) {
+      for (const p of MONITORED_PORTS_DEF) {
         const d = calcDistanceKm(lat, lon, p.lat, p.lon);
         if (d <= 45) {
           matchedPortId = p.id;
@@ -622,6 +643,47 @@ export function useLiveVessels() {
     return { liveCount: live, estimatedCount: est };
   }, [vesselsMap]);
 
+  const livePorts = useMemo<LivePort[]>(() => {
+    return MONITORED_PORTS_DEF.map((p) => {
+      let total = 0;
+      let slow = 0;
+      const k = Math.cos((p.lat * Math.PI) / 180);
+
+      for (const v of vesselsMap.values()) {
+        const dy = (v.lat - p.lat) * 111.32;
+        const dx = (v.lon - p.lon) * 111.32 * k;
+        if (dx * dx + dy * dy <= 55 * 55 || v.portId === p.id) {
+          total++;
+          if (v.stationary || (v.sog || 0) < 0.5) {
+            slow++;
+          }
+        }
+      }
+
+      const moving = Math.max(0, total - slow);
+      const ci = total > 0 ? +(slow / Math.max(1, p.baselineSlow)).toFixed(2) : 1.0;
+
+      return {
+        id: p.id,
+        name: p.name,
+        lat: p.lat,
+        lon: p.lon,
+        congestion_index: ci,
+        index: ci,
+        total,
+        total_vessels: total,
+        slow,
+        waiting: slow,
+        stationary_vessels: slow,
+        moving,
+        moving_vessels: moving,
+        baselineSlow: p.baselineSlow,
+        country: p.country,
+        flag: p.flag,
+      };
+    });
+  }, [vesselsMap]);
+
   return {
     vessels: vesselsList,
     vesselsMap,
@@ -632,6 +694,7 @@ export function useLiveVessels() {
     filteredCount: filteredVessels.length,
     liveCount,
     estimatedCount,
+    livePorts,
     isDemoMode,
     status,
     statusMessage,

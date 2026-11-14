@@ -82,12 +82,12 @@ async function getJson<T>(path: string, fallback: () => T): Promise<Sourced<T>> 
 
 // ---- Clearly labelled FALLBACK demo data (only used when the API is unreachable) ----
 const FALLBACK_PORTS: Port[] = [
-  { id: "rotterdam", name: "Rotterdam", lat: 51.92, lon: 4.17, congestion_index: 1.4 },
-  { id: "singapore", name: "Singapore", lat: 1.26, lon: 103.84, congestion_index: 1.05 },
-  { id: "shanghai", name: "Shanghai", lat: 31.23, lon: 121.8, congestion_index: 1.31 },
-  { id: "los-angeles", name: "Los Angeles", lat: 33.73, lon: -118.26, congestion_index: 0.72 },
-  { id: "hamburg", name: "Hamburg", lat: 53.54, lon: 9.97, congestion_index: 0.94 },
-  { id: "santos", name: "Santos", lat: -23.98, lon: -46.3, congestion_index: null },
+  { id: "rotterdam", name: "Rotterdam", lat: 51.92, lon: 4.17, congestion_index: 1.32 },
+  { id: "singapore", name: "Singapore", lat: 1.26, lon: 103.84, congestion_index: 1.07 },
+  { id: "shanghai", name: "Shanghai", lat: 31.23, lon: 121.8, congestion_index: 1.40 },
+  { id: "los-angeles", name: "Los Angeles", lat: 33.73, lon: -118.26, congestion_index: 0.88 },
+  { id: "hamburg", name: "Hamburg", lat: 53.54, lon: 9.97, congestion_index: 1.10 },
+  { id: "santos", name: "Santos", lat: -23.98, lon: -46.3, congestion_index: 1.14 },
 ];
 function seeded(seed: number) {
   let s = seed;

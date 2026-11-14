@@ -85,7 +85,11 @@ function PortDetail() {
   const history = useQuery(historyQuery(id));
   const live = useLiveVessels();
 
-  const port = ports.data?.data.find((p) => p.id === id);
+  const port = useMemo(() => {
+    const lp = live.livePorts?.find((p) => p.id === id);
+    if (lp) return lp;
+    return ports.data?.data.find((p) => p.id === id);
+  }, [live.livePorts, ports.data?.data, id]);
   const flag = PORT_FLAGS[id] || "⚓";
 
   const [search, setSearch] = useState("");

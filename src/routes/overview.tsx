@@ -255,7 +255,12 @@ function Overview() {
     }
   }, [live.status, q]);
 
-  const ports = q.data?.data ?? [];
+  const ports = useMemo(() => {
+    if (live.livePorts && live.livePorts.length > 0) {
+      return live.livePorts;
+    }
+    return q.data?.data ?? [];
+  }, [live.livePorts, q.data?.data]);
 
   const withCi = ports.filter((p) => p.congestion_index != null);
   const busiest = withCi.length
@@ -505,7 +510,7 @@ function Overview() {
               <span className="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold">Live AIS Telemetry</span>
               <span className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-mono font-bold text-[#00f3ff] bg-cyan-500/15 border border-cyan-500/35 shadow-[0_0_8px_rgba(0,243,255,0.2)]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#00f3ff] animate-pulse" />
-                {live.isDemoMode ? "DEMO DATA" : live.status === "live" ? "REAL-TIME AIS" : "CONNECTING"}
+                {live.isDemoMode ? "DEMO DATA" : (live.status === "live" || (live.vessels && live.vessels.length > 0)) ? "REAL-TIME AIS" : "CONNECTING"}
               </span>
             </div>
             <div className="my-3">

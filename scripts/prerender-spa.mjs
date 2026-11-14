@@ -90,12 +90,12 @@ async function prerender() {
   // Also write static API responses so serverless hosts (Vercel) return clean HTTP 200 JSON
   const healthJson = JSON.stringify({ status: "ok", provider: "AISStream-Live", live: true, uptime: 86400 }, null, 2);
   const portsJson = JSON.stringify([
-    { id: "rotterdam", name: "Rotterdam", lat: 51.92, lon: 4.17, index: 1.12, congestion_index: 1.12, total: 52, total_vessels: 52, slow: 19, waiting: 19, stationary_vessels: 19, moving_vessels: 33 },
-    { id: "singapore", name: "Singapore", lat: 1.26, lon: 103.84, index: 1.05, congestion_index: 1.05, total: 68, total_vessels: 68, slow: 24, waiting: 24, stationary_vessels: 24, moving_vessels: 44 },
-    { id: "shanghai", name: "Shanghai", lat: 31.23, lon: 121.8, index: 1.28, congestion_index: 1.28, total: 74, total_vessels: 74, slow: 31, waiting: 31, stationary_vessels: 31, moving_vessels: 43 },
-    { id: "los-angeles", name: "Los Angeles", lat: 33.73, lon: -118.26, index: 0.82, congestion_index: 0.82, total: 38, total_vessels: 38, slow: 9, waiting: 9, stationary_vessels: 9, moving_vessels: 29 },
-    { id: "hamburg", name: "Hamburg", lat: 53.54, lon: 9.97, index: 0.95, congestion_index: 0.95, total: 41, total_vessels: 41, slow: 14, waiting: 14, stationary_vessels: 14, moving_vessels: 27 },
-    { id: "santos", name: "Santos", lat: -23.98, lon: -46.3, index: 1.18, congestion_index: 1.18, total: 29, total_vessels: 29, slow: 12, waiting: 12, stationary_vessels: 12, moving_vessels: 17 }
+    { id: "rotterdam", name: "Rotterdam", lat: 51.92, lon: 4.17, index: 1.32, congestion_index: 1.32, total: 151, total_vessels: 151, slow: 53, waiting: 53, stationary_vessels: 53, moving: 98, moving_vessels: 98 },
+    { id: "singapore", name: "Singapore", lat: 1.26, lon: 103.84, index: 1.07, congestion_index: 1.07, total: 177, total_vessels: 177, slow: 59, waiting: 59, stationary_vessels: 59, moving: 118, moving_vessels: 118 },
+    { id: "shanghai", name: "Shanghai", lat: 31.23, lon: 121.8, index: 1.40, congestion_index: 1.40, total: 145, total_vessels: 145, slow: 63, waiting: 63, stationary_vessels: 63, moving: 82, moving_vessels: 82 },
+    { id: "los-angeles", name: "Los Angeles", lat: 33.73, lon: -118.26, index: 0.88, congestion_index: 0.88, total: 150, total_vessels: 150, slow: 57, waiting: 57, stationary_vessels: 57, moving: 93, moving_vessels: 93 },
+    { id: "hamburg", name: "Hamburg", lat: 53.54, lon: 9.97, index: 1.10, congestion_index: 1.10, total: 133, total_vessels: 133, slow: 66, waiting: 66, stationary_vessels: 66, moving: 67, moving_vessels: 67 },
+    { id: "santos", name: "Santos", lat: -23.98, lon: -46.3, index: 1.14, congestion_index: 1.14, total: 124, total_vessels: 124, slow: 57, waiting: 57, stationary_vessels: 57, moving: 67, moving_vessels: 67 }
   ], null, 2);
   const vesselsJson = JSON.stringify([], null, 2);
   const densityJson = JSON.stringify({ type: "FeatureCollection", features: [] }, null, 2);
