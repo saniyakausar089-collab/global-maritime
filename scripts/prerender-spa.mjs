@@ -97,6 +97,8 @@ async function prerender() {
     { id: "hamburg", name: "Hamburg", lat: 53.54, lon: 9.97, index: 0.95, congestion_index: 0.95, total: 41, total_vessels: 41, slow: 14, waiting: 14, stationary_vessels: 14, moving_vessels: 27 },
     { id: "santos", name: "Santos", lat: -23.98, lon: -46.3, index: 1.18, congestion_index: 1.18, total: 29, total_vessels: 29, slow: 12, waiting: 12, stationary_vessels: 12, moving_vessels: 17 }
   ], null, 2);
+  const vesselsJson = JSON.stringify([], null, 2);
+  const densityJson = JSON.stringify({ type: "FeatureCollection", features: [] }, null, 2);
 
   for (const pubDir of targetPublicDirs) {
     try {
@@ -104,9 +106,19 @@ async function prerender() {
       if (!fs.existsSync(apiDir)) fs.mkdirSync(apiDir, { recursive: true });
 
       fs.writeFileSync(path.join(pubDir, 'health'), healthJson, 'utf8');
+      fs.writeFileSync(path.join(pubDir, 'health.json'), healthJson, 'utf8');
       fs.writeFileSync(path.join(apiDir, 'health'), healthJson, 'utf8');
+      fs.writeFileSync(path.join(apiDir, 'health.json'), healthJson, 'utf8');
+
       fs.writeFileSync(path.join(pubDir, 'ports'), portsJson, 'utf8');
+      fs.writeFileSync(path.join(pubDir, 'ports.json'), portsJson, 'utf8');
       fs.writeFileSync(path.join(apiDir, 'ports'), portsJson, 'utf8');
+      fs.writeFileSync(path.join(apiDir, 'ports.json'), portsJson, 'utf8');
+
+      fs.writeFileSync(path.join(apiDir, 'vessels'), vesselsJson, 'utf8');
+      fs.writeFileSync(path.join(apiDir, 'vessels.json'), vesselsJson, 'utf8');
+      fs.writeFileSync(path.join(apiDir, 'traffic-density'), densityJson, 'utf8');
+      fs.writeFileSync(path.join(apiDir, 'traffic-density.json'), densityJson, 'utf8');
       console.log(`✓ Wrote static API files to ${pubDir}`);
     } catch (e) {
       console.warn(`Failed writing static API files in ${pubDir}:`, e.message);

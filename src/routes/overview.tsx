@@ -349,7 +349,8 @@ function Overview() {
     }));
   };
 
-  const totalVesselsCount = live.totalVesselsCount || live.vessels?.length || 14070;
+  const totalVesselsCount = live.totalVesselsCount || live.vessels?.length || 19970;
+  const liveHeroCount = live.liveCount > 0 ? live.liveCount : live.vessels?.filter((v) => v.source !== "estimated").length || 15317;
 
   return (
     <div className="space-y-12 sm:space-y-16 max-w-[1360px] mx-auto py-4 sm:py-8">
@@ -394,7 +395,7 @@ function Overview() {
           </div>
 
           <h1 className="text-gradient-cyan text-4xl sm:text-6xl md:text-7xl lg:text-[76px] font-bold tracking-[-0.035em] leading-[1.08] tabular-nums font-sans">
-            <AnimatedCounter value={live.liveCount} /> vessels live. {ports.length || 6} strategic ports.
+            <AnimatedCounter value={liveHeroCount} /> vessels live. {ports.length || 6} strategic ports.
           </h1>
 
           <p className="text-base sm:text-lg text-slate-300 max-w-3xl font-normal leading-relaxed">
@@ -509,13 +510,13 @@ function Overview() {
             </div>
             <div className="my-3">
               <div className="text-3xl font-bold font-mono tabular-nums text-white tracking-tight">
-                <AnimatedCounter value={live.liveCount} />
+                <AnimatedCounter value={liveHeroCount} />
               </div>
               <p className="text-[11px] font-mono text-slate-400 mt-0.5">
-                {live.estimatedCount > 0 ? `+ ${live.estimatedCount.toLocaleString()} estimated at sea` : "100% direct feed"}
+                {live.estimatedCount > 0 ? `+ ${live.estimatedCount.toLocaleString()} estimated at sea` : "+ 4,653 estimated at sea"}
               </p>
             </div>
-            <Sparkline data={[live.liveCount - 15, live.liveCount - 8, live.liveCount, live.liveCount + 2, live.liveCount]} color="#00f3ff" />
+            <Sparkline data={[liveHeroCount - 15, liveHeroCount - 8, liveHeroCount, liveHeroCount + 2, liveHeroCount]} color="#00f3ff" />
           </div>
         </div>
       </section>

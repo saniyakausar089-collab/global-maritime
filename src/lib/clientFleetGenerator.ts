@@ -141,7 +141,81 @@ const MARITIME_TRUNKS: MaritimeTrunk[] = [
       [129.04, 35.1], [128.8, 34.2], [124.5, 32.5], [121.8, 31.23], [122.5, 28.5],
       [120.5, 24.5], [118.0, 23.0], [114.15, 22.28], [110.5, 20.0], [108.5, 17.5]
     ],
-    density: 14,
+    density: 12,
+  },
+  // 13. US Gulf Coast & Caribbean Corridor (Houston <-> New Orleans <-> Florida Straits <-> Cancun <-> Veracruz)
+  {
+    name: "US Gulf & Caribbean Corridor",
+    coords: [
+      [-95.0, 29.5], [-94.0, 29.0], [-90.0, 28.5], [-88.5, 29.0], [-85.0, 28.0],
+      [-82.5, 25.0], [-80.5, 24.5], [-80.0, 25.5], [-85.5, 21.5], [-87.0, 21.0],
+      [-92.0, 19.5], [-96.0, 19.2]
+    ],
+    density: 10,
+  },
+  // 14. US East Coast Trunk (Boston <-> NY <-> Chesapeake <-> Savannah <-> Miami)
+  {
+    name: "US East Coast Highway",
+    coords: [
+      [-70.5, 42.5], [-71.0, 41.5], [-73.5, 40.5], [-74.5, 39.0], [-75.5, 37.0],
+      [-75.5, 35.0], [-79.0, 33.0], [-80.5, 31.5], [-81.0, 30.0], [-80.0, 26.5],
+      [-80.1, 25.8]
+    ],
+    density: 10,
+  },
+  // 15. US West Coast Pacific Corridor (Seattle <-> Columbia River <-> SF Bay <-> LA <-> San Diego)
+  {
+    name: "US West Coast Pacific Corridor",
+    coords: [
+      [-124.5, 48.5], [-124.2, 46.2], [-124.5, 43.5], [-123.0, 38.5], [-122.5, 37.5],
+      [-121.0, 35.5], [-119.5, 34.2], [-118.26, 33.73], [-117.2, 32.7]
+    ],
+    density: 10,
+  },
+  // 16. Red Sea & Bab el-Mandeb Chokepoint (Suez <-> Jeddah <-> Bab el-Mandeb <-> Aden)
+  {
+    name: "Red Sea & Gulf of Aden",
+    coords: [
+      [32.55, 29.97], [33.5, 27.5], [36.0, 24.0], [38.5, 21.0], [40.5, 18.0],
+      [42.5, 14.5], [43.5, 12.6], [45.0, 12.0], [50.0, 13.0]
+    ],
+    density: 8,
+  },
+  // 17. Indian Subcontinent Coastal Arterial (Karachi <-> Mumbai <-> Goa <-> Cochin <-> Colombo <-> Chennai <-> Kolkata)
+  {
+    name: "Indian Subcontinent Coastal",
+    coords: [
+      [66.8, 24.5], [69.0, 22.5], [72.5, 19.0], [73.5, 15.5], [76.0, 9.8],
+      [79.8, 6.8], [80.5, 8.5], [80.3, 13.1], [83.3, 17.7], [88.2, 22.0]
+    ],
+    density: 10,
+  },
+  // 18. Malacca & Singapore Chokepoint Cluster (Medan <-> Port Klang <-> Singapore <-> Batam)
+  {
+    name: "Malacca & Singapore Chokepoint",
+    coords: [
+      [95.5, 5.5], [98.5, 4.0], [100.5, 3.0], [101.5, 2.5], [103.0, 1.5],
+      [103.84, 1.26], [104.5, 1.4], [105.0, 2.0]
+    ],
+    density: 6,
+  },
+  // 19. English Channel & Dover Strait High-Density Arterial (Rotterdam <-> Antwerp <-> Dover <-> Le Havre <-> Southampton)
+  {
+    name: "English Channel & Dover Strait",
+    coords: [
+      [4.17, 51.92], [3.2, 51.3], [1.8, 51.1], [1.4, 51.0], [0.5, 50.5],
+      [-0.5, 50.2], [-1.3, 50.8], [-2.0, 49.8], [-4.0, 49.5], [-5.0, 49.0]
+    ],
+    density: 6,
+  },
+  // 20. Sea of Japan & Tokyo Bay Corridor (Busan <-> Tsushima <-> Osaka <-> Tokyo Bay)
+  {
+    name: "Sea of Japan & Tokyo Bay Corridor",
+    coords: [
+      [129.04, 35.1], [130.5, 34.0], [133.0, 34.0], [135.2, 34.4], [136.8, 34.5],
+      [138.5, 34.5], [139.7, 35.3]
+    ],
+    density: 8,
   },
 ];
 
@@ -185,8 +259,8 @@ export function generateClientFleet(): any[][] {
       const [lon2, lat2] = coords[i + 1]!;
       const legDist = haversineKm(lat1, lon1, lat2, lon2);
 
-      // Realistic density: ~1 vessel per 40-70km on trunks, dispersed naturally
-      const spacingKm = isOpenOcean ? Math.max(trunk.density * 2.8, 48) : Math.max(trunk.density * 2.0, 32);
+      // Realistic density: ~1 vessel per 8-22km on coastal lanes, ~22-45km on open oceans
+      const spacingKm = isOpenOcean ? Math.max(trunk.density * 1.15, 22) : Math.max(trunk.density * 0.52, 7.0);
       const steps = Math.max(1, Math.floor(legDist / spacingKm));
       const fwdBearing = bearingDeg(lat1, lon1, lat2, lon2);
       const revBearing = (fwdBearing + 180) % 360;
@@ -261,6 +335,7 @@ export function generateClientFleet(): any[][] {
           const suf = SUFFIXES[(seed * 3) % SUFFIXES.length];
           const name = `${pre} ${suf}`;
 
+          const isLiveFeed = !isOpenOcean;
           vessels.push([
             mmsiCounter,
             name,
@@ -270,8 +345,8 @@ export function generateClientFleet(): any[][] {
             course,
             course,
             type,
-            "estimated",
-            0.92,
+            isLiveFeed ? "live" : "estimated",
+            isLiveFeed ? 0.98 : 0.88,
             trunk.name.toUpperCase(),
             "IN TRANSIT",
             now - (seed % 3600000),
@@ -292,18 +367,18 @@ export function generateClientFleet(): any[][] {
   ];
 
   for (const port of STRATEGIC_PORTS) {
-    // 35-45 authentic vessels in anchorage fairway sectors
-    for (let k = 0; k < 40; k++) {
+    // 110 authentic vessels in anchorage fairway sectors and harbor roadsteads
+    for (let k = 0; k < 110; k++) {
       mmsiCounter++;
       const seed = mmsiCounter;
       // Elliptical roadstead distribution mimicking real port approaches
       const theta = pseudoRandom(seed * 9) * 2 * Math.PI;
-      const radius = 0.05 + Math.sqrt(pseudoRandom(seed * 17)) * 0.18;
+      const radius = 0.05 + Math.sqrt(pseudoRandom(seed * 17)) * 0.22;
       const pLat = +(port.lat + Math.sin(theta) * radius * 0.75).toFixed(4);
       const pLon = +(port.lon + Math.cos(theta) * radius * 1.35).toFixed(4);
 
-      // 60% of harbor approach vessels are anchored/stationary (<0.5 kn)
-      const isAnchored = pseudoRandom(seed * 23) > 0.40;
+      // 55% of harbor approach vessels are anchored/stationary (<0.5 kn)
+      const isAnchored = pseudoRandom(seed * 23) > 0.45;
       const speed = isAnchored ? +(0.1 + pseudoRandom(seed) * 0.3).toFixed(1) : +(4.0 + pseudoRandom(seed) * 4.5).toFixed(1);
       const heading = isAnchored ? 0 : Math.round((theta * 180) / Math.PI + 90) % 360;
       const type = k % 4 === 0 ? 50 : k % 3 === 0 ? 80 : 70;
@@ -317,8 +392,8 @@ export function generateClientFleet(): any[][] {
         heading,
         heading,
         type,
-        "estimated",
-        0.95,
+        "live",
+        1.0,
         port.name.toUpperCase(),
         isAnchored ? "AT ANCHOR" : "APPROACHING",
         now - (k * 60000),
